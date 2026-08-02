@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Ficha de Servicio: {{ servicio.concepto }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-4xl mx-auto space-y-6">
+
+    <!-- BOTÓN VOLVER & HEADER -->
+    <div class="flex items-center justify-between">
+      <a href="/servicios" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm">
+        ← Volver al Listado de Servicios
+      </a>
+      <div class="flex items-center space-x-2">
+        <a href="/servicios/{{ servicio.id }}/editar" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm">
+          ✏️ Editar Servicio
+        </a>
+      </div>
+    </div>
+
+    <!-- TARJETA PRINCIPAL FICHA DE SERVICIO -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+      
+      <!-- Titular del Servicio -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{{ servicio.campo_nombre }} • {{ servicio.instalacion_nombre }}</span>
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{{ servicio.concepto }}</h1>
+          <p class="text-xs text-slate-500 mt-0.5">Proveedor: <strong class="text-slate-800 font-bold">{{ servicio.proveedor }}</strong></p>
+        </div>
+
+        <div>
+          {% if servicio.estado == 'al_dia' %}
+            <span class="px-4 py-2 bg-agro-50 text-agro-700 border border-agro-200 rounded-full font-black text-sm inline-block">
+              ✓ ESTADO: AL DÍA
+            </span>
+          {% elif servicio.estado == 'vencido' %}
+            <span class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-full font-black text-sm inline-block">
+              ⚠️ ESTADO: VENCIDO
+            </span>
+          {% else %}
+            <span class="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-full font-black text-sm inline-block">
+              ⌛ ESTADO: PENDIENTE
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Métricas Principales de Monto y Vencimiento -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Monto ARS</span>
+          <strong class="text-2xl font-black text-slate-900">${{ "{:,.2f}".format(servicio.monto_real_ars) }}</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Monto USD</span>
+          <strong class="text-2xl font-black text-amber-700">${{ servicio.monto_usd }} USD</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Fecha Vencimiento</span>
+          <strong class="text-xl font-black text-slate-900">{{ servicio.fecha_vencimiento }}</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Frecuencia Pago</span>
+          <strong class="text-xl font-black text-slate-900">{{ servicio.frecuencia_label }}</strong>
+        </div>
+      </div>
+
+      <!-- Detalles Operativos de la Instalación -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Detalles de Instalación e Infraestructura</h3>
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs space-y-2">
+          <div>Establecimiento Campo: <strong class="text-slate-900 font-bold">{{ servicio.campo_nombre }}</strong></div>
+          <div>Instalación Física: <strong class="text-slate-900 font-bold">{{ servicio.instalacion_nombre }}</strong></div>
+          <div>Observaciones / Notas: {{ servicio.observaciones }}</div>
+        </div>
+      </div>
+
+      <!-- Previsualización de Comprobante / Factura Digital -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Comprobante y Factura Digital</h3>
+        <div class="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 h-64 flex items-center justify-center relative shadow-inner">
+          <img
+            src="{{ servicio.comprobante_url or 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80' }}"
+            alt="Comprobante Digital"
+            class="object-cover w-full h-full opacity-80"
+          />
+          <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl text-xs font-bold text-slate-900 shadow-md">
+            📄 Factura / Comprobante Digitalizado
+          </div>
+        </div>
+      </div>
+
+      <!-- Acciones de Pago -->
+      {% if servicio.estado != 'al_dia' %}
+      <div class="border-t border-slate-100 pt-4 flex justify-end">
+        <form method="POST" action="/servicios/{{ servicio.id }}/pagar">
+          <button type="submit" class="px-6 py-3 bg-agro-600 hover:bg-agro-700 text-white font-black text-sm rounded-xl shadow-md transition-all">
+            ✓ Marcar Servicio como PAGADO / AL DÍA
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+
+  </div>
+
+</body>
+</html>

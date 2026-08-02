@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Formulario de Lote</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- BOTÓN VOLVER -->
+    <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-block">
+      ← Volver al Listado de Lotes
+    </a>
+
+    <!-- FORMULARIO DE ALTA / EDICIÓN -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+      
+      <div class="border-b border-slate-100 pb-4">
+        <h1 class="text-2xl font-black text-slate-900">
+          {% if lote %}Editar Lote: {{ lote.nombre }}{% else %}Alta de Nuevo Lote Productivo{% endif %}
+        </h1>
+        <p class="text-xs text-slate-500 mt-1">Registra la tenencia, superficie y secuencia de cultivos del lote</p>
+      </div>
+
+      <form method="POST" action="{% if lote %}/productivo/lotes/{{ lote.id }}/editar{% else %}/productivo/lotes/nuevo{% endif %}" class="space-y-5">
+        
+        <!-- Nombre y Campo -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Nombre del Lote</label>
+            <input type="text" name="nombre" required value="{{ lote.nombre if lote else '' }}" placeholder="Ej: Lote 5 - El Potrero" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Campo Asociado</label>
+            <select name="campo_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
+              {% for c in campos %}
+              <option value="{{ c.id }}" {% if lote and lote.campo_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Superficie Totales vs Productivas -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Superficie Total (ha)</label>
+            <input type="number" step="0.1" name="superficie_total_ha" required value="{{ lote.superficie_total_ha if lote else '' }}" placeholder="150.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Superficie Productiva (ha)</label>
+            <input type="number" step="0.1" name="superficie_productiva_ha" required value="{{ lote.superficie_productiva_ha if lote else '' }}" placeholder="145.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+        </div>
+
+        <!-- Régimen de Tenencia -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <label class="block text-xs font-bold uppercase text-slate-600">Régimen de Tenencia</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center space-x-2 p-3 bg-slate-50 border border-slate-300 rounded-xl cursor-pointer">
+              <input type="radio" name="tenencia_tipo" value="propio" {% if not lote or lote.tenencia_tipo == 'propio' %}checked{% endif %} />
+              <span class="text-xs font-bold text-slate-800">🌱 Propio</span>
+            </label>
+            <label class="flex items-center space-x-2 p-3 bg-slate-50 border border-slate-300 rounded-xl cursor-pointer">
+              <input type="radio" name="tenencia_tipo" value="alquilado" {% if lote and lote.tenencia_tipo == 'alquilado' %}checked{% endif %} />
+              <span class="text-xs font-bold text-amber-800">📜 Alquilado</span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Costo Alquiler (USD/ha)</label>
+              <input type="number" step="0.1" name="costo_alquiler_usd_ha" value="{{ lote.costo_alquiler_usd_ha if lote else '' }}" placeholder="180.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Vencimiento Alquiler</label>
+              <input type="date" name="vencimiento_alquiler" value="{{ lote.vencimiento_alquiler if lote else '' }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Secuencia de Cultivos -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <label class="block text-xs font-bold uppercase text-slate-600">Rotación de Cultivos</label>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 mb-1">Cultivo Anterior</label>
+              <input type="text" name="cultivo_anterior" value="{{ lote.cultivo_anterior if lote else '' }}" placeholder="Trigo 24/25" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-agro-700 mb-1">Cultivo Actual</label>
+              <input type="text" name="cultivo_actual" value="{{ lote.cultivo_actual if lote else '' }}" placeholder="Soja 1ra" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-purple-700 mb-1">Cultivo Planificado</label>
+              <input type="text" name="cultivo_planificado" value="{{ lote.cultivo_planificado if lote else '' }}" placeholder="Maíz Tardío 26/27" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Rendimiento estimaciones -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">qq/ha Estimado</label>
+            <input type="number" step="0.1" name="qq_ha_estimado" value="{{ lote.qq_ha_estimado if lote else '' }}" placeholder="38.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">qq/ha Cosechado Real</label>
+            <input type="number" step="0.1" name="qq_ha_real" value="{{ lote.qq_ha_real if lote else '' }}" placeholder="42.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-agro-700" />
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 bg-agro-600 hover:bg-agro-700 text-white font-black text-sm rounded-xl shadow-md transition-all">
+          {% if lote %}Guardar Cambios del Lote{% else %}Crear Lote Productivo{% endif %}
+        </button>
+
+      </form>
+    </div>
+
+  </div>
+
+</body>
+</html>

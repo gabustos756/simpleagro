@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Listado de Servicios</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-500/20">
+          📋
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              EduAgro <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">LISTADO DE SERVICIOS</span>
+            </h1>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Control de Servicios Operativos, Facturas y Comprobantes
+          </p>
+        </div>
+      </div>
+
+      <!-- Links de Navegación -->
+      <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto">
+        <a href="/" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏠 Portal</a>
+        <a href="/dashboard" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📊 Dashboard</a>
+        <a href="/servicios/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">⚡ Por Campo</a>
+        <a href="/servicios" class="px-3.5 py-2 bg-amber-500 text-white font-bold text-xs rounded-xl shadow-sm">📋 Listado</a>
+        <a href="/servicios/vencimientos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📅 Vencimientos</a>
+        <a href="/servicios/instalaciones" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏘️ Instalaciones</a>
+        <a href="/campo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📱 Modo Campo</a>
+      </div>
+    </header>
+
+    <!-- BARRA DE FILTROS AVANZADOS -->
+    <section class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+          <span>🔍</span> Filtros de Servicios
+        </h2>
+        <a href="/servicios/nuevo" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5">
+          <span>⚡</span> Nuevo Servicio
+        </a>
+      </div>
+
+      <form method="GET" action="/servicios" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+        
+        <!-- Filtro Campo -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Campo</label>
+          <select name="campo" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
+            <option value="">Todos los Campos</option>
+            {% for c in campos %}
+            <option value="{{ c.id }}" {% if campo_filtro == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Filtro Tipo Servicio -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tipo de Servicio</label>
+          <select name="tipo" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
+            <option value="">Todos los Tipos</option>
+            <option value="luz_rural" {% if tipo_filtro == 'luz_rural' %}selected{% endif %}>⚡ Luz Rural</option>
+            <option value="internet" {% if tipo_filtro == 'internet' %}selected{% endif %}>📡 Internet Satelital</option>
+            <option value="combustible" {% if tipo_filtro == 'combustible' %}selected{% endif %}>🛢️ Combustible Diesel</option>
+            <option value="mantenimiento" {% if tipo_filtro == 'mantenimiento' %}selected{% endif %}>🔧 Mantenimiento</option>
+            <option value="impuesto_tasa" {% if tipo_filtro == 'impuesto_tasa' %}selected{% endif %}>🏛️ Tasas e Impuestos</option>
+          </select>
+        </div>
+
+        <!-- Filtro Estado -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Estado</label>
+          <select name="estado" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
+            <option value="">Todos los Estados</option>
+            <option value="al_dia" {% if estado_filtro == 'al_dia' %}selected{% endif %}>✓ Al día</option>
+            <option value="pendiente" {% if estado_filtro == 'pendiente' %}selected{% endif %}>⌛ Pendiente</option>
+            <option value="vencido" {% if estado_filtro == 'vencido' %}selected{% endif %}>⚠️ Vencido</option>
+          </select>
+        </div>
+
+        <!-- Búsqueda -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Búsqueda</label>
+          <input type="text" name="q" placeholder="Buscar concepto o proveedor..." value="{{ search_q or '' }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium" />
+        </div>
+
+      </form>
+    </section>
+
+    <!-- TABLA PRINCIPAL DE SERVICIOS -->
+    <section class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-black text-slate-900">Listado de Servicios e Instalaciones</h2>
+        <span class="text-xs font-bold bg-slate-100 px-3 py-1 rounded-xl text-slate-600 border border-slate-200">
+          {{ servicios|length }} servicios filtrados
+        </span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700">
+          <thead class="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
+            <tr>
+              <th class="py-3.5 px-3">Servicio / Instalación</th>
+              <th class="py-3.5 px-3">Campo</th>
+              <th class="py-3.5 px-3">Proveedor</th>
+              <th class="py-3.5 px-3">Vencimiento</th>
+              <th class="py-3.5 px-3 text-right">Monto ($ARS / $USD)</th>
+              <th class="py-3.5 px-3 text-center">Estado</th>
+              <th class="py-3.5 px-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium">
+            {% for s in servicios %}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="py-3.5 px-3">
+                <span class="block font-bold text-slate-900 text-sm">{{ s.concepto }}</span>
+                <span class="text-[11px] text-slate-500">📍 {{ s.instalacion_nombre }}</span>
+              </td>
+              <td class="py-3.5 px-3 font-semibold text-slate-800">{{ s.campo_nombre }}</td>
+              <td class="py-3.5 px-3 font-bold text-slate-900">{{ s.proveedor }}</td>
+              <td class="py-3.5 px-3 font-bold text-slate-800 whitespace-nowrap">{{ s.fecha_vencimiento }}</td>
+              <td class="py-3.5 px-3 text-right whitespace-nowrap">
+                <span class="block font-bold text-slate-900 text-sm">${{ "{:,.2f}".format(s.monto_real_ars) }} ARS</span>
+                <span class="text-amber-800 font-bold text-[11px]">${{ s.monto_usd }} USD</span>
+              </td>
+              <td class="py-3.5 px-3 text-center whitespace-nowrap">
+                {% if s.estado == 'al_dia' %}
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-agro-100 text-agro-700 border border-agro-200">✓ Al día</span>
+                {% elif s.estado == 'vencido' %}
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">⚠️ Vencido</span>
+                {% else %}
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">⌛ Pendiente</span>
+                {% endif %}
+              </td>
+              <td class="py-3.5 px-3 text-right whitespace-nowrap space-x-1">
+                {% if s.estado != 'al_dia' %}
+                <form method="POST" action="/servicios/{{ s.id }}/pagar" class="inline">
+                  <button type="submit" class="px-3 py-1.5 rounded-xl bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs shadow-sm">
+                    Pagar
+                  </button>
+                </form>
+                {% endif %}
+                <a href="/servicios/{{ s.id }}" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl inline-block">
+                  Ficha →
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>

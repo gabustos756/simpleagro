@@ -1,0 +1,98 @@
+// ==========================================
+// EduAgro Mobile Layout & Header
+// ==========================================
+@use 'tokens' as *;
+
+.app-container {
+  max-width: $container-max-width;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+// Header Mobile Compacto y Limpio
+.header-modo-campo {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid $color-slate-200;
+  padding: 0.65rem 1rem;
+  box-shadow: $shadow-sm;
+
+  .header-inner {
+    max-width: $container-max-width;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .live-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: $radius-full;
+      background-color: $color-agro-600;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    }
+
+    .brand-title {
+      font-size: 1.1rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: $color-slate-900;
+
+      .badge-mode {
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 0.15rem 0.5rem;
+        background-color: $color-agro-100;
+        color: $color-agro-800;
+        border-radius: $radius-full;
+        border: 1px solid $color-agro-200;
+        margin-left: 0.35rem;
+        vertical-align: middle;
+      }
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+
+    .btn-header {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: $radius-md;
+      background-color: $color-slate-100;
+      border: 1px solid $color-slate-200;
+      color: $color-slate-700;
+
+      &:hover, &:active {
+        background-color: $color-slate-200;
+      }
+
+      &.btn-logout {
+        background-color: $color-red-50;
+        color: $color-red-600;
+        border-color: $color-red-200;
+
+        &:hover, &:active {
+          background-color: $color-red-100;
+        }
+      }
+    }
+  }
+}

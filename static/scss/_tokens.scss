@@ -1,0 +1,75 @@
+// ==========================================
+// EduAgro Design Tokens (Sass)
+// ==========================================
+
+// 1. Color Palette - Agro Green
+$color-agro-50: #f0fdf4;
+$color-agro-100: #dcfce7;
+$color-agro-200: #bbf7d0;
+$color-agro-500: #22c55e;
+$color-agro-600: #16a34a;
+$color-agro-700: #15803d;
+$color-agro-800: #166534;
+$color-agro-900: #14532d;
+
+// 2. Color Palette - Slate Neutrals
+$color-slate-50: #f8fafc;
+$color-slate-100: #f1f5f9;
+$color-slate-200: #e2e8f0;
+$color-slate-300: #cbd5e1;
+$color-slate-400: #94a3b8;
+$color-slate-500: #64748b;
+$color-slate-600: #475569;
+$color-slate-700: #334155;
+$color-slate-800: #1e293b;
+$color-slate-900: #0f172a;
+
+// 3. Functional Status Colors
+$color-blue-50: #eff6ff;
+$color-blue-100: #dbeafe;
+$color-blue-600: #2563eb;
+$color-blue-700: #1d4ed8;
+
+$color-cyan-50: #ecfeff;
+$color-cyan-100: #cffaff;
+$color-cyan-600: #0891b2;
+$color-cyan-700: #0e7490;
+
+$color-amber-50: #fffbeb;
+$color-amber-100: #fef3c7;
+$color-amber-400: #fbbf24;
+$color-amber-500: #f59e0b;
+$color-amber-600: #d97706;
+$color-amber-900: #78350f;
+
+$color-red-50: #fef2f2;
+$color-red-100: #fee2e2;
+$color-red-200: #fecaca;
+$color-red-600: #dc2626;
+$color-red-700: #b91c1c;
+
+$color-purple-50: #faf5ff;
+$color-purple-100: #f3e8ff;
+$color-purple-600: #9333ea;
+$color-purple-700: #7e22ce;
+
+// 4. Touch & Layout Dimensions
+$touch-target-min: 48px;
+$touch-target-large: 56px;
+$container-max-width: 440px;
+$header-height: 60px;
+
+// 5. Border Radius
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg: 16px;
+$radius-xl: 24px;
+$radius-full: 9999px;
+
+// 6. Typography
+$font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+// 7. Shadows
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);

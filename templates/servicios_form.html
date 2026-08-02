@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Formulario de Servicio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- BOTÓN VOLVER -->
+    <a href="/servicios" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-block">
+      ← Volver al Listado de Servicios
+    </a>
+
+    <!-- FORMULARIO DE ALTA / EDICIÓN -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+      
+      <div class="border-b border-slate-100 pb-4">
+        <h1 class="text-2xl font-black text-slate-900">
+          {% if servicio %}Editar Servicio: {{ servicio.concepto }}{% else %}Registro de Nuevo Servicio Operativo{% endif %}
+        </h1>
+        <p class="text-xs text-slate-500 mt-1">Luz rural, agua, internet, combustible y mantenimiento por campo e instalación</p>
+      </div>
+
+      <form method="POST" action="{% if servicio %}/servicios/{{ servicio.id }}/editar{% else %}/servicios/nuevo{% endif %}" class="space-y-5">
+        
+        <!-- Campo e Instalación -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Campo</label>
+            <select name="campo_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
+              {% for c in campos %}
+              <option value="{{ c.id }}" {% if servicio and servicio.campo_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Instalación Física</label>
+            <select name="instalacion_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
+              {% for inst in instalaciones %}
+              <option value="{{ inst.id }}" {% if servicio and servicio.instalacion_id == inst.id %}selected{% endif %}>
+                {{ inst.nombre }} ({{ inst.campo_nombre }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Concepto y Proveedor -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Concepto / Nombre Servicio</label>
+            <input type="text" name="concepto" required value="{{ servicio.concepto if servicio else '' }}" placeholder="Ej: Luz Rural - EPEC Bomba Lote 2" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Proveedor / Responsable</label>
+            <input type="text" name="proveedor" required value="{{ servicio.proveedor if servicio else '' }}" placeholder="Ej: EPEC / Starlink / YPF" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+        </div>
+
+        <!-- Tipo y Frecuencia de Pago -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Tipo de Servicio</label>
+            <select name="tipo_servicio" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
+              <option value="luz_rural" {% if servicio and servicio.tipo_servicio == 'luz_rural' %}selected{% endif %}>⚡ Luz Rural</option>
+              <option value="internet" {% if servicio and servicio.tipo_servicio == 'internet' %}selected{% endif %}>📡 Internet Satelital</option>
+              <option value="combustible" {% if servicio and servicio.tipo_servicio == 'combustible' %}selected{% endif %}>🛢️ Combustible Diesel</option>
+              <option value="mantenimiento" {% if servicio and servicio.tipo_servicio == 'mantenimiento' %}selected{% endif %}>🔧 Mantenimiento</option>
+              <option value="impuesto_tasa" {% if servicio and servicio.tipo_servicio == 'impuesto_tasa' %}selected{% endif %}>🏛️ Tasa / Impuesto Rural</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Frecuencia de Pago</label>
+            <select name="frecuencia_pago" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
+              <option value="mensual" {% if servicio and servicio.frecuencia_pago == 'mensual' %}selected{% endif %}>Mensual</option>
+              <option value="bimensual" {% if servicio and servicio.frecuencia_pago == 'bimensual' %}selected{% endif %}>Bimensual</option>
+              <option value="anual" {% if servicio and servicio.frecuencia_pago == 'anual' %}selected{% endif %}>Anual</option>
+              <option value="eventual" {% if servicio and servicio.frecuencia_pago == 'eventual' %}selected{% endif %}>Eventual</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Montos ARS y Vencimiento -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Monto Estimado ($ARS)</label>
+            <input type="number" step="0.01" name="monto_estimado_ars" required value="{{ servicio.monto_estimado_ars if servicio else '' }}" placeholder="450000.00" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Monto Real Facturado ($ARS)</label>
+            <input type="number" step="0.01" name="monto_real_ars" required value="{{ servicio.monto_real_ars if servicio else '' }}" placeholder="485000.00" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-900" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Fecha Vencimiento</label>
+            <input type="date" name="fecha_vencimiento" required value="{{ servicio.fecha_vencimiento if servicio else '' }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Notas sobre facturación o mantenimiento..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium">{{ servicio.observaciones if servicio else '' }}</textarea>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl shadow-md transition-all">
+          {% if servicio %}Guardar Cambios del Servicio{% else %}Registrar Servicio Operativo{% endif %}
+        </button>
+
+      </form>
+    </div>
+
+  </div>
+
+</body>
+</html>

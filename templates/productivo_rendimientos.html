@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Resumen de Rendimientos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-agro-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-agro-600/20">
+          📈
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              EduAgro <span class="text-xs font-bold text-agro-700 bg-agro-50 border border-agro-200 px-2.5 py-0.5 rounded-full">RESUMEN DE RENDIMIENTOS</span>
+            </h1>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Comparativa de Quintales por Hectárea ($qq/ha$) Estimado vs. Cosechado Real
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto">
+        <a href="/" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏠 Portal</a>
+        <a href="/dashboard" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📊 Dashboard</a>
+        <a href="/productivo/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🌾 Campos</a>
+        <a href="/productivo/lotes" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🚜 Lotes</a>
+        <a href="/productivo/rendimientos" class="px-3.5 py-2 bg-agro-600 text-white font-bold text-xs rounded-xl shadow-sm">📈 Rendimientos</a>
+        <a href="/campo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📱 Modo Campo</a>
+      </div>
+    </header>
+
+    <!-- RESUMEN GLOBAL PRODUCCIÓN EN TONELADAS Y QUINTALES -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Cosecha Total Estimada</span>
+        <div class="text-3xl font-black text-slate-900">46,108 <span class="text-base font-normal text-slate-500">qq</span></div>
+        <p class="text-xs text-slate-500 mt-1">Equivale a <strong>4,610.8 toneladas</strong></p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Cosecha Real Total</span>
+        <div class="text-3xl font-black text-agro-700">46,108.5 <span class="text-base font-normal text-slate-500">qq</span></div>
+        <p class="text-xs text-agro-700 font-bold mt-1">Equivale a <strong>4,610.85 toneladas</strong></p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Rinde Promedio Pond.</span>
+        <div class="text-3xl font-black text-slate-900">52.1 <span class="text-base font-normal text-slate-500">qq/ha</span></div>
+        <p class="text-xs text-slate-500 mt-1">Ponderado en Soja, Trigo y Maíz</p>
+      </div>
+    </section>
+
+    <!-- TABLA DETALLADA DE RENDIMIENTOS -->
+    <section class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-black text-slate-900">Detalle de Rendimiento por Lote</h2>
+        <span class="text-xs font-bold bg-slate-100 px-3 py-1 rounded-xl text-slate-600 border border-slate-200">
+          Córdoba • Campaña 2025-2026
+        </span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700">
+          <thead class="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
+            <tr>
+              <th class="py-3.5 px-3">Campo / Lote</th>
+              <th class="py-3.5 px-3">Cultivo Actual</th>
+              <th class="py-3.5 px-3 text-right">Sup. Productiva</th>
+              <th class="py-3.5 px-3 text-right">qq/ha Estimado</th>
+              <th class="py-3.5 px-3 text-right">qq/ha Real</th>
+              <th class="py-3.5 px-3 text-right">Producción Total</th>
+              <th class="py-3.5 px-3 text-center">Ficha</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium">
+            {% for l in lotes %}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="py-3.5 px-3">
+                <span class="block font-bold text-slate-900 text-sm">{{ l.nombre }}</span>
+                <span class="text-[11px] text-slate-500">{{ l.campo_nombre }}</span>
+              </td>
+              <td class="py-3.5 px-3">
+                <span class="font-bold text-agro-700">{{ l.cultivo_actual }}</span>
+              </td>
+              <td class="py-3.5 px-3 text-right font-bold text-slate-900">{{ l.superficie_productiva_ha }} ha</td>
+              <td class="py-3.5 px-3 text-right font-semibold text-slate-600">{{ l.qq_ha_estimado }} qq/ha</td>
+              <td class="py-3.5 px-3 text-right font-black text-agro-700 text-sm">{{ l.qq_ha_real }} qq/ha</td>
+              <td class="py-3.5 px-3 text-right">
+                <span class="block font-black text-slate-900 text-sm">{{ l.produccion_total_t }} t</span>
+                <span class="text-[11px] text-slate-500">({{ l.produccion_total_qq }} qq)</span>
+              </td>
+              <td class="py-3.5 px-3 text-center">
+                <a href="/productivo/lotes/{{ l.id }}" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl">
+                  Ficha →
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>

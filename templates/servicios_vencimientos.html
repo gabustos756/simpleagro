@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Cronograma de Vencimientos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-500/20">
+          📅
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              EduAgro <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">PRÓXIMOS VENCIMIENTOS</span>
+            </h1>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Calendario de Pagos y Compromisos de Servicios Rurales
+          </p>
+        </div>
+      </div>
+
+      <!-- Links de Navegación -->
+      <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto">
+        <a href="/" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏠 Portal</a>
+        <a href="/dashboard" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📊 Dashboard</a>
+        <a href="/servicios/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">⚡ Por Campo</a>
+        <a href="/servicios" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📋 Listado</a>
+        <a href="/servicios/vencimientos" class="px-3.5 py-2 bg-amber-500 text-white font-bold text-xs rounded-xl shadow-sm">📅 Vencimientos</a>
+        <a href="/servicios/instalaciones" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏘️ Instalaciones</a>
+        <a href="/campo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📱 Modo Campo</a>
+      </div>
+    </header>
+
+    <!-- VISTA DE LÍNEA DE TIEMPO / CRONOGRAMA DE VENCIMIENTOS -->
+    <section class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-black text-slate-900">Cronograma de Vencimientos (Mes de Agosto)</h2>
+          <p class="text-xs text-slate-500">Servicios e impuestos ordenados por fecha límite de pago</p>
+        </div>
+        <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl border border-slate-200">
+          Hoy: 27 de Julio
+        </span>
+      </div>
+
+      <div class="space-y-4">
+        {% for s in servicios %}
+        <div class="border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:border-amber-400 {% if s.estado == 'vencido' %}bg-red-50/50 border-red-200{% elif s.estado == 'al_dia' %}bg-slate-50{% else %}bg-amber-50/30{% endif %}">
+          
+          <div class="flex items-start space-x-4">
+            <div class="px-3 py-2 rounded-xl text-center font-black text-xs shrink-0 {% if s.estado == 'vencido' %}bg-red-600 text-white{% elif s.estado == 'al_dia' %}bg-agro-600 text-white{% else %}bg-amber-500 text-white{% endif %}">
+              <span class="block text-xs uppercase">Vence</span>
+              <span class="text-base leading-none">{{ s.fecha_vencimiento }}</span>
+            </div>
+
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ s.campo_nombre }} • {{ s.instalacion_nombre }}</span>
+              <h3 class="font-bold text-slate-900 text-base mt-0.5">{{ s.concepto }}</h3>
+              <p class="text-xs text-slate-500">Proveedor: <strong class="text-slate-800 font-bold">{{ s.proveedor }}</strong></p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
+            <div class="text-right">
+              <span class="block font-black text-slate-900 text-base">${{ "{:,.2f}".format(s.monto_real_ars) }} ARS</span>
+              <span class="text-amber-800 font-bold text-xs">${{ s.monto_usd }} USD</span>
+            </div>
+
+            {% if s.estado != 'al_dia' %}
+            <form method="POST" action="/servicios/{{ s.id }}/pagar">
+              <button type="submit" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-sm">
+                Pagar
+              </button>
+            </form>
+            {% else %}
+            <span class="px-3 py-1 bg-agro-100 text-agro-700 rounded-full font-bold text-xs border border-agro-200">
+              ✓ Pagado
+            </span>
+            {% endif %}
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>

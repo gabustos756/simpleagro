@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión - EduAgro ERP Agropecuario</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased flex flex-col justify-between">
+
+  <!-- Header Superior con Marca del Producto -->
+  <header class="bg-white border-b border-slate-200 py-4 px-6 shadow-sm">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-agro-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+          🌱
+        </div>
+        <div>
+          <span class="font-black text-2xl tracking-tight text-slate-900">EduAgro</span>
+          <span class="text-xs text-agro-700 font-bold ml-2 bg-agro-50 border border-agro-200 px-2.5 py-0.5 rounded-full">
+            ERP Agropecuario
+          </span>
+        </div>
+      </div>
+      <div class="text-xs text-slate-500 font-medium hidden sm:block">
+        Sistema de Gestión Agropecuaria de Córdoba
+      </div>
+    </div>
+  </header>
+
+  <!-- Formulario Principal de Login -->
+  <main class="flex-1 flex items-center justify-center p-4">
+    <div class="max-w-md w-full space-y-6">
+
+      <!-- Tarjeta de Login -->
+      <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl space-y-6">
+        
+        <div class="text-center space-y-2">
+          <h1 class="text-2xl font-black text-slate-900 tracking-tight">Acceso al Sistema</h1>
+          <p class="text-xs text-slate-500">
+            Ingresa tus credenciales para acceder a la plataforma <strong class="text-agro-700 font-bold">EduAgro</strong>
+          </p>
+
+          <!-- Cliente Demo Indicator -->
+          <div class="mt-3 inline-flex items-center space-x-2 bg-slate-100 border border-slate-200 rounded-full px-3 py-1 text-xs text-slate-700 font-semibold">
+            <span>🏡 Instancia Cliente:</span>
+            <strong class="text-slate-900">Estancia El Mimbre</strong>
+          </div>
+        </div>
+
+        <!-- Alerta de Error de Autenticación -->
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center space-x-2">
+          <span>⚠️</span>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/login" class="space-y-4">
+          <input type="hidden" name="next" value="{{ next_url or '/' }}" />
+
+          <div>
+            <label for="email" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Correo Electrónico
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              placeholder="tu.usuario@eduagro.com.ar"
+              value="{{ email or '' }}"
+              class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-agro-500 focus:bg-white focus:outline-none transition-all"
+            />
+          </div>
+
+          <div>
+            <label for="password" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              placeholder="••••••••"
+              class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-agro-500 focus:bg-white focus:outline-none transition-all"
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="w-full py-3.5 bg-agro-600 hover:bg-agro-700 active:scale-[0.99] text-white font-black text-sm rounded-xl shadow-lg shadow-agro-600/30 transition-all"
+          >
+            Iniciar Sesión
+          </button>
+        </form>
+
+        <!-- Accesos Rápidos de Demostración para Entorno de Validación -->
+        <div class="pt-4 border-t border-slate-100 space-y-3">
+          <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center">
+            Prueba Rápida de Usuarios (Super Admin - 1 Click)
+          </span>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="andres@eduagro.com.ar" />
+              <input type="hidden" name="password" value="andres123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Andrés
+              </button>
+            </form>
+
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="belen@eduagro.com.ar" />
+              <input type="hidden" name="password" value="belen123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Belén
+              </button>
+            </form>
+
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="florencia@eduagro.com.ar" />
+              <input type="hidden" name="password" value="florencia123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Florencia
+              </button>
+            </form>
+
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="noris@eduagro.com.ar" />
+              <input type="hidden" name="password" value="noris123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Noris
+              </button>
+            </form>
+
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="veronica@eduagro.com.ar" />
+              <input type="hidden" name="password" value="veronica123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Verónica
+              </button>
+            </form>
+
+            <form method="POST" action="/login">
+              <input type="hidden" name="email" value="romina@eduagro.com.ar" />
+              <input type="hidden" name="password" value="romina123" />
+              <button type="submit" class="w-full p-2.5 bg-slate-100 hover:bg-agro-50 hover:border-agro-300 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 text-left transition-all">
+                ⚡ Romina
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="py-4 text-center text-xs text-slate-400">
+    EduAgro ERP Agropecuario • Córdoba, Argentina
+  </footer>
+
+</body>
+</html>

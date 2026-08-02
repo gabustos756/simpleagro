@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Ficha de Lote: {{ lote.nombre }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- BOTÓN VOLVER & HEADER -->
+    <div class="flex items-center justify-between">
+      <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm">
+        ← Volver al Listado de Lotes
+      </a>
+      <div class="flex items-center space-x-2">
+        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-sm">
+          ✏️ Editar Lote
+        </a>
+      </div>
+    </div>
+
+    <!-- TARJETA PRINCIPAL FICHA DE LOTE -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+      
+      <!-- Titular del Lote -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{{ lote.campo_nombre }}</span>
+          <h1 class="text-3xl font-black text-slate-900 mt-1">{{ lote.nombre }}</h1>
+          <p class="text-xs text-slate-500 mt-0.5">Suelo: <strong class="text-slate-800 font-bold">{{ lote.tipo_suelo }}</strong></p>
+        </div>
+
+        <div>
+          {% if lote.tenencia_tipo == 'propio' %}
+            <span class="px-4 py-2 bg-agro-50 text-agro-700 border border-agro-200 rounded-full font-black text-sm inline-block">
+              🌱 Régimen: PROPIO
+            </span>
+          {% else %}
+            <span class="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-full font-black text-sm inline-block">
+              📜 Régimen: ALQUILADO (${{ lote.costo_alquiler_usd_ha }}/ha)
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Métricas Tácticas de Hectáreas y Producción -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Sup. Total</span>
+          <strong class="text-2xl font-black text-slate-900">{{ lote.superficie_total_ha }} ha</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Sup. Productiva</span>
+          <strong class="text-2xl font-black text-agro-700">{{ lote.superficie_productiva_ha }} ha</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Rendimiento Real</span>
+          <strong class="text-2xl font-black text-agro-700">{{ lote.qq_ha_real }} qq/ha</strong>
+        </div>
+        <div>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Producción Total</span>
+          <strong class="text-2xl font-black text-slate-900">{{ lote.produccion_total_t }} t <span class="text-xs font-normal text-slate-500">({{ lote.produccion_total_qq }} qq)</span></strong>
+        </div>
+      </div>
+
+      <!-- Sección Contrato Alquiler (Si aplica) -->
+      {% if lote.tenencia_tipo == 'alquilado' %}
+      <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-xs space-y-2">
+        <h3 class="font-black text-amber-900 text-sm flex items-center gap-1.5">
+          <span>📜</span> Detalles del Contrato de Arrendamiento
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-amber-800">
+          <div>Costo de Alquiler: <strong>${{ lote.costo_alquiler_usd_ha }} USD/ha</strong></div>
+          <div>Vencimiento del Contrato: <strong>{{ lote.vencimiento_alquiler or '2026-12-31' }}</strong></div>
+          <div class="sm:col-span-2">Notas: {{ lote.notas_alquiler }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Secuencia y Rotación de Cultivos -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Rotación de Cultivos por Campaña</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          
+          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+            <span class="text-[11px] font-bold text-slate-500 uppercase block">1. Cultivo Anterior</span>
+            <strong class="text-base font-black text-slate-800 mt-1 block">{{ lote.cultivo_anterior }}</strong>
+            <span class="text-[11px] text-slate-400">Campaña Pasada</span>
+          </div>
+
+          <div class="bg-agro-50 border border-agro-200 p-4 rounded-2xl">
+            <span class="text-[11px] font-bold text-agro-700 uppercase block">2. Cultivo Actual</span>
+            <strong class="text-lg font-black text-agro-800 mt-1 block">{{ lote.cultivo_actual }}</strong>
+            <span class="text-[11px] text-agro-700 font-semibold">En Producción Activa</span>
+          </div>
+
+          <div class="bg-purple-50 border border-purple-200 p-4 rounded-2xl">
+            <span class="text-[11px] font-bold text-purple-700 uppercase block">3. Cultivo Planificado</span>
+            <strong class="text-base font-black text-purple-800 mt-1 block">{{ lote.cultivo_planificado }}</strong>
+            <span class="text-[11px] text-purple-600">Próxima Campaña</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Rendimiento Estimado vs Real -->
+      <div class="space-y-3 pt-2">
+        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Rendimiento Agronómico (Quintales por Hectárea)</h3>
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
+          <div class="flex justify-between text-xs font-bold">
+            <span>Estimado vs Cosechado Real:</span>
+            <span class="text-agro-700">+{{ "%.1f"|format(lote.qq_ha_real - lote.qq_ha_estimado) }} qq/ha de superávit</span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center text-xs">
+              <span class="w-24 text-slate-500 font-semibold">Estimado:</span>
+              <div class="flex-1 bg-slate-200 rounded-full h-3 overflow-hidden mr-3">
+                <div class="bg-amber-500 h-full rounded-full" style="width: {{ (lote.qq_ha_estimado / 100) * 100 }}%"></div>
+              </div>
+              <strong class="text-slate-900">{{ lote.qq_ha_estimado }} qq/ha</strong>
+            </div>
+
+            <div class="flex items-center text-xs">
+              <span class="w-24 text-slate-500 font-semibold">Real Cosechado:</span>
+              <div class="flex-1 bg-slate-200 rounded-full h-3 overflow-hidden mr-3">
+                <div class="bg-agro-600 h-full rounded-full" style="width: {{ (lote.qq_ha_real / 100) * 100 }}%"></div>
+              </div>
+              <strong class="text-agro-700 font-black">{{ lote.qq_ha_real }} qq/ha</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observaciones y Preparación IA Futura -->
+      <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-500 gap-3">
+        <div>
+          <strong>Observaciones:</strong> {{ lote.observaciones }}
+        </div>
+        <div class="px-3 py-1 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-[11px] text-slate-600">
+          🤖 Base de Datos Lista para Recomendaciones de IA
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

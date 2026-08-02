@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EduAgro - Modo Campo Hoy</title>
+  
+  <!-- PWA Manifest & iOS Support -->
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#15803d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Estilos Estáticos Compilados desde Sass -->
+  <link rel="stylesheet" href="/static/css/main.css">
+  
+  <!-- Engine PWA Offline-First & IndexedDB -->
+  <script src="/static/js/campo-offline.js" defer></script>
+</head>
+<body>
+
+  <!-- 1. HEADER SUPERIOR MODO CAMPO (ULTRA-LIMPIO & COMPACTO) -->
+  <header class="header-modo-campo">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="live-dot"></div>
+        <span class="brand-title">
+          EduAgro <span class="badge-mode">CAMPO</span>
+        </span>
+      </div>
+
+      <!-- Usuario y Navegación Mínima Táctil -->
+      <div class="header-actions">
+        <span class="btn-header" style="background-color: #f1f5f9; font-weight: 800;">
+          👤 {{ user.nombre.split()[0] if user and user.nombre else 'Operario' }}
+        </span>
+        <a href="/" class="btn-header" title="Portal">🏠</a>
+        <a href="/logout" class="btn-header btn-logout" title="Salir">🚪</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL MÓVIL (MAX 440px) -->
+  <main class="app-container" style="display: flex; flex-direction: column; gap: 1.1rem;">
+    
+    <!-- BANNER DE SINCRONIZACIÓN ACCIONES PENDIENTES (OFFLINE QUEUE) -->
+    <div id="sync-banner" class="hidden">
+      <button id="btn-sync-now" class="btn-touch btn-amber" style="min-height: 48px; font-size: 0.85rem; font-weight: 800;">
+        🔄 Sincronizar <span id="sync-count">0</span> Cambios Pendientes
+      </button>
+    </div>
+
+    <!-- 2. CARD CAMPO ACTIVO Y CLIMA (LECTURA CLARA AL SOL) -->
+    <section class="card-campo-clima">
+      <div class="card-top-info">
+        <span class="cliente-label">🏡 Cliente: <strong>{{ user.cliente_nombre|default('Familia Matteuda') }}</strong></span>
+        <span id="connection-status-badge" class="badge badge-agro">● En Línea</span>
+      </div>
+
+      <!-- Selector de Campo Activo Táctil -->
+      <form method="POST" action="/cambiar-campo-activo" class="campo-selector-form">
+        <label>Campo de Trabajo Hoy:</label>
+        <select name="campo_id" onchange="this.form.submit()" class="select-campo-activo">
+          {% for c in campos %}
+          <option value="{{ c.id }}" {% if campo_activo and campo_activo.id == c.id %}selected{% endif %}>
+            🌱 {{ c.nombre }} ({{ c.ubicacion }})
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <!-- Grid Clima Táctil -->
+      <div class="weather-grid-compact">
+        <div class="weather-item">
+          <span class="w-label">Temp</span>
+          <strong class="w-val val-temp">{{ weather.temperatura_c|default(28.0) }}°C</strong>
+        </div>
+        <div class="weather-item">
+          <span class="w-label">Humedad</span>
+          <strong class="w-val val-hum">{{ weather.humedad_porcentaje|default(65) }}%</strong>
+        </div>
+        <div class="weather-item">
+          <span class="w-label">Viento</span>
+          <strong class="w-val val-wind">{{ weather.viento_kmh|default(14) }} km/h</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ACCIONES RÁPIDAS TÁCTILES (TITULARES PROTAGONISTAS) -->
+    <section class="section-acciones">
+      <div class="section-header-title">
+        <h2>⚡ Acciones Rápidas de Campo</h2>
+      </div>
+
+      <!-- BOTÓN 1: REGISTRAR LLUVIA -->
+      <details class="action-accordion">
+        <summary class="summary-lluvia">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="acc-icon">🌧️</div>
+            <div>
+              <span class="acc-title">Registrar Lluvia</span>
+              <span class="acc-subtitle">Precipitaciones en milímetros (mm)</span>
+            </div>
+          </div>
+          <span class="acc-badge">+ mm</span>
+        </summary>
+
+        <form method="POST" action="/campo/acciones/lluvia">
+          <input type="hidden" name="campo_id" value="{{ campo_activo.id }}">
+          
+          <div class="form-group">
+            <label>Lote Relacionado (Opcional):</label>
+            <select name="lote_id" class="form-select">
+              <option value="">🌱 Todo el Campo / Pluviómetro Casco</option>
+              {% for l in lotes_campo %}
+              <option value="{{ l.id }}">{{ l.nombre }} ({{ l.cultivo_actual|default('Sin cultivo') }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Milímetros Llovidos (mm):</label>
+            <input type="number" step="0.5" min="0" name="milimetros" required placeholder="Ej: 35.5" class="form-input" style="font-size: 1.2rem; color: #0891b2;">
+          </div>
+
+          <div class="form-group">
+            <label>Observación / Estado del Suelo:</label>
+            <input type="text" name="observaciones" placeholder="Ej: Buena recarga en perfil. Barro en caminos." class="form-input">
+          </div>
+
+          <button type="submit" class="btn-touch btn-cyan">
+            🌧️ Guardar Registro de Lluvia
+          </button>
+        </form>
+      </details>
+
+      <!-- BOTÓN 2: REPORTAR INCIDENCIA -->
+      <details class="action-accordion">
+        <summary class="summary-incidencia">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="acc-icon">⚠️</div>
+            <div>
+              <span class="acc-title">Nueva Incidencia</span>
+              <span class="acc-subtitle">Averías, plagas o malezas</span>
+            </div>
+          </div>
+          <span class="acc-badge">+ Alerta</span>
+        </summary>
+
+        <form method="POST" action="/campo/acciones/incidencia">
+          <input type="hidden" name="campo_id" value="{{ campo_activo.id }}">
+
+          <div class="form-group">
+            <label>Título de la Novedad / Incidencia:</label>
+            <input type="text" name="titulo" required placeholder="Ej: Rotura de manguera en pulverizadora" class="form-input">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div class="form-group">
+              <label>Lote Afectado:</label>
+              <select name="lote_id" class="form-select">
+                <option value="">Sin lote específico</option>
+                {% for l in lotes_campo %}
+                <option value="{{ l.id }}">{{ l.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prioridad:</label>
+              <select name="prioridad" class="form-select">
+                <option value="alta">🔴 Alta Urgencia</option>
+                <option value="media" selected>🟡 Media</option>
+                <option value="baja">🟢 Baja</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Detalles de la Incidencia:</label>
+            <textarea name="observaciones" rows="2" placeholder="Dictado o nota rápida..." class="form-textarea"></textarea>
+          </div>
+
+          <button type="submit" class="btn-touch btn-red">
+            ⚠️ Registrar Incidencia
+          </button>
+        </form>
+      </details>
+
+      <!-- BOTÓN 3: MOVIMIENTO DE STOCK SIMPLE -->
+      <details class="action-accordion">
+        <summary class="summary-stock">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="acc-icon">📦</div>
+            <div>
+              <span class="acc-title">Consumo / Stock</span>
+              <span class="acc-subtitle">Gasoil, bidones y agroquímicos</span>
+            </div>
+          </div>
+          <span class="acc-badge">+ Stock</span>
+        </summary>
+
+        <form method="POST" action="/campo/acciones/stock">
+          <input type="hidden" name="campo_id" value="{{ campo_activo.id }}">
+
+          <div class="form-group">
+            <label>Insumo / Combustible:</label>
+            <input type="text" name="insumo" required placeholder="Ej: Gasoil Ultra Diesel YPF / Glifosato 48%" class="form-input">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div class="form-group">
+              <label>Cantidad Retirada:</label>
+              <input type="number" step="0.1" name="cantidad" required placeholder="Ej: 250" class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Unidad:</label>
+              <select name="unidad" class="form-select">
+                <option value="litros">Litros</option>
+                <option value="kilos">Kilos (kg)</option>
+                <option value="bolsas">Bolsas</option>
+                <option value="bidones">Bidones 20L</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Destino / Observación:</label>
+            <input type="text" name="observaciones" placeholder="Ej: Carga tractor John Deere Lote 1." class="form-input">
+          </div>
+
+          <button type="submit" class="btn-touch btn-purple">
+            📦 Registrar Movimiento de Stock
+          </button>
+        </form>
+      </details>
+
+      <!-- BOTÓN 4: CARGAR NUEVA LABOR / TAREA -->
+      <details class="action-accordion">
+        <summary class="summary-labor">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="acc-icon">🚜</div>
+            <div>
+              <span class="acc-title">Cargar Nueva Labor</span>
+              <span class="acc-subtitle">Siembra, Cosecha o Monitoreo</span>
+            </div>
+          </div>
+          <span class="acc-badge">+ Labor</span>
+        </summary>
+
+        <form method="POST" action="/campo/tareas/nueva">
+          <input type="hidden" name="campo_id" value="{{ campo_activo.id }}">
+
+          <div class="form-group">
+            <label>Título de la Labor:</label>
+            <input type="text" name="titulo" required placeholder="Ej: Siembra Soja de 2da / Cosecha Maíz" class="form-input">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div class="form-group">
+              <label>Tipo de Labor:</label>
+              <select name="tipo" class="form-select">
+                <option value="siembra">🌱 Siembra</option>
+                <option value="cosecha">🚜 Cosecha</option>
+                <option value="revision_lote">🔍 Monitoreo Lote</option>
+                <option value="stock_insumos">📦 Insumos</option>
+                <option value="lluvia_suelo">🌧️ Lluvia</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Lote Destino:</label>
+              <select name="lote_id" class="form-select">
+                {% for l in lotes_campo %}
+                <option value="{{ l.id }}">{{ l.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div class="form-group">
+              <label>Responsable:</label>
+              <input type="text" name="responsable" value="{{ user.nombre }}" required class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Prioridad:</label>
+              <select name="prioridad" class="form-select">
+                <option value="alta">🔴 Alta</option>
+                <option value="media" selected>🟡 Media</option>
+                <option value="baja">🟢 Baja</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Indicaciones / Observación:</label>
+            <textarea name="observaciones" rows="2" placeholder="Instrucciones para el trabajo..." class="form-textarea"></textarea>
+          </div>
+
+          <button type="submit" class="btn-touch btn-agro">
+            🚜 Asignar Nueva Labor
+          </button>
+        </form>
+      </details>
+
+    </section>
+
+    <!-- 4. FEED DE TAREAS Y LABORES DE HOY -->
+    <section class="section-tareas">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 0.25rem;">
+        <h2 id="tasks-count-header" style="font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">
+          Tareas del Campo Hoy ({{ tareas|length }})
+        </h2>
+        <span class="badge badge-agro">
+          {{ campo_activo.nombre }}
+        </span>
+      </div>
+
+      <!-- Filtros por Estado (Pills Táctiles Móviles) -->
+      <div class="filter-pills-bar">
+        <a href="/campo?estado_filtro=todas" class="pill-filter {% if estado_filtro == 'todas' %}active{% endif %}">
+          Todas (<span id="count-todas">{{ pendientes_count + en_curso_count + hechas_count }}</span>)
+        </a>
+        <a href="/campo?estado_filtro=pendiente" class="pill-filter {% if estado_filtro == 'pendiente' %}active-pending{% endif %}">
+          ⏳ Pendientes (<span id="count-pendiente">{{ pendientes_count }}</span>)
+        </a>
+        <a href="/campo?estado_filtro=en_curso" class="pill-filter {% if estado_filtro == 'en_curso' %}active-in-progress{% endif %}">
+          🚜 En Curso (<span id="count-en-curso">{{ en_curso_count }}</span>)
+        </a>
+        <a href="/campo?estado_filtro=hecha" class="pill-filter {% if estado_filtro == 'hecha' %}active-done{% endif %}">
+          ✓ Hechas (<span id="count-hecha">{{ hechas_count }}</span>)
+        </a>
+      </div>
+
+      <!-- Contenedor Dinámico para Renderizado e Hidratación desde IndexedDB -->
+      <div id="tasks-feed-container">
+      {% if tareas and tareas|length > 0 %}
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% for t in tareas %}
+        <div class="task-card {% if t.estado == 'en_curso' %}status-en-curso{% elif t.estado == 'hecha' %}status-hecha{% endif %}">
+          
+          <!-- Header de Tarjeta: Tipo + Lote + Estado -->
+          <div class="task-card-header">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span class="task-type-badge">
+                {{ t.tipo_label }}
+              </span>
+              {% if t.lote_nombre %}
+              <span class="task-lote-badge">
+                📍 {{ t.lote_nombre }}
+              </span>
+              {% endif %}
+            </div>
+
+            <!-- Badge de Estado -->
+            {% if t.estado == 'en_curso' %}
+            <span class="badge badge-amber">
+              ● En Curso
+            </span>
+            {% elif t.estado == 'hecha' %}
+            <span class="badge badge-agro">
+              ✓ Hecha
+            </span>
+            {% else %}
+            <span class="badge badge-slate">
+              ⏳ Pendiente
+            </span>
+            {% endif %}
+          </div>
+
+          <!-- Título y Observación Truncada -->
+          <div class="task-card-body">
+            <h3>{{ t.titulo }}</h3>
+            {% if t.observaciones %}
+            <p>{{ t.observaciones|truncate(80) }}</p>
+            {% endif %}
+          </div>
+
+          <!-- Footer con Responsable y Jerarquía Dual CTA -->
+          <div class="task-card-footer">
+            <div class="meta-row">
+              <span>👤 {{ t.responsable }}</span>
+              {% if t.valor_registrado %}
+              <span class="meta-val">{{ t.valor_registrado }}</span>
+              {% endif %}
+            </div>
+
+            <!-- CTA Jerarquizado (Previene Errores de Toque) -->
+            <div class="cta-row">
+              {% if t.estado == 'pendiente' %}
+              
+              <!-- Acción Principal: Iniciar (65% Ancho) -->
+              <form method="POST" action="/campo/tareas/{{ t.id }}/iniciar" style="flex: 2;">
+                <button type="submit" class="btn-touch btn-amber" style="min-height: 48px; font-size: 0.85rem;">
+                  ▶️ Iniciar Labor
+                </button>
+              </form>
+
+              <!-- Acción Secundaria: Hecha Directa (35% Ancho) -->
+              <form method="POST" action="/campo/tareas/{{ t.id }}/completar" style="flex: 1;">
+                <button type="submit" class="btn-touch btn-outline-slate" style="min-height: 48px; font-size: 0.8rem; font-weight: 800;">
+                  ✓ Hecha
+                </button>
+              </form>
+
+              {% elif t.estado == 'en_curso' %}
+
+              <form method="POST" action="/campo/tareas/{{ t.id }}/completar" style="width: 100%;">
+                <button type="submit" class="btn-touch btn-agro" style="min-height: 50px; font-size: 0.95rem;">
+                  ✓ Marcar Labor Realizada
+                </button>
+              </form>
+
+              {% else %}
+
+              <div style="width: 100%; padding: 0.6rem; background-color: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; font-size: 0.8rem; font-weight: 800; border-radius: 12px; text-align: center;">
+                ✓ Labor Concluida y Registrada
+              </div>
+
+              {% endif %}
+            </div>
+
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="background-color: #ffffff; padding: 2rem; border-radius: 20px; border: 1.5px solid #e2e8f0; text-align: center; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="font-size: 2.5rem;">🌱</div>
+        <h3 style="font-size: 1rem; font-weight: 900; color: #0f172a;">No hay tareas en este estado</h3>
+        <p style="font-size: 0.75rem; color: #64748b;">Seleccioná otro filtro o registrá una nueva labor usando los botones de arriba.</p>
+      </div>
+      {% endif %}
+      </div>
+
+    </section>
+
+    <!-- FOOTER MODO CAMPO -->
+    <footer style="padding: 1rem 0; text-align: center; font-size: 0.7rem; color: #94a3b8;">
+      <p><strong>EduAgro Modo Campo PWA</strong> • Operación en tiempo real y offline-first.</p>
+    </footer>
+
+  </main>
+
+</body>
+</html>

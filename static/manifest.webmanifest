@@ -1,0 +1,19 @@
+{
+  "name": "EduAgro - ERP Agropecuario",
+  "short_name": "EduAgro Campo",
+  "description": "Gestión Operativa de Campo y Registro Agronómico Offline",
+  "start_url": "/campo",
+  "scope": "/campo",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#15803d",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
