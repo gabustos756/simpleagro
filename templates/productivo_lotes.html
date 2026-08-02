@@ -126,6 +126,13 @@
 
       <!-- GRILLA BENTO DINÁMICA -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5">
+        {% if not lotes %}
+        <div class="col-span-full p-12 bg-white border border-slate-200 rounded-3xl text-center space-y-3">
+          <span class="text-4xl">🚜</span>
+          <h3 class="text-lg font-black text-slate-900">Todavía no hay lotes cargados</h3>
+          <p class="text-xs text-slate-500">Creá un lote asociándolo a un campo desde el botón "Nuevo Lote".</p>
+        </div>
+        {% else %}
         {% for l in lotes %}
         
         <!-- Determinación de Estilos por Estado Productivo -->
@@ -221,6 +228,7 @@
 
         </a>
         {% endfor %}
+        {% endif %}
       </div>
     </section>
 

@@ -1,15 +1,26 @@
-from typing import Optional
-from fastapi import FastAPI, Request, Form, status
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.middleware.gzip import GZipMiddleware
-from starlette.middleware.sessions import SessionMiddleware
+from contextlib import asynccontextmanager
+from datetime import date
+from decimal import Decimal
+from typing import Optional, List, Dict
+import uuid
 import os
 import time
 import logging
 
+from fastapi import FastAPI, Request, Form, status, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.auth import verify_password
+from app.database import init_db, AsyncSessionLocal, get_db
+from app.models import Cliente, Usuario, Campo, Lote, Instalacion, ServicioInstalado
 from app.enums import (
+    EstadoProductivoLoteEnum,
     EstadoServicioInstaladoEnum,
     FrecuenciaPagoEnum,
     RolUsuario,
@@ -17,8 +28,8 @@ from app.enums import (
     TipoServicioEnum,
 )
 from app.seed import (
-    find_user_by_email,
-    find_user_by_id,
+    seed_initial_data,
+    get_uuid,
     DEMO_CLIENTE,
     DEMO_USUARIOS,
     DEMO_CAMPOS,
@@ -33,10 +44,21 @@ from app.weather import get_weather_for_location
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("eduagro.performance")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gestor del ciclo de vida: inicializa tablas y datos iniciales en PostgreSQL."""
+    await init_db()
+    async with AsyncSessionLocal() as session:
+        await seed_initial_data(session)
+    yield
+
+
 app = FastAPI(
     title="EduAgro ERP Agropecuario",
     description="Plataforma ERP Agropecuaria (Laguna Larga, Córdoba) - Cliente: Familia Matteuda",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Compresión GZip para reducir tamaño de descarga de respuestas HTML en Railway
@@ -58,8 +80,6 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-from fastapi.staticfiles import StaticFiles
-
 # Configuración de Plantillas Jinja2 y Archivos Estáticos
 templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -78,37 +98,248 @@ def get_service_worker_root():
         headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"}
     )
 
-# Data Stores en Memoria (Inicializados con Datos Seed Demo para Familia Matteuda)
-CAMPOS_STORE = list(DEMO_CAMPOS)
-LOTES_STORE = list(DEMO_LOTES)
-INSTALACIONES_STORE = list(DEMO_INSTALACIONES)
-SERVICIOS_STORE = list(DEMO_SERVICIOS_INSTALADOS)
+
+# Store de Tareas Operativas en Memoria (Modo Campo)
 TAREAS_STORE = list(DEMO_TAREAS)
 
 
-def get_current_user_from_session(request: Request) -> Optional[dict]:
-    """Helper para obtener el usuario autenticado en la sesión actual (cacheado en request.state)."""
+# ----------------------------------------------------------------------
+# Mapeadores de Modelos a Diccionarios para Plantillas Jinja2
+# ----------------------------------------------------------------------
+
+def campo_to_dict(c: Campo, lotes_count: int = 0) -> dict:
+    return {
+        "id": str(c.id),
+        "nombre": c.nombre,
+        "ubicacion": c.ubicacion or "Laguna Larga, Córdoba",
+        "localidad_referencia": c.localidad_referencia or "Laguna Larga, Córdoba",
+        "latitud": c.latitud if c.latitud is not None else -31.7766,
+        "longitud": c.longitud if c.longitud is not None else -63.8011,
+        "hectareas_totales": float(c.hectareas_totales),
+        "hectareas_productivas": float(c.hectareas_totales * 0.95),
+        "lotes_count": lotes_count,
+    }
+
+
+def lote_to_dict(l: Lote, campo_nombre: str = "Estancia La Esperanza") -> dict:
+    tenencia_str = l.tenencia_tipo.value if hasattr(l.tenencia_tipo, "value") else str(l.tenencia_tipo or "propio")
+    r_real = float(l.qq_ha_real) if l.qq_ha_real is not None else 0.0
+    prod_qq = float(l.produccion_total_qq) if l.produccion_total_qq is not None else (float(l.superficie_productiva_ha) * r_real)
+
+    return {
+        "id": str(l.id),
+        "campo_id": str(l.campo_id) if l.campo_id else "campo-001",
+        "campo_nombre": campo_nombre,
+        "nombre": l.nombre,
+        "superficie_total_ha": float(l.superficie_total_ha),
+        "superficie_productiva_ha": float(l.superficie_productiva_ha),
+        "tenencia_tipo": tenencia_str,
+        "tenencia_label": "Propio" if tenencia_str == "propio" else "Alquilado",
+        "costo_alquiler_usd_ha": float(l.costo_alquiler_usd_ha) if l.costo_alquiler_usd_ha is not None else 0.0,
+        "vencimiento_alquiler": str(l.vencimiento_alquiler) if l.vencimiento_alquiler else None,
+        "notas_alquiler": l.notas_alquiler or "Tierra familiar de la Familia Matteuda.",
+        "cultivo_anterior": l.cultivo_anterior or "Trigo 24/25",
+        "cultivo_actual": l.cultivo_actual or "Soja 1ra",
+        "cultivo_planificado": l.cultivo_planificado or "Maíz Tardío 26/27",
+        "tipo_suelo": l.tipo_suelo or "Argiudol Típico",
+        "qq_ha_estimado": float(l.qq_ha_estimado) if l.qq_ha_estimado is not None else 0.0,
+        "qq_ha_real": r_real,
+        "produccion_total_qq": prod_qq,
+        "produccion_total_t": prod_qq / 10.0,
+        "observaciones": l.observaciones or "",
+        "estado_productivo": "en_crecimiento",
+        "estado_productivo_label": "En Crecimiento",
+    }
+
+
+def instalacion_to_dict(inst: Instalacion, campo_nombre: str = "Estancia La Esperanza") -> dict:
+    tipo_str = inst.tipo or "casa"
+    tipo_labels = {
+        "casa": "🏡 Casa Principal",
+        "galpon": "🚜 Galpón Maquinarias",
+        "pozo_bomba": "⚡ Pozo / Bomba Riego",
+        "deposito": "📦 Depósito Insumos",
+    }
+    return {
+        "id": str(inst.id),
+        "campo_id": str(inst.campo_id),
+        "campo_nombre": campo_nombre,
+        "nombre": inst.nombre,
+        "tipo": tipo_str,
+        "tipo_label": tipo_labels.get(tipo_str, "🏡 Instalación"),
+        "ubicacion_notas": inst.ubicacion_notas or "",
+    }
+
+
+def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Estancia La Esperanza", inst_nombre: str = "Instalación General") -> dict:
+    tipo_str = s.tipo_servicio.value if hasattr(s.tipo_servicio, "value") else str(s.tipo_servicio)
+    frec_str = s.frecuencia_pago.value if hasattr(s.frecuencia_pago, "value") else str(s.frecuencia_pago)
+    est_str = s.estado.value if hasattr(s.estado, "value") else str(s.estado)
+
+    tipo_labels = {
+        "luz_rural": "⚡ Luz Rural",
+        "internet": "📡 Internet Satelital",
+        "combustible": "🛢️ Combustible Diesel",
+        "impuesto_tasa": "🏛️ Tasa Vial",
+    }
+
+    return {
+        "id": str(s.id),
+        "campo_id": str(s.campo_id),
+        "campo_nombre": campo_nombre,
+        "instalacion_id": str(s.instalacion_id) if s.instalacion_id else None,
+        "instalacion_nombre": inst_nombre,
+        "tipo_servicio": tipo_str,
+        "tipo_servicio_label": tipo_labels.get(tipo_str, tipo_str.replace("_", " ").title()),
+        "concepto": s.concepto,
+        "proveedor": s.proveedor,
+        "frecuencia_pago": frec_str,
+        "frecuencia_label": frec_str.title(),
+        "monto_estimado_ars": float(s.monto_estimado_ars),
+        "monto_real_ars": float(s.monto_real_ars),
+        "monto_usd": float(s.monto_usd),
+        "fecha_vencimiento": str(s.fecha_vencimiento),
+        "estado": est_str,
+        "estado_label": est_str.replace("_", " ").title(),
+        "comprobante_url": s.comprobante_url or "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
+        "observaciones": s.observaciones or "",
+    }
+
+
+async def fetch_campos_dicts(db: AsyncSession) -> List[dict]:
+    res_c = await db.execute(select(Campo))
+    campos = res_c.scalars().all()
+    if not campos:
+        return []
+    res_l = await db.execute(select(Lote))
+    lotes = res_l.scalars().all()
+    counts = {}
+    for l in lotes:
+        c_id = str(l.campo_id)
+        counts[c_id] = counts.get(c_id, 0) + 1
+    return [campo_to_dict(c, counts.get(str(c.id), 0)) for c in campos]
+
+
+async def fetch_lotes_dicts(db: AsyncSession) -> List[dict]:
+    res_l = await db.execute(select(Lote))
+    lotes = res_l.scalars().all()
+    if not lotes:
+        return []
+    res_c = await db.execute(select(Campo))
+    campos_map = {str(c.id): c.nombre for c in res_c.scalars().all()}
+    return [lote_to_dict(l, campos_map.get(str(l.campo_id), "Campo General")) for l in lotes]
+
+
+async def fetch_instalaciones_dicts(db: AsyncSession) -> List[dict]:
+    res_i = await db.execute(select(Instalacion))
+    instalaciones = res_i.scalars().all()
+    if not instalaciones:
+        return []
+    res_c = await db.execute(select(Campo))
+    campos_map = {str(c.id): c.nombre for c in res_c.scalars().all()}
+    return [instalacion_to_dict(i, campos_map.get(str(i.campo_id), "Campo General")) for i in instalaciones]
+
+
+async def fetch_servicios_dicts(db: AsyncSession) -> List[dict]:
+    res_s = await db.execute(select(ServicioInstalado))
+    servicios = res_s.scalars().all()
+    if not servicios:
+        return []
+    res_c = await db.execute(select(Campo))
+    campos_map = {str(c.id): c.nombre for c in res_c.scalars().all()}
+    res_i = await db.execute(select(Instalacion))
+    inst_map = {str(i.id): i.nombre for i in res_i.scalars().all()}
+    return [servicio_to_dict(s, campos_map.get(str(s.campo_id), "Campo General"), inst_map.get(str(s.instalacion_id), "Instalación General")) for s in servicios]
+
+
+# ----------------------------------------------------------------------
+# Helpers de Autenticación y Campo Activo por Sesión / DB
+# ----------------------------------------------------------------------
+
+async def get_current_user_from_session(request: Request, db: AsyncSession) -> Optional[dict]:
+    """Obtiene el usuario autenticado consultando PostgreSQL por el user_id de la sesión."""
     if hasattr(request.state, "user"):
         return request.state.user
 
-    user_id = request.session.get("user_id")
-    user = find_user_by_id(user_id) if user_id else None
-    request.state.user = user
-    return user
+    user_id_raw = request.session.get("user_id")
+    if not user_id_raw:
+        request.state.user = None
+        return None
+
+    user_obj = None
+    try:
+        u_uuid = get_uuid(str(user_id_raw))
+        res = await db.execute(select(Usuario).where(Usuario.id == u_uuid))
+        user_obj = res.scalars().first()
+    except Exception:
+        user_obj = None
+
+    if not user_obj:
+        request.state.user = None
+        return None
+
+    user_dict = {
+        "id": str(user_obj.id),
+        "nombre": user_obj.nombre,
+        "email": user_obj.email,
+        "password_hash": user_obj.password_hash,
+        "rol": user_obj.rol,
+        "rol_label": user_obj.rol.value if hasattr(user_obj.rol, "value") else str(user_obj.rol),
+        "cliente_nombre": DEMO_CLIENTE["nombre"],
+    }
+    request.state.user = user_dict
+    return user_dict
 
 
-def get_campo_activo(request: Request) -> dict:
-    """Helper para obtener el Campo Activo de trabajo actual desde la sesión (cacheado en request.state)."""
+async def get_campo_activo_db(request: Request, db: AsyncSession) -> dict:
+    """Obtiene el Campo Activo consultando la base de datos PostgreSQL."""
     if hasattr(request.state, "campo_activo"):
         return request.state.campo_activo
 
-    campo_id = request.session.get("campo_activo_id")
-    campo = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    if not campo and CAMPOS_STORE:
-        campo = CAMPOS_STORE[0]
-        request.session["campo_activo_id"] = campo["id"]
+    campo_id_raw = request.session.get("campo_activo_id")
+    campo_obj = None
 
-    result = campo or {"id": "campo-001", "nombre": "Estancia La Esperanza", "ubicacion": "Laguna Larga, Córdoba", "latitud": -31.7766, "longitud": -63.8011}
+    if campo_id_raw:
+        try:
+            c_uuid = get_uuid(str(campo_id_raw))
+            res = await db.execute(select(Campo).where(Campo.id == c_uuid))
+            campo_obj = res.scalars().first()
+        except Exception:
+            campo_obj = None
+
+    if not campo_obj:
+        res = await db.execute(select(Campo).limit(1))
+        campo_obj = res.scalars().first()
+        if campo_obj:
+            request.session["campo_activo_id"] = str(campo_obj.id)
+
+    if campo_obj:
+        res_l = await db.execute(select(Lote).where(Lote.campo_id == campo_obj.id))
+        lotes_c = res_l.scalars().all()
+        result = {
+            "id": str(campo_obj.id),
+            "nombre": campo_obj.nombre,
+            "ubicacion": campo_obj.ubicacion or "Laguna Larga, Córdoba",
+            "localidad_referencia": campo_obj.localidad_referencia or "Laguna Larga, Córdoba",
+            "latitud": campo_obj.latitud if campo_obj.latitud is not None else -31.7766,
+            "longitud": campo_obj.longitud if campo_obj.longitud is not None else -63.8011,
+            "hectareas_totales": float(campo_obj.hectareas_totales),
+            "hectareas_productivas": float(campo_obj.hectareas_totales * 0.95),
+            "lotes_count": len(lotes_c),
+        }
+    else:
+        result = {
+            "id": None,
+            "nombre": "Sin Campo Configurado",
+            "ubicacion": "-",
+            "localidad_referencia": "-",
+            "latitud": -31.7766,
+            "longitud": -63.8011,
+            "hectareas_totales": 0.0,
+            "hectareas_productivas": 0.0,
+            "lotes_count": 0,
+        }
+
     request.state.campo_activo = result
     return result
 
@@ -117,11 +348,15 @@ def get_campo_activo(request: Request) -> dict:
 # Rutas de Autenticación & Selección de Campo Activo
 # ----------------------------------------------------------------------
 
-
 @app.post("/cambiar-campo-activo")
-def cambiar_campo_activo(request: Request, campo_id: str = Form(...)):
-    """Cambia el campo activo de trabajo para toda la sesión del usuario."""
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
+async def cambiar_campo_activo(
+    request: Request,
+    campo_id: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cambia el campo activo de trabajo para la sesión."""
+    campos = await fetch_campos_dicts(db)
+    campo_sel = next((c for c in campos if c["id"] == campo_id), None)
     if campo_sel:
         request.session["campo_activo_id"] = campo_sel["id"]
 
@@ -130,8 +365,12 @@ def cambiar_campo_activo(request: Request, campo_id: str = Form(...)):
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, next: Optional[str] = None):
-    user = get_current_user_from_session(request)
+async def login_page(
+    request: Request,
+    next: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
     if user:
         if user["rol"] == RolUsuario.OPERARIO_CAMPO:
             return RedirectResponse("/campo", status_code=status.HTTP_303_SEE_OTHER)
@@ -152,15 +391,17 @@ def login_page(request: Request, next: Optional[str] = None):
 
 
 @app.post("/login", response_class=HTMLResponse)
-def login_submit(
+async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
     next: Optional[str] = Form("/"),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = find_user_by_email(email)
+    res = await db.execute(select(Usuario).where(Usuario.email == email))
+    user_obj = res.scalars().first()
 
-    if not user or not verify_password(password, user["password_hash"]):
+    if not user_obj or not verify_password(password, user_obj.password_hash):
         return templates.TemplateResponse(
             "login.html",
             {
@@ -174,15 +415,26 @@ def login_submit(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-    request.session["user_id"] = user["id"]
-    if CAMPOS_STORE:
-        request.session["campo_activo_id"] = CAMPOS_STORE[0]["id"]
+    user_dict = {
+        "id": str(user_obj.id),
+        "nombre": user_obj.nombre,
+        "email": user_obj.email,
+        "password_hash": user_obj.password_hash,
+        "rol": user_obj.rol,
+        "rol_label": user_obj.rol.value if hasattr(user_obj.rol, "value") else str(user_obj.rol),
+        "cliente_nombre": DEMO_CLIENTE["nombre"],
+    }
+
+    request.session["user_id"] = str(user_obj.id)
+    campos = await fetch_campos_dicts(db)
+    if campos:
+        request.session["campo_activo_id"] = campos[0]["id"]
 
     target_url = next if next and next != "/" else None
     if not target_url:
-        if user["rol"] == RolUsuario.OPERARIO_CAMPO:
+        if user_dict["rol"] == RolUsuario.OPERARIO_CAMPO:
             target_url = "/campo"
-        elif user["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
+        elif user_dict["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
             target_url = "/servicios/vencimientos"
         else:
             target_url = "/"
@@ -200,7 +452,6 @@ def logout(request: Request):
 # Portal de Entrada por Operador & Dashboard Familiar Gerencial
 # ----------------------------------------------------------------------
 
-
 @app.get("/health")
 def health_check():
     return {
@@ -213,21 +464,25 @@ def health_check():
 
 
 @app.get("/", response_class=HTMLResponse)
-def read_portal_entrada(request: Request):
+async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_db)):
     """Portal de entrada por operador/área. Renderiza únicamente el portal de entrada."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
     weather_data = get_weather_for_location(
         campo_activo.get("latitud", -31.7766),
         campo_activo.get("longitud", -63.8011),
         campo_activo.get("localidad_referencia", "Laguna Larga, Córdoba"),
     )
 
-    lotes_campo_activo = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
-    servicios_vencidos_count = len([s for s in SERVICIOS_STORE if s.get("estado") == "vencido"])
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    servicios = await fetch_servicios_dicts(db)
+
+    lotes_campo_activo = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
+    servicios_vencidos_count = len([s for s in servicios if s.get("estado") == "vencido"])
 
     return templates.TemplateResponse(
         "portal_entrada.html",
@@ -235,7 +490,7 @@ def read_portal_entrada(request: Request):
             "request": request,
             "user": user,
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "lotes_count": len(lotes_campo_activo),
             "weather": weather_data,
             "servicios_vencidos_count": servicios_vencidos_count,
@@ -246,43 +501,37 @@ def read_portal_entrada(request: Request):
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def read_dashboard_familiar(request: Request, perfil: Optional[str] = "dueno"):
+async def read_dashboard_familiar(
+    request: Request,
+    perfil: Optional[str] = "dueno",
+    db: AsyncSession = Depends(get_db),
+):
     """Dashboard Gerencial Consolidado (Vista secundaria)."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
     weather_data = get_weather_for_location(
         campo_activo.get("latitud", -31.7766),
         campo_activo.get("longitud", -63.8011),
         campo_activo.get("localidad_referencia", "Laguna Larga, Córdoba"),
     )
 
-    lotes_campo_activo = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    servicios = await fetch_servicios_dicts(db)
+    lotes_campo_activo = [l for l in lotes if l.get("campo_id") == campo_activo.get("id")]
 
-    vencimientos_demo = [
-        {
-            "id": 1,
-            "concepto": f"EPEC - Luz Rural ({campo_activo['nombre']})",
-            "categoria": "Servicios",
-            "monto_ars": 485000.00,
-            "monto_usd": 377.28,
-            "fecha_vencimiento": "2026-08-02",
-            "estado": "vencido",
-            "comprobante_url": "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
-        },
-        {
-            "id": 2,
-            "concepto": "Arrendamiento Lote 2 - La Escuela (Cuota 2/4)",
-            "categoria": "Arrendamiento",
-            "monto_ars": 3850000.00,
-            "monto_usd": 2994.94,
-            "fecha_vencimiento": "2026-08-10",
-            "estado": "pendiente",
-            "comprobante_url": "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=600&q=80",
-        },
-    ]
+    ha_totales = campo_activo.get("hectareas_totales", 0.0)
+    ha_soja = sum(l.get("superficie_productiva_ha", 0.0) for l in lotes_campo_activo if "soja" in l.get("cultivo_actual", "").lower())
+    ha_trigo = sum(l.get("superficie_productiva_ha", 0.0) for l in lotes_campo_activo if "trigo" in l.get("cultivo_actual", "").lower())
+
+    gastos_ars = sum(s.get("monto_real_ars", 0.0) for s in servicios)
+    gastos_usd = sum(s.get("monto_usd", 0.0) for s in servicios)
+
+    vencimientos = [s for s in servicios if s.get("estado") in ["vencido", "pendiente"]]
+    toneladas_estimadas = sum(l.get("produccion_total_t", 0.0) for l in lotes_campo_activo)
 
     return templates.TemplateResponse(
         "dashboard_familiar.html",
@@ -291,48 +540,50 @@ def read_dashboard_familiar(request: Request, perfil: Optional[str] = "dueno"):
             "user": user,
             "perfil": perfil,
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "lotes_campo": lotes_campo_activo,
             "weather": weather_data,
             "campania_activa": "2025-2026",
             "cotizacion_dolar": "1285.50",
-            "ha_totales": campo_activo.get("hectareas_totales", 520),
-            "ha_soja": 310,
-            "ha_trigo": 185,
-            "lluvia_mes": 84.5,
-            "gastos_usd": "3,854.52",
-            "gastos_ars": "4,955,000",
-            "toneladas_estimadas": "2,840",
-            "vencimientos": vencimientos_demo,
+            "ha_totales": ha_totales,
+            "ha_soja": ha_soja,
+            "ha_trigo": ha_trigo,
+            "lluvia_mes": 0.0,
+            "gastos_usd": f"{gastos_usd:,.2f}",
+            "gastos_ars": f"{gastos_ars:,.2f}",
+            "toneladas_estimadas": f"{toneladas_estimadas:,.1f}",
+            "vencimientos": vencimientos,
         },
     )
 
 
 @app.get("/campo", response_class=HTMLResponse)
-def read_modo_campo(
+async def read_modo_campo(
     request: Request,
     campo_id: Optional[str] = None,
     estado_filtro: Optional[str] = "todas",
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/campo", status_code=status.HTTP_303_SEE_OTHER)
 
+    campos = await fetch_campos_dicts(db)
     if campo_id:
-        campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
+        campo_sel = next((c for c in campos if c["id"] == campo_id), None)
         if campo_sel:
             request.session["campo_activo_id"] = campo_sel["id"]
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
     weather_data = get_weather_for_location(
         campo_activo.get("latitud", -31.7766),
         campo_activo.get("longitud", -63.8011),
         campo_activo.get("localidad_referencia", "Laguna Larga, Córdoba"),
     )
 
-    lotes_campo_activo = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
+    lotes = await fetch_lotes_dicts(db)
+    lotes_campo_activo = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
 
-    # Tareas del Campo Activo
     tareas_campo = [t for t in TAREAS_STORE if t["campo_id"] == campo_activo["id"]]
     pendientes_count = len([t for t in tareas_campo if t["estado"] == "pendiente"])
     en_curso_count = len([t for t in tareas_campo if t["estado"] == "en_curso"])
@@ -349,11 +600,11 @@ def read_modo_campo(
             "request": request,
             "user": user,
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "lotes_campo": lotes_campo_activo,
             "weather": weather_data,
             "tareas": tareas_filtradas,
-            "estado_filtro": estado_filtro or "todas",
+            "estado_filtro": estado_filtro,
             "pendientes_count": pendientes_count,
             "en_curso_count": en_curso_count,
             "hechas_count": hechas_count,
@@ -362,9 +613,8 @@ def read_modo_campo(
 
 
 @app.post("/campo/tareas/{tarea_id}/iniciar")
-def iniciar_tarea_campo(request: Request, tarea_id: str):
-    """Acción rápida: Iniciar labor de campo (Pendiente -> En Curso)."""
-    user = get_current_user_from_session(request)
+async def iniciar_tarea_campo(request: Request, tarea_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -378,9 +628,8 @@ def iniciar_tarea_campo(request: Request, tarea_id: str):
 
 
 @app.post("/campo/tareas/{tarea_id}/completar")
-def completar_tarea_campo(request: Request, tarea_id: str):
-    """Acción rápida: Marcar labor realizada (En Curso/Pendiente -> Hecha)."""
-    user = get_current_user_from_session(request)
+async def completar_tarea_campo(request: Request, tarea_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -394,20 +643,22 @@ def completar_tarea_campo(request: Request, tarea_id: str):
 
 
 @app.post("/campo/acciones/lluvia")
-def registrar_lluvia_rapida(
+async def registrar_lluvia_rapida(
     request: Request,
     campo_id: str = Form(...),
     lote_id: Optional[str] = Form(None),
     milimetros: float = Form(...),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Acción rápida: Registrar precipitaciones en mm desde camioneta."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    campo_sel = next((c for c in campos if c["id"] == campo_id), None)
+    lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
 
     nueva_tarea = {
         "id": f"tarea-00{len(TAREAS_STORE) + 1}",
@@ -433,21 +684,23 @@ def registrar_lluvia_rapida(
 
 
 @app.post("/campo/acciones/incidencia")
-def registrar_incidencia_rapida(
+async def registrar_incidencia_rapida(
     request: Request,
     campo_id: str = Form(...),
     lote_id: Optional[str] = Form(None),
     titulo: str = Form(...),
     prioridad: str = Form("alta"),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Acción rápida: Reportar rotura, maleza resistente o problema de campo."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    campo_sel = next((c for c in campos if c["id"] == campo_id), None)
+    lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
 
     nueva_incidencia = {
         "id": f"tarea-00{len(TAREAS_STORE) + 1}",
@@ -473,20 +726,21 @@ def registrar_incidencia_rapida(
 
 
 @app.post("/campo/acciones/stock")
-def registrar_movimiento_stock(
+async def registrar_movimiento_stock(
     request: Request,
     campo_id: str = Form(...),
     insumo: str = Form(...),
     cantidad: float = Form(...),
     unidad: str = Form("litros"),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Acción rápida: Cargar egreso o consumo simple de insumos/gasoil."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
+    campos = await fetch_campos_dicts(db)
+    campo_sel = next((c for c in campos if c["id"] == campo_id), None)
 
     nuevo_stock = {
         "id": f"tarea-00{len(TAREAS_STORE) + 1}",
@@ -512,7 +766,7 @@ def registrar_movimiento_stock(
 
 
 @app.post("/campo/tareas/nueva")
-def crear_tarea_campo(
+async def crear_tarea_campo(
     request: Request,
     campo_id: str = Form(...),
     lote_id: Optional[str] = Form(None),
@@ -521,14 +775,16 @@ def crear_tarea_campo(
     responsable: str = Form(...),
     prioridad: str = Form("media"),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Crear una nueva labor o tarea de campo."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    campo_sel = next((c for c in campos if c["id"] == campo_id), None)
+    lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
 
     tipo_labels = {
         "siembra": "🌱 Siembra",
@@ -566,16 +822,18 @@ def crear_tarea_campo(
 # Módulo Productivo Central
 # ----------------------------------------------------------------------
 
-
 @app.get("/productivo/campos", response_class=HTMLResponse)
-def list_campos(request: Request):
-    user = get_current_user_from_session(request)
+async def list_campos(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/productivo/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    ha_totales_suma = sum(c["hectareas_totales"] for c in CAMPOS_STORE)
-    ha_productivas_suma = sum(l["superficie_productiva_ha"] for l in LOTES_STORE)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+
+    ha_totales_suma = sum(c["hectareas_totales"] for c in campos)
+    ha_productivas_suma = sum(l["superficie_productiva_ha"] for l in lotes)
 
     return templates.TemplateResponse(
         "productivo_campos.html",
@@ -583,7 +841,7 @@ def list_campos(request: Request):
             "request": request,
             "user": user,
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "ha_totales_suma": ha_totales_suma,
             "ha_productivas_suma": ha_productivas_suma,
         },
@@ -591,52 +849,54 @@ def list_campos(request: Request):
 
 
 @app.post("/productivo/campos")
-def create_campo(
+async def create_campo(
     request: Request,
     nombre: str = Form(...),
     ubicacion: str = Form(...),
     latitud: Optional[float] = Form(None),
     longitud: Optional[float] = Form(None),
     hectareas_totales: float = Form(...),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    nuevo_id = f"campo-00{len(CAMPOS_STORE) + 1}"
-    nuevo_campo = {
-        "id": nuevo_id,
-        "nombre": nombre.strip(),
-        "ubicacion": ubicacion.strip(),
-        "localidad_referencia": ubicacion.strip(),
-        "latitud": float(latitud) if latitud else -31.7766,
-        "longitud": float(longitud) if longitud else -63.8011,
-        "hectareas_totales": float(hectareas_totales),
-        "hectareas_productivas": float(hectareas_totales) * 0.95,
-        "lotes_count": 0,
-    }
-    CAMPOS_STORE.append(nuevo_campo)
-    request.session["campo_activo_id"] = nuevo_id
+    c_uuid = uuid.uuid4()
+    nuevo_campo = Campo(
+        id=c_uuid,
+        cliente_id=get_uuid(DEMO_CLIENTE["id"]),
+        nombre=nombre.strip(),
+        ubicacion=ubicacion.strip(),
+        localidad_referencia=ubicacion.strip(),
+        latitud=float(latitud) if latitud else -31.7766,
+        longitud=float(longitud) if longitud else -63.8011,
+        hectareas_totales=float(hectareas_totales),
+    )
+    db.add(nuevo_campo)
+    await db.commit()
 
+    request.session["campo_activo_id"] = str(c_uuid)
     return RedirectResponse("/productivo/campos", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/lotes", response_class=HTMLResponse)
-def list_lotes(
+async def list_lotes(
     request: Request,
     campo: Optional[str] = None,
     tenencia: Optional[str] = None,
     cultivo: Optional[str] = None,
     q: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    lotes_filtrados = list(LOTES_STORE)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    lotes_filtrados = await fetch_lotes_dicts(db)
 
-    # Si no se especifica campo en URL, se prioriza el campo activo
     if campo:
         lotes_filtrados = [l for l in lotes_filtrados if l["campo_id"] == campo]
     elif campo_activo:
@@ -659,7 +919,7 @@ def list_lotes(
             "user": user,
             "campo_activo": campo_activo,
             "lotes": lotes_filtrados,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "campo_filtro": campo or campo_activo["id"],
             "tenencia_filtro": tenencia,
             "cultivo_filtro": cultivo,
@@ -669,21 +929,22 @@ def list_lotes(
 
 
 @app.get("/productivo/lotes/nuevo", response_class=HTMLResponse)
-def form_nuevo_lote(request: Request):
-    user = get_current_user_from_session(request)
+async def form_nuevo_lote(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/productivo/lotes/nuevo", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
 
     return templates.TemplateResponse(
         "productivo_form_lote.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lote": None, "campos": CAMPOS_STORE},
+        {"request": request, "user": user, "campo_activo": campo_activo, "lote": None, "campos": campos},
     )
 
 
 @app.post("/productivo/lotes/nuevo")
-def create_lote(
+async def create_lote(
     request: Request,
     nombre: str = Form(...),
     campo_id: str = Form(...),
@@ -697,57 +958,56 @@ def create_lote(
     cultivo_planificado: Optional[str] = Form(""),
     qq_ha_estimado: Optional[float] = Form(0.0),
     qq_ha_real: Optional[float] = Form(0.0),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    campo_nombre = campo_sel["nombre"] if campo_sel else "Campo General"
-
-    nuevo_id = f"lote-00{len(LOTES_STORE) + 1}"
+    l_uuid = uuid.uuid4()
+    c_uuid = get_uuid(campo_id)
     sup_prod = float(superficie_productiva_ha)
     r_real = float(qq_ha_real or 0.0)
     prod_qq = sup_prod * r_real
-    prod_t = prod_qq / 10.0
 
-    nuevo_lote = {
-        "id": nuevo_id,
-        "campo_id": campo_id,
-        "campo_nombre": campo_nombre,
-        "nombre": nombre.strip(),
-        "superficie_total_ha": float(superficie_total_ha),
-        "superficie_productiva_ha": sup_prod,
-        "tenencia_tipo": tenencia_tipo,
-        "tenencia_label": "Propio" if tenencia_tipo == "propio" else "Alquilado",
-        "costo_alquiler_usd_ha": float(costo_alquiler_usd_ha or 0.0),
-        "vencimiento_alquiler": vencimiento_alquiler,
-        "notas_alquiler": "Contrato de arrendamiento registrado",
-        "cultivo_anterior": cultivo_anterior,
-        "cultivo_actual": cultivo_actual,
-        "cultivo_planificado": cultivo_planificado,
-        "tipo_suelo": "Argiudol Típico",
-        "qq_ha_estimado": float(qq_ha_estimado or 0.0),
-        "qq_ha_real": r_real,
-        "produccion_total_qq": prod_qq,
-        "produccion_total_t": prod_t,
-        "observaciones": "Lote registrado en el Módulo Productivo de EduAgro",
-        "estado_productivo": "en_crecimiento",
-        "estado_productivo_label": "En Crecimiento",
-    }
-    LOTES_STORE.append(nuevo_lote)
+    venc_alq = date.fromisoformat(vencimiento_alquiler) if vencimiento_alquiler else None
+    ten_enum = TenenciaTipoEnum.PROPIO if tenencia_tipo == "propio" else TenenciaTipoEnum.ALQUILADO
 
-    return RedirectResponse(f"/productivo/lotes/{nuevo_id}", status_code=status.HTTP_303_SEE_OTHER)
+    nuevo_lote = Lote(
+        id=l_uuid,
+        campo_id=c_uuid,
+        cliente_id=get_uuid(DEMO_CLIENTE["id"]),
+        nombre=nombre.strip(),
+        superficie_total_ha=float(superficie_total_ha),
+        superficie_productiva_ha=sup_prod,
+        tenencia_tipo=ten_enum,
+        costo_alquiler_usd_ha=Decimal(str(costo_alquiler_usd_ha or 0.0)),
+        vencimiento_alquiler=venc_alq,
+        notas_alquiler="Contrato de arrendamiento registrado",
+        cultivo_anterior=cultivo_anterior,
+        cultivo_actual=cultivo_actual,
+        cultivo_planificado=cultivo_planificado,
+        tipo_suelo="Argiudol Típico",
+        qq_ha_estimado=float(qq_ha_estimado or 0.0),
+        qq_ha_real=r_real,
+        produccion_total_qq=prod_qq,
+        observaciones="Lote registrado en el Módulo Productivo de EduAgro",
+    )
+    db.add(nuevo_lote)
+    await db.commit()
+
+    return RedirectResponse(f"/productivo/lotes/{l_uuid}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/lotes/{lote_id}", response_class=HTMLResponse)
-def ficha_lote(request: Request, lote_id: str):
-    user = get_current_user_from_session(request)
+async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse(f"/login?next=/productivo/lotes/{lote_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    lote = next((l for l in LOTES_STORE if l["id"] == lote_id), None)
+    campo_activo = await get_campo_activo_db(request, db)
+    lotes = await fetch_lotes_dicts(db)
+    lote = next((l for l in lotes if l["id"] == lote_id), None)
     if not lote:
         return RedirectResponse("/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -758,24 +1018,26 @@ def ficha_lote(request: Request, lote_id: str):
 
 
 @app.get("/productivo/lotes/{lote_id}/editar", response_class=HTMLResponse)
-def form_editar_lote(request: Request, lote_id: str):
-    user = get_current_user_from_session(request)
+async def form_editar_lote(request: Request, lote_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    lote = next((l for l in LOTES_STORE if l["id"] == lote_id), None)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    lote = next((l for l in lotes if l["id"] == lote_id), None)
     if not lote:
         return RedirectResponse("/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
         "productivo_form_lote.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lote": lote, "campos": CAMPOS_STORE},
+        {"request": request, "user": user, "campo_activo": campo_activo, "lote": lote, "campos": campos},
     )
 
 
 @app.post("/productivo/lotes/{lote_id}/editar")
-def update_lote(
+async def update_lote(
     request: Request,
     lote_id: str,
     nombre: str = Form(...),
@@ -790,48 +1052,50 @@ def update_lote(
     cultivo_planificado: Optional[str] = Form(""),
     qq_ha_estimado: Optional[float] = Form(0.0),
     qq_ha_real: Optional[float] = Form(0.0),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    lote = next((l for l in LOTES_STORE if l["id"] == lote_id), None)
-    if lote:
-        campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-        if campo_sel:
-            lote["campo_id"] = campo_id
-            lote["campo_nombre"] = campo_sel["nombre"]
+    l_uuid = get_uuid(lote_id)
+    res = await db.execute(select(Lote).where(Lote.id == l_uuid))
+    lote_obj = res.scalars().first()
 
+    if lote_obj:
         sup_prod = float(superficie_productiva_ha)
         r_real = float(qq_ha_real or 0.0)
         prod_qq = sup_prod * r_real
+        venc_alq = date.fromisoformat(vencimiento_alquiler) if vencimiento_alquiler else None
+        ten_enum = TenenciaTipoEnum.PROPIO if tenencia_tipo == "propio" else TenenciaTipoEnum.ALQUILADO
 
-        lote["nombre"] = nombre.strip()
-        lote["superficie_total_ha"] = float(superficie_total_ha)
-        lote["superficie_productiva_ha"] = sup_prod
-        lote["tenencia_tipo"] = tenencia_tipo
-        lote["tenencia_label"] = "Propio" if tenencia_tipo == "propio" else "Alquilado"
-        lote["costo_alquiler_usd_ha"] = float(costo_alquiler_usd_ha or 0.0)
-        lote["vencimiento_alquiler"] = vencimiento_alquiler
-        lote["cultivo_anterior"] = cultivo_anterior
-        lote["cultivo_actual"] = cultivo_actual
-        lote["cultivo_planificado"] = cultivo_planificado
-        lote["qq_ha_estimado"] = float(qq_ha_estimado or 0.0)
-        lote["qq_ha_real"] = r_real
-        lote["produccion_total_qq"] = prod_qq
-        lote["produccion_total_t"] = prod_qq / 10.0
+        lote_obj.campo_id = get_uuid(campo_id)
+        lote_obj.nombre = nombre.strip()
+        lote_obj.superficie_total_ha = float(superficie_total_ha)
+        lote_obj.superficie_productiva_ha = sup_prod
+        lote_obj.tenencia_tipo = ten_enum
+        lote_obj.costo_alquiler_usd_ha = Decimal(str(costo_alquiler_usd_ha or 0.0))
+        lote_obj.vencimiento_alquiler = venc_alq
+        lote_obj.cultivo_anterior = cultivo_anterior
+        lote_obj.cultivo_actual = cultivo_actual
+        lote_obj.cultivo_planificado = cultivo_planificado
+        lote_obj.qq_ha_estimado = float(qq_ha_estimado or 0.0)
+        lote_obj.qq_ha_real = r_real
+        lote_obj.produccion_total_qq = prod_qq
+        await db.commit()
 
     return RedirectResponse(f"/productivo/lotes/{lote_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/rendimientos", response_class=HTMLResponse)
-def list_rendimientos(request: Request):
-    user = get_current_user_from_session(request)
+async def list_rendimientos(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/productivo/rendimientos", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    lotes_filtrados = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
+    campo_activo = await get_campo_activo_db(request, db)
+    lotes = await fetch_lotes_dicts(db)
+    lotes_filtrados = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
 
     return templates.TemplateResponse(
         "productivo_rendimientos.html",
@@ -843,18 +1107,20 @@ def list_rendimientos(request: Request):
 # Módulo de Servicios por Campo e Instalación
 # ----------------------------------------------------------------------
 
-
 @app.get("/servicios/campos", response_class=HTMLResponse)
-def servicios_resumen_campos(request: Request):
-    user = get_current_user_from_session(request)
+async def servicios_resumen_campos(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/servicios/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    total_monto_ars = sum(s["monto_real_ars"] for s in SERVICIOS_STORE)
-    total_monto_usd = sum(s["monto_usd"] for s in SERVICIOS_STORE)
-    servicios_vencidos_count = len([s for s in SERVICIOS_STORE if s["estado"] == "vencido"])
-    servicios_al_dia_count = len([s for s in SERVICIOS_STORE if s["estado"] == "al_dia"])
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    servicios = await fetch_servicios_dicts(db)
+
+    total_monto_ars = sum(s["monto_real_ars"] for s in servicios)
+    total_monto_usd = sum(s["monto_usd"] for s in servicios)
+    servicios_vencidos_count = len([s for s in servicios if s["estado"] == "vencido"])
+    servicios_al_dia_count = len([s for s in servicios if s["estado"] == "al_dia"])
 
     return templates.TemplateResponse(
         "servicios_resumen_campos.html",
@@ -862,8 +1128,8 @@ def servicios_resumen_campos(request: Request):
             "request": request,
             "user": user,
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
-            "servicios": SERVICIOS_STORE,
+            "campos": campos,
+            "servicios": servicios,
             "total_monto_ars": total_monto_ars,
             "total_monto_usd": total_monto_usd,
             "servicios_vencidos_count": servicios_vencidos_count,
@@ -873,19 +1139,21 @@ def servicios_resumen_campos(request: Request):
 
 
 @app.get("/servicios", response_class=HTMLResponse)
-def list_servicios(
+async def list_servicios(
     request: Request,
     campo: Optional[str] = None,
     tipo: Optional[str] = None,
     estado: Optional[str] = None,
     q: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/servicios", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    servicios_filtrados = list(SERVICIOS_STORE)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    servicios_filtrados = await fetch_servicios_dicts(db)
 
     if campo:
         servicios_filtrados = [s for s in servicios_filtrados if s["campo_id"] == campo]
@@ -910,7 +1178,7 @@ def list_servicios(
             "user": user,
             "campo_activo": campo_activo,
             "servicios": servicios_filtrados,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "campo_filtro": campo or campo_activo["id"],
             "tipo_filtro": tipo,
             "estado_filtro": estado,
@@ -920,12 +1188,14 @@ def list_servicios(
 
 
 @app.get("/servicios/nuevo", response_class=HTMLResponse)
-def form_nuevo_servicio(request: Request):
-    user = get_current_user_from_session(request)
+async def form_nuevo_servicio(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/servicios/nuevo", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    instalaciones = await fetch_instalaciones_dicts(db)
 
     return templates.TemplateResponse(
         "servicios_form.html",
@@ -934,14 +1204,14 @@ def form_nuevo_servicio(request: Request):
             "user": user,
             "campo_activo": campo_activo,
             "servicio": None,
-            "campos": CAMPOS_STORE,
-            "instalaciones": INSTALACIONES_STORE,
+            "campos": campos,
+            "instalaciones": instalaciones,
         },
     )
 
 
 @app.post("/servicios/nuevo")
-def create_servicio(
+async def create_servicio(
     request: Request,
     campo_id: str = Form(...),
     instalacion_id: str = Form(...),
@@ -953,52 +1223,54 @@ def create_servicio(
     monto_real_ars: float = Form(0.0),
     fecha_vencimiento: str = Form(...),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-    inst_sel = next((i for i in INSTALACIONES_STORE if i["id"] == instalacion_id), None)
-
-    nuevo_id = f"serv-00{len(SERVICIOS_STORE) + 1}"
+    s_uuid = uuid.uuid4()
+    c_uuid = get_uuid(campo_id)
+    i_uuid = get_uuid(instalacion_id) if instalacion_id else None
     m_real = float(monto_real_ars)
-    m_usd = round(m_real / 1285.50, 2)
+    m_usd = Decimal(str(round(m_real / 1285.50, 2)))
 
-    nuevo_servicio = {
-        "id": nuevo_id,
-        "campo_id": campo_id,
-        "campo_nombre": campo_sel["nombre"] if campo_sel else "Campo General",
-        "instalacion_id": instalacion_id,
-        "instalacion_nombre": inst_sel["nombre"] if inst_sel else "Instalación General",
-        "tipo_servicio": tipo_servicio,
-        "tipo_servicio_label": tipo_servicio.replace("_", " ").title(),
-        "concepto": concepto.strip(),
-        "proveedor": proveedor.strip(),
-        "frecuencia_pago": frecuencia_pago,
-        "frecuencia_label": frecuencia_pago.title(),
-        "monto_estimado_ars": float(monto_estimado_ars),
-        "monto_real_ars": m_real,
-        "monto_usd": m_usd,
-        "fecha_vencimiento": fecha_vencimiento,
-        "estado": EstadoServicioInstaladoEnum.PENDIENTE.value,
-        "estado_label": "Pendiente",
-        "comprobante_url": "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
-        "observaciones": observaciones or "Servicio operativo registrado",
-    }
-    SERVICIOS_STORE.append(nuevo_servicio)
+    tipo_s_enum = TipoServicioEnum(tipo_servicio) if tipo_servicio in [e.value for e in TipoServicioEnum] else TipoServicioEnum.LUZ_RURAL
+    frec_p_enum = FrecuenciaPagoEnum(frecuencia_pago) if frecuencia_pago in [e.value for e in FrecuenciaPagoEnum] else FrecuenciaPagoEnum.MENSUAL
+    fecha_venc = date.fromisoformat(fecha_vencimiento)
 
-    return RedirectResponse(f"/servicios/{nuevo_id}", status_code=status.HTTP_303_SEE_OTHER)
+    nuevo_servicio = ServicioInstalado(
+        id=s_uuid,
+        cliente_id=get_uuid(DEMO_CLIENTE["id"]),
+        campo_id=c_uuid,
+        instalacion_id=i_uuid,
+        tipo_servicio=tipo_s_enum,
+        concepto=concepto.strip(),
+        proveedor=proveedor.strip(),
+        frecuencia_pago=frec_p_enum,
+        monto_estimado_ars=Decimal(str(monto_estimado_ars)),
+        monto_real_ars=Decimal(str(m_real)),
+        monto_usd=m_usd,
+        fecha_vencimiento=fecha_venc,
+        estado=EstadoServicioInstaladoEnum.PENDIENTE,
+        comprobante_url="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
+        observaciones=observaciones or "Servicio operativo registrado",
+    )
+    db.add(nuevo_servicio)
+    await db.commit()
+
+    return RedirectResponse(f"/servicios/{s_uuid}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/servicios/vencimientos", response_class=HTMLResponse)
-def list_servicios_vencimientos(request: Request):
-    user = get_current_user_from_session(request)
+async def list_servicios_vencimientos(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/servicios/vencimientos", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    servicios_ordenados = sorted(SERVICIOS_STORE, key=lambda s: s["fecha_vencimiento"])
+    campo_activo = await get_campo_activo_db(request, db)
+    servicios = await fetch_servicios_dicts(db)
+    servicios_ordenados = sorted(servicios, key=lambda s: s["fecha_vencimiento"])
 
     return templates.TemplateResponse(
         "servicios_vencimientos.html",
@@ -1007,12 +1279,14 @@ def list_servicios_vencimientos(request: Request):
 
 
 @app.get("/servicios/instalaciones", response_class=HTMLResponse)
-def list_instalaciones(request: Request):
-    user = get_current_user_from_session(request)
+async def list_instalaciones(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/servicios/instalaciones", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
+    instalaciones = await fetch_instalaciones_dicts(db)
+    servicios = await fetch_servicios_dicts(db)
 
     return templates.TemplateResponse(
         "servicios_instalaciones.html",
@@ -1020,20 +1294,21 @@ def list_instalaciones(request: Request):
             "request": request,
             "user": user,
             "campo_activo": campo_activo,
-            "instalaciones": INSTALACIONES_STORE,
-            "servicios": SERVICIOS_STORE,
+            "instalaciones": instalaciones,
+            "servicios": servicios,
         },
     )
 
 
 @app.get("/servicios/{servicio_id}", response_class=HTMLResponse)
-def ficha_servicio(request: Request, servicio_id: str):
-    user = get_current_user_from_session(request)
+async def ficha_servicio(request: Request, servicio_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse(f"/login?next=/servicios/{servicio_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    servicio = next((s for s in SERVICIOS_STORE if s["id"] == servicio_id), None)
+    campo_activo = await get_campo_activo_db(request, db)
+    servicios = await fetch_servicios_dicts(db)
+    servicio = next((s for s in servicios if s["id"] == servicio_id), None)
     if not servicio:
         return RedirectResponse("/servicios", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1044,13 +1319,16 @@ def ficha_servicio(request: Request, servicio_id: str):
 
 
 @app.get("/servicios/{servicio_id}/editar", response_class=HTMLResponse)
-def form_editar_servicio(request: Request, servicio_id: str):
-    user = get_current_user_from_session(request)
+async def form_editar_servicio(request: Request, servicio_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    servicio = next((s for s in SERVICIOS_STORE if s["id"] == servicio_id), None)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    instalaciones = await fetch_instalaciones_dicts(db)
+    servicios = await fetch_servicios_dicts(db)
+    servicio = next((s for s in servicios if s["id"] == servicio_id), None)
     if not servicio:
         return RedirectResponse("/servicios", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1061,14 +1339,14 @@ def form_editar_servicio(request: Request, servicio_id: str):
             "user": user,
             "campo_activo": campo_activo,
             "servicio": servicio,
-            "campos": CAMPOS_STORE,
-            "instalaciones": INSTALACIONES_STORE,
+            "campos": campos,
+            "instalaciones": instalaciones,
         },
     )
 
 
 @app.post("/servicios/{servicio_id}/editar")
-def update_servicio(
+async def update_servicio(
     request: Request,
     servicio_id: str,
     campo_id: str = Form(...),
@@ -1081,45 +1359,52 @@ def update_servicio(
     monto_real_ars: float = Form(0.0),
     fecha_vencimiento: str = Form(...),
     observaciones: Optional[str] = Form(""),
+    db: AsyncSession = Depends(get_db),
 ):
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    servicio = next((s for s in SERVICIOS_STORE if s["id"] == servicio_id), None)
-    if servicio:
-        campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
-        inst_sel = next((i for i in INSTALACIONES_STORE if i["id"] == instalacion_id), None)
+    s_uuid = get_uuid(servicio_id)
+    res = await db.execute(select(ServicioInstalado).where(ServicioInstalado.id == s_uuid))
+    servicio_obj = res.scalars().first()
 
+    if servicio_obj:
         m_real = float(monto_real_ars)
+        m_usd = Decimal(str(round(m_real / 1285.50, 2)))
+        tipo_s_enum = TipoServicioEnum(tipo_servicio) if tipo_servicio in [e.value for e in TipoServicioEnum] else TipoServicioEnum.LUZ_RURAL
+        frec_p_enum = FrecuenciaPagoEnum(frecuencia_pago) if frecuencia_pago in [e.value for e in FrecuenciaPagoEnum] else FrecuenciaPagoEnum.MENSUAL
+        fecha_venc = date.fromisoformat(fecha_vencimiento)
 
-        servicio["campo_id"] = campo_id
-        servicio["campo_nombre"] = campo_sel["nombre"] if campo_sel else "Campo General"
-        servicio["instalacion_id"] = instalacion_id
-        servicio["instalacion_nombre"] = inst_sel["nombre"] if inst_sel else "Instalación General"
-        servicio["tipo_servicio"] = tipo_servicio
-        servicio["concepto"] = concepto.strip()
-        servicio["proveedor"] = proveedor.strip()
-        servicio["frecuencia_pago"] = frecuencia_pago
-        servicio["monto_estimado_ars"] = float(monto_estimado_ars)
-        servicio["monto_real_ars"] = m_real
-        servicio["monto_usd"] = round(m_real / 1285.50, 2)
-        servicio["fecha_vencimiento"] = fecha_vencimiento
-        servicio["observaciones"] = observaciones
+        servicio_obj.campo_id = get_uuid(campo_id)
+        servicio_obj.instalacion_id = get_uuid(instalacion_id) if instalacion_id else None
+        servicio_obj.concepto = concepto.strip()
+        servicio_obj.proveedor = proveedor.strip()
+        servicio_obj.tipo_servicio = tipo_s_enum
+        servicio_obj.frecuencia_pago = frec_p_enum
+        servicio_obj.monto_estimado_ars = Decimal(str(monto_estimado_ars))
+        servicio_obj.monto_real_ars = Decimal(str(m_real))
+        servicio_obj.monto_usd = m_usd
+        servicio_obj.fecha_vencimiento = fecha_venc
+        servicio_obj.observaciones = observaciones
+        await db.commit()
 
     return RedirectResponse(f"/servicios/{servicio_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/servicios/{servicio_id}/pagar")
-def pagar_servicio(request: Request, servicio_id: str):
-    user = get_current_user_from_session(request)
+async def pagar_servicio(request: Request, servicio_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    servicio = next((s for s in SERVICIOS_STORE if s["id"] == servicio_id), None)
-    if servicio:
-        servicio["estado"] = EstadoServicioInstaladoEnum.AL_DIA.value
-        servicio["estado_label"] = "Al día"
+    s_uuid = get_uuid(servicio_id)
+    res = await db.execute(select(ServicioInstalado).where(ServicioInstalado.id == s_uuid))
+    servicio_obj = res.scalars().first()
+
+    if servicio_obj:
+        servicio_obj.estado = EstadoServicioInstaladoEnum.AL_DIA
+        await db.commit()
 
     return RedirectResponse(f"/servicios/{servicio_id}", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1128,16 +1413,16 @@ def pagar_servicio(request: Request, servicio_id: str):
 # Módulo de Clima y Alertas Agronómicas por Geolocalización de Campo
 # ----------------------------------------------------------------------
 
-
 @app.get("/clima/campos", response_class=HTMLResponse)
-def clima_resumen_campos(request: Request):
-    user = get_current_user_from_session(request)
+async def clima_resumen_campos(request: Request, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
     campos_clima = []
-    for c in CAMPOS_STORE:
+    for c in campos:
         weather_info = get_weather_for_location(
             c.get("latitud"),
             c.get("longitud"),
@@ -1152,13 +1437,14 @@ def clima_resumen_campos(request: Request):
 
 
 @app.get("/clima/campos/{campo_id}", response_class=HTMLResponse)
-def clima_semanal_campo(request: Request, campo_id: str):
-    user = get_current_user_from_session(request)
+async def clima_semanal_campo(request: Request, campo_id: str, db: AsyncSession = Depends(get_db)):
+    user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse(f"/login?next=/clima/campos/{campo_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-    campo_activo = get_campo_activo(request)
-    campo = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    campo = next((c for c in campos if c["id"] == campo_id), None)
     if not campo:
         return RedirectResponse("/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1182,25 +1468,28 @@ PROCESSED_ACTION_IDS = set()
 
 
 @app.get("/api/campo/estado")
-def get_campo_estado_api(request: Request):
+async def get_campo_estado_api(request: Request, db: AsyncSession = Depends(get_db)):
     """Endpoint JSON para hidratación de IndexedDB en Modo Campo PWA."""
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+
     weather_data = get_weather_for_location(
         campo_activo.get("latitud", -31.7766),
         campo_activo.get("longitud", -63.8011),
         campo_activo.get("localidad_referencia", "Laguna Larga, Córdoba"),
     )
-    lotes_campo_activo = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
+    lotes_campo_activo = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
     tareas_campo = [t for t in TAREAS_STORE if t["campo_id"] == campo_activo["id"]]
 
     return JSONResponse({
         "user": {"id": user["id"], "nombre": user["nombre"], "email": user["email"]},
         "campo_activo": campo_activo,
-        "campos": CAMPOS_STORE,
+        "campos": campos,
         "lotes_campo": lotes_campo_activo,
         "weather": weather_data,
         "tareas": tareas_campo,
@@ -1208,18 +1497,21 @@ def get_campo_estado_api(request: Request):
 
 
 @app.post("/api/campo/sync-actions")
-async def sync_campo_actions_api(request: Request):
+async def sync_campo_actions_api(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Endpoint JSON para procesar acciones diferidas acumuladas en IndexedDB (offline_queue).
     Soporta idempotencia por client_action_id para prevenir duplicados.
     """
-    user = get_current_user_from_session(request)
+    user = await get_current_user_from_session(request, db)
     if not user:
         return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
 
     data = await request.json()
     actions = data.get("actions", [])
     processed_count = 0
+
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
 
     for act in actions:
         action_id = act.get("client_action_id")
@@ -1229,13 +1521,13 @@ async def sync_campo_actions_api(request: Request):
         tipo = act.get("tipo")
         payload = act.get("payload", {})
         campo_id = payload.get("campo_id") or request.session.get("campo_activo_id", "campo-001")
-        campo_sel = next((c for c in CAMPOS_STORE if c["id"] == campo_id), None)
+        campo_sel = next((c for c in campos if c["id"] == campo_id), None)
         campo_nombre = campo_sel["nombre"] if campo_sel else "Campo General"
 
         if tipo == "registrar_lluvia":
             mm = payload.get("milimetros", 0.0)
             lote_id = payload.get("lote_id")
-            lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+            lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
             nueva_tarea = {
                 "id": f"tarea-00{len(TAREAS_STORE) + 1}",
                 "campo_id": campo_id,
@@ -1258,7 +1550,7 @@ async def sync_campo_actions_api(request: Request):
 
         elif tipo == "registrar_incidencia":
             lote_id = payload.get("lote_id")
-            lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+            lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
             nueva_incidencia = {
                 "id": f"tarea-00{len(TAREAS_STORE) + 1}",
                 "campo_id": campo_id,
@@ -1305,7 +1597,7 @@ async def sync_campo_actions_api(request: Request):
 
         elif tipo == "nueva_labor":
             lote_id = payload.get("lote_id")
-            lote_sel = next((l for l in LOTES_STORE if l["id"] == lote_id), None) if lote_id else None
+            lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
             nueva_tarea = {
                 "id": f"tarea-00{len(TAREAS_STORE) + 1}",
                 "campo_id": campo_id,
@@ -1343,13 +1635,13 @@ async def sync_campo_actions_api(request: Request):
         PROCESSED_ACTION_IDS.add(action_id)
         processed_count += 1
 
-    campo_activo = get_campo_activo(request)
+    campo_activo = await get_campo_activo_db(request, db)
     weather_data = get_weather_for_location(
         campo_activo.get("latitud", -31.7766),
         campo_activo.get("longitud", -63.8011),
         campo_activo.get("localidad_referencia", "Laguna Larga, Córdoba"),
     )
-    lotes_campo_activo = [l for l in LOTES_STORE if l["campo_id"] == campo_activo["id"]]
+    lotes_campo_activo = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
     tareas_campo = [t for t in TAREAS_STORE if t["campo_id"] == campo_activo["id"]]
 
     return JSONResponse({
@@ -1358,10 +1650,9 @@ async def sync_campo_actions_api(request: Request):
         "state": {
             "user": {"id": user["id"], "nombre": user["nombre"], "email": user["email"]},
             "campo_activo": campo_activo,
-            "campos": CAMPOS_STORE,
+            "campos": campos,
             "lotes_campo": lotes_campo_activo,
             "weather": weather_data,
             "tareas": tareas_campo,
         }
     })
-

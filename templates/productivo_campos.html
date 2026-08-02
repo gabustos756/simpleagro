@@ -81,15 +81,11 @@
       </div>
 
       <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Tenencia de Tierra</span>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Establecimientos</span>
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span>Propio:</span>
-            <strong class="text-agro-700 font-bold">245 ha (27%)</strong>
-          </div>
-          <div class="flex justify-between text-xs">
-            <span>Alquilado:</span>
-            <strong class="text-amber-700 font-bold">670 ha (73%)</strong>
+            <span>Registrados:</span>
+            <strong class="text-agro-700 font-bold">{{ campos|length }} campos</strong>
           </div>
         </div>
       </div>
@@ -100,7 +96,7 @@
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-xl font-black text-slate-900">Campos y Establecimientos</h2>
-          <p class="text-xs text-slate-500">Establecimientos rurales de {{ user.cliente_nombre|default('Estancia El Mimbre') }}</p>
+          <p class="text-xs text-slate-500">Establecimientos rurales de {{ user.cliente_nombre|default('Cliente') }}</p>
         </div>
         
         <button
@@ -113,6 +109,13 @@
 
       <!-- Tarjetas Bento de Campos -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {% if not campos %}
+        <div class="col-span-full p-8 bg-white border border-slate-200 rounded-3xl text-center space-y-3">
+          <span class="text-4xl">🌾</span>
+          <h3 class="text-lg font-black text-slate-900">Todavía no hay campos cargados</h3>
+          <p class="text-xs text-slate-500">Registrá tu primer establecimiento usando el botón "Nuevo Campo".</p>
+        </div>
+        {% else %}
         {% for c in campos %}
         <div class="border border-slate-200 rounded-3xl p-6 bg-white hover:border-agro-400 transition-all shadow-sm space-y-4">
           <div class="flex items-start justify-between">
@@ -141,6 +144,7 @@
           </div>
         </div>
         {% endfor %}
+        {% endif %}
       </div>
     </section>
 

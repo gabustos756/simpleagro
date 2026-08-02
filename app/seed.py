@@ -506,3 +506,53 @@ DEMO_TAREAS = [
         "valor_registrado": "Rinde est. 90 qq/ha",
     },
 ]
+
+
+def get_uuid(key_str: str) -> uuid.UUID:
+    """Convierte una cadena a UUID; genera uno determinista si no es un UUID válido."""
+    try:
+        return uuid.UUID(key_str)
+    except ValueError:
+        return uuid.uuid5(uuid.NAMESPACE_DNS, key_str)
+
+
+async def seed_initial_data(session):
+    """Pobla la base de datos PostgreSQL solo con Cliente y Usuarios iniciales."""
+    from sqlalchemy import select
+    from app.models import Cliente, Usuario
+
+    # Verificar si ya existen usuarios cargados
+    result = await session.execute(select(Usuario).limit(1))
+    if result.scalars().first():
+        return  # La base de datos ya contiene datos de usuarios
+
+    # 1. Crear Cliente
+    cliente_id = get_uuid(DEMO_CLIENTE["id"])
+    cliente = Cliente(
+        id=cliente_id,
+        nombre=DEMO_CLIENTE["nombre"],
+        cuit=DEMO_CLIENTE.get("cuit"),
+        ubicacion=DEMO_CLIENTE.get("ubicacion"),
+        activo=True,
+    )
+    session.add(cliente)
+    await session.flush()
+
+    # 2. Crear Usuarios Iniciales
+    for u_dict in DEMO_USUARIOS:
+        rol_val = u_dict["rol"]
+        if not isinstance(rol_val, RolUsuario):
+            rol_val = RolUsuario(rol_val)
+        user_obj = Usuario(
+            id=get_uuid(u_dict["id"]),
+            cliente_id=cliente_id,
+            nombre=u_dict["nombre"],
+            email=u_dict["email"],
+            password_hash=u_dict["password_hash"],
+            rol=rol_val,
+        )
+        session.add(user_obj)
+
+    await session.commit()
+
+

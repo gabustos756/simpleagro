@@ -32,7 +32,7 @@
     <!-- 1. HEADER SUPERIOR CON UNIFICACIÓN DE MARCA Y AUTENTICACIÓN -->
     <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       
-      <!-- Marca EduAgro + Cliente Demo -->
+      <!-- Marca EduAgro + Cliente -->
       <div class="flex items-center space-x-4">
         <div class="w-12 h-12 rounded-2xl bg-agro-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-agro-600/20">
           🌱
@@ -44,7 +44,7 @@
             </h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-0.5 flex flex-wrap items-center gap-2">
-            <span>🏡 Cliente: <strong class="text-slate-900 font-bold">{{ user.cliente_nombre|default('Familia Matteuda') }}</strong> (Laguna Larga, Córdoba)</span>
+            <span>🏡 Cliente: <strong class="text-slate-900 font-bold">{{ user.cliente_nombre|default('Cliente') }}</strong></span>
             <span>•</span>
             <span>Dólar Canje: <strong class="text-agro-700 font-bold">${{ cotizacion_dolar|default('1285.50') }} ARS</strong></span>
           </p>
@@ -57,11 +57,15 @@
         <!-- Form Selector de Campo Activo -->
         <form method="POST" action="/cambiar-campo-activo" class="inline-block">
           <select name="campo_id" onchange="this.form.submit()" class="bg-agro-600 text-white font-bold text-xs rounded-xl px-3 py-2 border border-agro-700 shadow-sm cursor-pointer hover:bg-agro-700 transition-all">
+            {% if not campos %}
+            <option value="">Sin Campos Registrados</option>
+            {% else %}
             {% for c in campos %}
             <option value="{{ c.id }}" {% if campo_activo and campo_activo.id == c.id %}selected{% endif %}>
               🌱 Campo Activo: {{ c.nombre }} ({{ c.ubicacion }})
             </option>
             {% endfor %}
+            {% endif %}
           </select>
         </form>
 
@@ -84,7 +88,7 @@
         <!-- Badge de Usuario Autenticado -->
         <div class="bg-slate-100 p-2 px-3 rounded-2xl border border-slate-200 flex items-center space-x-3">
           <div class="text-right">
-            <span class="block text-xs font-bold text-slate-900">{{ user.nombre|default('Usuario Logueado') }}</span>
+            <span class="block text-xs font-bold text-slate-900">{{ user.nombre|default('Usuario') }}</span>
             <span class="block text-[10px] font-semibold text-agro-700 uppercase">{{ user.rol_label|default('Productor') }}</span>
           </div>
           <a
@@ -100,7 +104,7 @@
 
     </header>
 
-    <!-- 2. TARJETAS KPI PRINCIPALES (TEMA CLARO) -->
+    <!-- 2. TARJETAS KPI PRINCIPALES (REPOSITORIO BD) -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       
       <!-- Hectáreas Sembradas -->
@@ -110,16 +114,16 @@
           <span class="text-xl p-2 bg-agro-50 rounded-xl text-agro-700">🌾</span>
         </div>
         <div class="text-3xl font-black text-slate-900 tracking-tight mb-1">
-          {{ ha_totales|default(765) }} <span class="text-lg font-normal text-slate-500">ha</span>
+          {{ ha_totales|default(0) }} <span class="text-lg font-normal text-slate-500">ha</span>
         </div>
         <div class="space-y-1.5 mt-3 pt-3 border-t border-slate-100 text-xs">
           <div class="flex justify-between text-slate-600">
-            <span>🟢 Soja (1ra + 2da):</span>
-            <strong class="text-slate-900 font-bold">{{ ha_soja|default(455) }} ha (59%)</strong>
+            <span>🟢 Soja:</span>
+            <strong class="text-slate-900 font-bold">{{ ha_soja|default(0) }} ha</strong>
           </div>
           <div class="flex justify-between text-slate-600">
-            <span>🟡 Trigo (Invierno):</span>
-            <strong class="text-slate-900 font-bold">{{ ha_trigo|default(310) }} ha (41%)</strong>
+            <span>🟡 Trigo:</span>
+            <strong class="text-slate-900 font-bold">{{ ha_trigo|default(0) }} ha</strong>
           </div>
         </div>
       </div>
@@ -127,28 +131,28 @@
       <!-- Lluvia Acumulada -->
       <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
         <div class="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-          <span>Lluvia del Mes (Julio)</span>
+          <span>Lluvia del Mes</span>
           <span class="text-xl p-2 bg-cyan-50 rounded-xl text-cyan-700">🌧️</span>
         </div>
         <div class="text-3xl font-black text-slate-900 tracking-tight mb-1">
-          {{ lluvia_mes|default(84.5) }} <span class="text-lg font-normal text-cyan-600 font-bold">mm</span>
+          {{ lluvia_mes|default(0.0) }} <span class="text-lg font-normal text-cyan-600 font-bold">mm</span>
         </div>
-        <p class="text-xs text-agro-700 mt-2 font-bold flex items-center gap-1">
-          <span>↗</span> +12% vs. promedio histórico Córdoba
+        <p class="text-xs text-slate-500 mt-2 font-medium">
+          Registros de precipitaciones
         </p>
       </div>
 
       <!-- Gastos / Servicios Vencidos -->
       <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
         <div class="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-          <span>Servicios Vencidos</span>
+          <span>Servicios y Pagos</span>
           <span class="text-xl p-2 bg-amber-50 rounded-xl text-amber-700">💳</span>
         </div>
         <div class="text-3xl font-black text-amber-600 tracking-tight mb-1">
-          ${{ gastos_usd|default('3,854.52') }} <span class="text-xs font-medium text-slate-500">USD</span>
+          ${{ gastos_usd|default('0.00') }} <span class="text-xs font-medium text-slate-500">USD</span>
         </div>
         <div class="text-xs font-medium text-slate-600">
-          ≈ ${{ gastos_ars|default('4,955,000') }} ARS
+          ≈ ${{ gastos_ars|default('0.00') }} ARS
         </div>
       </div>
 
@@ -159,26 +163,26 @@
           <span class="text-xl p-2 bg-purple-50 rounded-xl text-purple-700">📈</span>
         </div>
         <div class="text-3xl font-black text-slate-900 tracking-tight mb-1">
-          {{ toneladas_estimadas|default('2,840') }} <span class="text-lg font-normal text-purple-600 font-bold">t</span>
+          {{ toneladas_estimadas|default('0.0') }} <span class="text-lg font-normal text-purple-600 font-bold">t</span>
         </div>
         <div class="text-xs text-slate-500">
-          Rinde Promedio: <strong class="text-slate-800">37.1 qq/ha</strong>
+          Producción estimada de lotes
         </div>
       </div>
 
     </section>
 
-    <!-- 3. CONTENIDO PRINCIPAL (TABLA + GRÁFICO TEMA CLARO) -->
+    <!-- 3. CONTENIDO PRINCIPAL (TABLA VENCIMIENTOS REAL + RENDIMIENTO) -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-      <!-- Tabla de Vencimientos (7 Cols) -->
+      <!-- Tabla de Vencimientos -->
       <section class="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
             <span>🏛️</span> Vencimientos e Impuestos Rurales
           </h2>
           <span class="text-xs font-bold bg-slate-100 px-3 py-1 rounded-xl text-slate-600 border border-slate-200">
-            {{ vencimientos|length }} ítems
+            {{ vencimientos|length }} registros
           </span>
         </div>
 
@@ -190,90 +194,72 @@
                 <th class="py-3 px-3">Vencimiento</th>
                 <th class="py-3 px-3 text-right">Monto ($ARS / $USD)</th>
                 <th class="py-3 px-3 text-center">Estado</th>
-                <th class="py-3 px-3 text-right">Acción</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
+              {% if not vencimientos %}
+              <tr>
+                <td colspan="4" class="py-8 text-center text-slate-400 font-medium">
+                  Todavía no hay servicios registrados
+                </td>
+              </tr>
+              {% else %}
               {% for item in vencimientos %}
               <tr class="hover:bg-slate-50/80 transition-colors">
                 <td class="py-3.5 px-3">
                   <span class="block font-bold text-slate-900 text-sm">{{ item.concepto }}</span>
-                  <span class="text-[11px] text-slate-500">{{ item.categoria }}</span>
+                  <span class="text-[11px] text-slate-500">{{ item.proveedor }}</span>
                 </td>
                 <td class="py-3.5 px-3 font-semibold text-slate-700">{{ item.fecha_vencimiento }}</td>
                 <td class="py-3.5 px-3 text-right">
-                  <span class="block font-bold text-slate-900">${{ "{:,.2f}".format(item.monto_ars) }} ARS</span>
+                  <span class="block font-bold text-slate-900">${{ "{:,.2f}".format(item.monto_real_ars) }} ARS</span>
                   <span class="text-agro-700 font-bold text-[11px]">${{ "{:,.2f}".format(item.monto_usd) }} USD</span>
                 </td>
                 <td class="py-3.5 px-3 text-center">
-                  {% if item.estado == 'pagado' %}
-                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-agro-50 text-agro-700 border border-agro-200">✓ Pagado</span>
+                  {% if item.estado == 'al_dia' %}
+                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-agro-50 text-agro-700 border border-agro-200">✓ Al día</span>
                   {% elif item.estado == 'vencido' %}
                     <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">⚠️ Vencido</span>
                   {% else %}
                     <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⌛ Pendiente</span>
                   {% endif %}
                 </td>
-                <td class="py-3.5 px-3 text-right space-x-1">
-                  {% if item.estado != 'pagado' %}
-                  <button class="px-3 py-1.5 rounded-xl bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs shadow-sm">
-                    Pagar
-                  </button>
-                  {% endif %}
-                </td>
               </tr>
               {% endfor %}
+              {% endif %}
             </tbody>
           </table>
         </div>
       </section>
 
-      <!-- Gráfico de Rendimiento por Lote (5 Cols) -->
+      <!-- Rendimiento por Lote -->
       <section class="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
         <div>
           <h2 class="text-lg font-black text-slate-900 flex items-center gap-2 mb-1">
-            <span>📊</span> Rendimiento por Lote ($USD/ha$)
+            <span>📊</span> Rendimiento por Lote
           </h2>
-          <p class="text-xs text-slate-500 mb-5">Inversión vs. Retorno Estimado por Hectárea</p>
+          <p class="text-xs text-slate-500 mb-5">Lotes cargados en el campo activo</p>
 
           <div class="space-y-4">
-            {% set lotes_demo = [
-              {'lote': 'Lote 1 - El Norte', 'inversion': 420, 'retorno': 980},
-              {'lote': 'Lote 2 - La Lagunita', 'inversion': 510, 'retorno': 1150},
-              {'lote': 'Lote 3 - San José', 'inversion': 380, 'retorno': 820},
-              {'lote': 'Lote 4 - El Molino', 'inversion': 490, 'retorno': 1040}
-            ] %}
-            
-            {% for l in lotes_demo %}
+            {% if not lotes_campo %}
+            <div class="py-12 text-center text-slate-400 font-medium text-xs">
+              Todavía no hay lotes cargados
+            </div>
+            {% else %}
+            {% for l in lotes_campo %}
             <div class="space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
               <div class="flex justify-between text-xs mb-1">
-                <span class="font-bold text-slate-900">{{ l.lote }}</span>
-                <span class="text-agro-700 font-bold">Margen: ${{ l.retorno - l.inversion }} USD/ha</span>
+                <span class="font-bold text-slate-900">{{ l.nombre }}</span>
+                <span class="text-agro-700 font-bold">{{ l.cultivo_actual|default('Sin Cultivo') }}</span>
               </div>
-              <div class="space-y-1">
-                <div class="flex items-center text-[10px] space-x-2">
-                  <span class="w-14 text-slate-500 font-medium text-right">Inversión:</span>
-                  <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                    <div class="bg-amber-500 h-full rounded-full" style="width: {{ (l.inversion / 1200) * 100 }}%"></div>
-                  </div>
-                  <span class="w-12 text-amber-700 font-bold">${{ l.inversion }}</span>
-                </div>
-                <div class="flex items-center text-[10px] space-x-2">
-                  <span class="w-14 text-slate-500 font-medium text-right">Retorno:</span>
-                  <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                    <div class="bg-agro-600 h-full rounded-full" style="width: {{ (l.retorno / 1200) * 100 }}%"></div>
-                  </div>
-                  <span class="w-12 text-agro-700 font-bold">${{ l.retorno }}</span>
-                </div>
+              <div class="flex justify-between text-[11px] text-slate-600">
+                <span>Superficie: <strong>{{ l.superficie_productiva_ha }} ha</strong></span>
+                <span>Rinde: <strong>{{ l.qq_ha_real or 0 }} qq/ha</strong></span>
               </div>
             </div>
             {% endfor %}
+            {% endif %}
           </div>
-        </div>
-
-        <div class="mt-4 pt-3 border-t border-slate-100 flex justify-around text-xs text-slate-600">
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Inversión ($USD/ha)</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-agro-600"></span> Retorno ($USD/ha)</span>
         </div>
       </section>
 

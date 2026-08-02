@@ -139,6 +139,13 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 font-medium">
+            {% if not servicios %}
+            <tr>
+              <td colspan="7" class="py-12 text-center text-slate-400 font-medium">
+                Todavía no hay servicios registrados
+              </td>
+            </tr>
+            {% else %}
             {% for s in servicios %}
             <tr class="hover:bg-slate-50/80 transition-colors">
               <td class="py-3.5 px-3">
@@ -175,6 +182,7 @@
               </td>
             </tr>
             {% endfor %}
+            {% endif %}
           </tbody>
         </table>
       </div>
