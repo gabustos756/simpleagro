@@ -379,9 +379,9 @@ async def login_page(
         return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
-        "login.html",
-        {
-            "request": request,
+        request=request,
+        name="login.html",
+        context={
             "next_url": next or "/",
             "error": None,
             "demo_cliente": DEMO_CLIENTE,
@@ -403,9 +403,9 @@ async def login_submit(
 
     if not user_obj or not verify_password(password, user_obj.password_hash):
         return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
+            request=request,
+            name="login.html",
+            context={
                 "next_url": next,
                 "error": "Credenciales inválidas. Por favor intenta de nuevo.",
                 "email": email,
@@ -485,9 +485,9 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
     servicios_vencidos_count = len([s for s in servicios if s.get("estado") == "vencido"])
 
     return templates.TemplateResponse(
-        "portal_entrada.html",
-        {
-            "request": request,
+        request=request,
+        name="portal_entrada.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
@@ -534,9 +534,9 @@ async def read_dashboard_familiar(
     toneladas_estimadas = sum(l.get("produccion_total_t", 0.0) for l in lotes_campo_activo)
 
     return templates.TemplateResponse(
-        "dashboard_familiar.html",
-        {
-            "request": request,
+        request=request,
+        name="dashboard_familiar.html",
+        context={
             "user": user,
             "perfil": perfil,
             "campo_activo": campo_activo,
@@ -595,9 +595,9 @@ async def read_modo_campo(
         tareas_filtradas = tareas_campo
 
     return templates.TemplateResponse(
-        "modo_campo.html",
-        {
-            "request": request,
+        request=request,
+        name="modo_campo.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
@@ -836,9 +836,9 @@ async def list_campos(request: Request, db: AsyncSession = Depends(get_db)):
     ha_productivas_suma = sum(l["superficie_productiva_ha"] for l in lotes)
 
     return templates.TemplateResponse(
-        "productivo_campos.html",
-        {
-            "request": request,
+        request=request,
+        name="productivo_campos.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
@@ -913,9 +913,9 @@ async def list_lotes(
         ]
 
     return templates.TemplateResponse(
-        "productivo_lotes.html",
-        {
-            "request": request,
+        request=request,
+        name="productivo_lotes.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "lotes": lotes_filtrados,
@@ -938,8 +938,9 @@ async def form_nuevo_lote(request: Request, db: AsyncSession = Depends(get_db)):
     campos = await fetch_campos_dicts(db)
 
     return templates.TemplateResponse(
-        "productivo_form_lote.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lote": None, "campos": campos},
+        request=request,
+        name="productivo_form_lote.html",
+        context={"user": user, "campo_activo": campo_activo, "lote": None, "campos": campos},
     )
 
 
@@ -1012,8 +1013,9 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
         return RedirectResponse("/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
-        "productivo_lote_ficha.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lote": lote},
+        request=request,
+        name="productivo_lote_ficha.html",
+        context={"user": user, "campo_activo": campo_activo, "lote": lote},
     )
 
 
@@ -1031,8 +1033,9 @@ async def form_editar_lote(request: Request, lote_id: str, db: AsyncSession = De
         return RedirectResponse("/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
-        "productivo_form_lote.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lote": lote, "campos": campos},
+        request=request,
+        name="productivo_form_lote.html",
+        context={"user": user, "campo_activo": campo_activo, "lote": lote, "campos": campos},
     )
 
 
@@ -1098,8 +1101,9 @@ async def list_rendimientos(request: Request, db: AsyncSession = Depends(get_db)
     lotes_filtrados = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
 
     return templates.TemplateResponse(
-        "productivo_rendimientos.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "lotes": lotes_filtrados},
+        request=request,
+        name="productivo_rendimientos.html",
+        context={"user": user, "campo_activo": campo_activo, "lotes": lotes_filtrados},
     )
 
 
@@ -1123,9 +1127,9 @@ async def servicios_resumen_campos(request: Request, db: AsyncSession = Depends(
     servicios_al_dia_count = len([s for s in servicios if s["estado"] == "al_dia"])
 
     return templates.TemplateResponse(
-        "servicios_resumen_campos.html",
-        {
-            "request": request,
+        request=request,
+        name="servicios_resumen_campos.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
@@ -1172,9 +1176,9 @@ async def list_servicios(
         ]
 
     return templates.TemplateResponse(
-        "servicios_listado.html",
-        {
-            "request": request,
+        request=request,
+        name="servicios_listado.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "servicios": servicios_filtrados,
@@ -1198,9 +1202,9 @@ async def form_nuevo_servicio(request: Request, db: AsyncSession = Depends(get_d
     instalaciones = await fetch_instalaciones_dicts(db)
 
     return templates.TemplateResponse(
-        "servicios_form.html",
-        {
-            "request": request,
+        request=request,
+        name="servicios_form.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "servicio": None,
@@ -1273,8 +1277,9 @@ async def list_servicios_vencimientos(request: Request, db: AsyncSession = Depen
     servicios_ordenados = sorted(servicios, key=lambda s: s["fecha_vencimiento"])
 
     return templates.TemplateResponse(
-        "servicios_vencimientos.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "servicios": servicios_ordenados},
+        request=request,
+        name="servicios_vencimientos.html",
+        context={"user": user, "campo_activo": campo_activo, "servicios": servicios_ordenados},
     )
 
 
@@ -1289,9 +1294,9 @@ async def list_instalaciones(request: Request, db: AsyncSession = Depends(get_db
     servicios = await fetch_servicios_dicts(db)
 
     return templates.TemplateResponse(
-        "servicios_instalaciones.html",
-        {
-            "request": request,
+        request=request,
+        name="servicios_instalaciones.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "instalaciones": instalaciones,
@@ -1313,8 +1318,9 @@ async def ficha_servicio(request: Request, servicio_id: str, db: AsyncSession = 
         return RedirectResponse("/servicios", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
-        "servicios_ficha.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "servicio": servicio},
+        request=request,
+        name="servicios_ficha.html",
+        context={"user": user, "campo_activo": campo_activo, "servicio": servicio},
     )
 
 
@@ -1333,9 +1339,9 @@ async def form_editar_servicio(request: Request, servicio_id: str, db: AsyncSess
         return RedirectResponse("/servicios", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
-        "servicios_form.html",
-        {
-            "request": request,
+        request=request,
+        name="servicios_form.html",
+        context={
             "user": user,
             "campo_activo": campo_activo,
             "servicio": servicio,
@@ -1431,8 +1437,9 @@ async def clima_resumen_campos(request: Request, db: AsyncSession = Depends(get_
         campos_clima.append({"campo": c, "weather": weather_info})
 
     return templates.TemplateResponse(
-        "clima_resumen_campos.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "campos_clima": campos_clima},
+        request=request,
+        name="clima_resumen_campos.html",
+        context={"user": user, "campo_activo": campo_activo, "campos_clima": campos_clima},
     )
 
 
@@ -1455,8 +1462,9 @@ async def clima_semanal_campo(request: Request, campo_id: str, db: AsyncSession 
     )
 
     return templates.TemplateResponse(
-        "clima_semanal_campo.html",
-        {"request": request, "user": user, "campo_activo": campo_activo, "campo": campo, "weather": weather_info},
+        request=request,
+        name="clima_semanal_campo.html",
+        context={"user": user, "campo_activo": campo_activo, "campo": campo, "weather": weather_info},
     )
 
 
