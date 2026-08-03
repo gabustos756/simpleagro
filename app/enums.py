@@ -68,3 +68,21 @@ class EstadoCartaDePorte(str, enum.Enum):
 class TipoTransaccion(str, enum.Enum):
     INGRESO = "ingreso"
     EGRESO = "egreso"
+
+
+class TipoPrecioEnum(str, enum.Enum):
+    FIJO = "fijo"
+    A_FIJAR = "a_fijar"
+
+
+class UbicacionStockEnum(str, enum.Enum):
+    SILO_BOLSA = "silo_bolsa"
+    ACOPIO_TERCERO = "acopio_tercero"
+    PUERTO = "puerto"
+
+
+class TipoCompromisoEnum(str, enum.Enum):
+    ALQUILER_ARRENDAMIENTO = "alquiler_arrendamiento"
+    CANJE_INSUMOS = "canje_insumos"
+    OTRO = "otro"
+

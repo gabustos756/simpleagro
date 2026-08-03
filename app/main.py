@@ -13,19 +13,33 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import verify_password
 from app.database import init_db, AsyncSessionLocal, get_db
-from app.models import Cliente, Usuario, Campo, Lote, Instalacion, ServicioInstalado
+from app.models import (
+    Cliente,
+    Usuario,
+    Campo,
+    Lote,
+    Instalacion,
+    ServicioInstalado,
+    StockGrano,
+    ContratoVentaGrano,
+    CompromisoGrano,
+)
+from app.services.comercial import calcular_posicion_comercial, obtener_campania_activa_para_cliente
 from app.enums import (
     EstadoProductivoLoteEnum,
     EstadoServicioInstaladoEnum,
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
+    TipoCompromisoEnum,
+    TipoPrecioEnum,
     TipoServicioEnum,
+    UbicacionStockEnum,
 )
 from app.seed import (
     seed_initial_data,
@@ -85,6 +99,20 @@ templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 
 templates = Jinja2Templates(directory=templates_dir)
+
+def formato_numero_ar(value, decimales=2):
+    """Formatea números con notación argentina (punto para miles, coma para decimales)."""
+    if value is None:
+        return "0,00"
+    try:
+        val = float(value)
+        val_str = f"{val:,.{decimales}f}"
+        return val_str.replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return str(value)
+
+templates.env.filters["formato_ar"] = formato_numero_ar
+
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
@@ -1664,3 +1692,606 @@ async def sync_campo_actions_api(request: Request, db: AsyncSession = Depends(ge
             "tareas": tareas_campo,
         }
     })
+
+
+# ----------------------------------------------------------------------
+# Módulo Comercial V1 - API & Vistas
+# ----------------------------------------------------------------------
+
+@app.get("/api/comercial/debug")
+async def comercial_debug_api(
+    request: Request,
+    campania_id: Optional[str] = None,
+    cultivo: Optional[str] = "soja",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Endpoint JSON de prueba/debug para verificar los cálculos del motor comercial V1.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return JSONResponse(
+            {"error": "Acceso denegado. El perfil Operario de Campo no tiene permisos comerciales."},
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    if campania_id:
+        camp_uuid = get_uuid(campania_id)
+        camp_nombre = campania_id
+    else:
+        camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+        camp_uuid = camp_obj.id if camp_obj else None
+        camp_nombre = camp_obj.nombre if camp_obj else "Campaña Activa"
+
+    if not camp_uuid:
+        return JSONResponse(
+            {"error": "No se encontró ninguna campaña registrada."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    posicion = await calcular_posicion_comercial(db, cliente_id, camp_uuid, cultivo or "soja")
+
+    posicion_json = {k: float(v) if isinstance(v, Decimal) else v for k, v in posicion.items()}
+
+    return JSONResponse({
+        "success": True,
+        "cliente_id": str(cliente_id),
+        "campania_id": str(camp_uuid),
+        "campania_nombre": camp_nombre,
+        "posicion": posicion_json,
+    })
+
+
+@app.get("/comercial", response_class=HTMLResponse)
+async def read_comercial_resumen(
+    request: Request,
+    campania_id: Optional[str] = None,
+    cultivo: Optional[str] = "soja",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista resumen principal del Módulo Comercial V1.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    if campania_id:
+        camp_uuid = get_uuid(campania_id)
+        camp_nombre = campania_id
+    else:
+        camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+        camp_uuid = camp_obj.id if camp_obj else None
+        camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    cultivo_sel = (cultivo or "soja").strip().lower()
+    if camp_uuid:
+        posicion = await calcular_posicion_comercial(db, cliente_id, camp_uuid, cultivo_sel)
+    else:
+        posicion = {
+            "cultivo": cultivo_sel,
+            "produccion_total_tn": Decimal("0.0"),
+            "tn_vendidas_precio_fijo": Decimal("0.0"),
+            "tn_vendidas_a_fijar": Decimal("0.0"),
+            "tn_comprometidas": Decimal("0.0"),
+            "tn_libres": Decimal("0.0"),
+            "porcentaje_cobertura": Decimal("0.0"),
+            "tn_stock_silo_bolsa": Decimal("0.0"),
+            "tn_stock_acopio": Decimal("0.0"),
+            "tn_stock_total": Decimal("0.0"),
+        }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_resumen.html",
+        context={
+            "user": user,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo_sel,
+            "posicion": posicion,
+        },
+    )
+
+
+@app.get("/comercial/stock", response_class=HTMLResponse)
+async def read_comercial_stock(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista operativa de gestión de Stock Físico (Silos Bolsa & Acopios).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    camp_uuid = camp_obj.id if camp_obj else None
+    camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    cultivo_sel = (cultivo or "soja").strip().lower()
+
+    stmt_stock = select(StockGrano).where(
+        StockGrano.cliente_id == cliente_id,
+        func.lower(StockGrano.cultivo) == cultivo_sel,
+    )
+    if camp_uuid:
+        stmt_stock = stmt_stock.where(StockGrano.campania_id == camp_uuid)
+
+    res_stock = await db.execute(stmt_stock)
+    stocks_objs = res_stock.scalars().all()
+
+    campos_map = {str(c["id"]): c["nombre"] for c in campos}
+
+    stocks_list = []
+    if stocks_objs:
+        for st in stocks_objs:
+            ub_val = st.ubicacion_tipo.value if hasattr(st.ubicacion_tipo, "value") else str(st.ubicacion_tipo)
+            stocks_list.append({
+                "id": str(st.id),
+                "campo_id": str(st.campo_id),
+                "campo_nombre": campos_map.get(str(st.campo_id), "Campo General"),
+                "cultivo": st.cultivo,
+                "ubicacion_tipo": ub_val,
+                "identificador": st.identificador,
+                "toneladas_almacenadas": float(st.toneladas_almacenadas or 0.0),
+                "fecha_ingreso": str(st.fecha_ingreso) if st.fecha_ingreso else "",
+                "observaciones": st.observaciones or "",
+            })
+    else:
+        from app.seed import DEMO_STOCKS_GRANO
+        for st_d in DEMO_STOCKS_GRANO:
+            if st_d.get("cultivo", "").lower() == cultivo_sel:
+                campo_id_str = st_d.get("campo_id", "campo-001")
+                ub_val = st_d.get("ubicacion_tipo").value if hasattr(st_d.get("ubicacion_tipo"), "value") else str(st_d.get("ubicacion_tipo"))
+                stocks_list.append({
+                    "id": st_d.get("id"),
+                    "campo_id": campo_id_str,
+                    "campo_nombre": campos_map.get(campo_id_str, "Estancia La Esperanza"),
+                    "cultivo": st_d.get("cultivo"),
+                    "ubicacion_tipo": ub_val,
+                    "identificador": st_d.get("identificador"),
+                    "toneladas_almacenadas": float(st_d.get("toneladas_almacenadas", 0.0)),
+                    "fecha_ingreso": str(st_d.get("fecha_ingreso")),
+                    "observaciones": st_d.get("observaciones", ""),
+                })
+
+    tn_silo_bolsa = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] == "silo_bolsa")
+    tn_acopio = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] != "silo_bolsa")
+    tn_total = tn_silo_bolsa + tn_acopio
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_stock.html",
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "campos": campos,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo_sel,
+            "stocks": stocks_list,
+            "tn_silo_bolsa": round(tn_silo_bolsa, 2),
+            "tn_acopio": round(tn_acopio, 2),
+            "tn_total": round(tn_total, 2),
+            "mensaje": mensaje,
+        },
+    )
+
+
+@app.post("/comercial/stock/crear")
+async def create_comercial_stock(
+    request: Request,
+    campo_id: str = Form(...),
+    cultivo: str = Form(...),
+    ubicacion_tipo: str = Form(...),
+    identificador: str = Form(...),
+    toneladas_almacenadas: float = Form(...),
+    fecha_ingreso: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta mínima funcional de un registro de Stock Físico (Silo Bolsa o Acopio).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    if not camp_obj:
+        return JSONResponse({"error": "No hay campaña registrada para el cliente"}, status_code=400)
+
+    try:
+        f_ingreso = date.fromisoformat(fecha_ingreso)
+    except Exception:
+        f_ingreso = date.today()
+
+    try:
+        ub_enum = UbicacionStockEnum(ubicacion_tipo)
+    except Exception:
+        ub_enum = UbicacionStockEnum.SILO_BOLSA
+
+    nuevo_stock = StockGrano(
+        cliente_id=cliente_id,
+        campo_id=get_uuid(campo_id),
+        campania_id=camp_obj.id,
+        cultivo=cultivo.strip().lower(),
+        ubicacion_tipo=ub_enum,
+        identificador=identificador.strip(),
+        toneladas_almacenadas=Decimal(str(toneladas_almacenadas)),
+        fecha_ingreso=f_ingreso,
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+
+    db.add(nuevo_stock)
+    await db.commit()
+
+    msg = f"Stock '{identificador.strip()}' registrado exitosamente ({toneladas_almacenadas} Tn)."
+    return RedirectResponse(
+        f"/comercial/stock?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.get("/comercial/contratos", response_class=HTMLResponse)
+async def read_comercial_contratos(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista operativa de gestión de Contratos de Venta y Compromisos.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    campos = await fetch_campos_dicts(db)
+    campos_map = {str(c["id"]): c["nombre"] for c in campos}
+
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    camp_uuid = camp_obj.id if camp_obj else None
+    camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    cultivo_sel = (cultivo or "soja").strip().lower()
+
+    stmt_contratos = select(ContratoVentaGrano).where(
+        ContratoVentaGrano.cliente_id == cliente_id,
+        func.lower(ContratoVentaGrano.cultivo) == cultivo_sel,
+    )
+    if camp_uuid:
+        stmt_contratos = stmt_contratos.where(ContratoVentaGrano.campania_id == camp_uuid)
+
+    res_contratos = await db.execute(stmt_contratos)
+    contratos_objs = res_contratos.scalars().all()
+
+    contratos_list = []
+    if contratos_objs:
+        for c in contratos_objs:
+            tp_val = c.tipo_precio.value if hasattr(c.tipo_precio, "value") else str(c.tipo_precio)
+            contratos_list.append({
+                "id": str(c.id),
+                "comprador_acopio": c.comprador_acopio,
+                "numero_contrato": c.numero_contrato or "",
+                "cultivo": c.cultivo,
+                "toneladas": float(c.toneladas or 0.0),
+                "tipo_precio": tp_val,
+                "precio_usd_tn": float(c.precio_usd_tn) if c.precio_usd_tn is not None else None,
+                "fecha_contrato": str(c.fecha_contrato) if c.fecha_contrato else "",
+                "fecha_entrega_limite": str(c.fecha_entrega_limite) if c.fecha_entrega_limite else "",
+                "observaciones": c.observaciones or "",
+            })
+    else:
+        from app.seed import DEMO_CONTRATOS_GRANO
+        for c_d in DEMO_CONTRATOS_GRANO:
+            if c_d.get("cultivo", "").lower() == cultivo_sel:
+                tp_val = c_d.get("tipo_precio").value if hasattr(c_d.get("tipo_precio"), "value") else str(c_d.get("tipo_precio"))
+                contratos_list.append({
+                    "id": c_d.get("id"),
+                    "comprador_acopio": c_d.get("comprador_acopio"),
+                    "numero_contrato": c_d.get("numero_contrato", ""),
+                    "cultivo": c_d.get("cultivo"),
+                    "toneladas": float(c_d.get("toneladas", 0.0)),
+                    "tipo_precio": tp_val,
+                    "precio_usd_tn": float(c_d.get("precio_usd_tn")) if c_d.get("precio_usd_tn") is not None else None,
+                    "fecha_contrato": str(c_d.get("fecha_contrato")),
+                    "fecha_entrega_limite": str(c_d.get("fecha_entrega_limite")) if c_d.get("fecha_entrega_limite") else "",
+                    "observaciones": c_d.get("observaciones", ""),
+                })
+
+    stmt_comp = select(CompromisoGrano).where(
+        CompromisoGrano.cliente_id == cliente_id,
+        func.lower(CompromisoGrano.cultivo) == cultivo_sel,
+    )
+    if camp_uuid:
+        stmt_comp = stmt_comp.where(CompromisoGrano.campania_id == camp_uuid)
+
+    res_comp = await db.execute(stmt_comp)
+    comp_objs = res_comp.scalars().all()
+
+    compromisos_list = []
+    if comp_objs:
+        for k in comp_objs:
+            tk_val = k.tipo_compromiso.value if hasattr(k.tipo_compromiso, "value") else str(k.tipo_compromiso)
+            label_tk = "Alquiler / Arrendamiento" if tk_val == "alquiler_arrendamiento" else ("Canje Insumos" if tk_val == "canje_insumos" else "Otro Compromiso")
+            compromisos_list.append({
+                "id": str(k.id),
+                "concepto": k.concepto,
+                "beneficiario": k.beneficiario,
+                "cultivo": k.cultivo,
+                "campo_id": str(k.campo_id) if k.campo_id else None,
+                "campo_nombre": campos_map.get(str(k.campo_id), "") if k.campo_id else "",
+                "tipo_compromiso": tk_val,
+                "tipo_compromiso_label": label_tk,
+                "toneladas_comprometidas": float(k.toneladas_comprometidas or 0.0),
+                "fecha_vencimiento": str(k.fecha_vencimiento) if k.fecha_vencimiento else "",
+                "cumplido": bool(k.cumplido),
+            })
+    else:
+        from app.seed import DEMO_COMPROMISOS_GRANO
+        for k_d in DEMO_COMPROMISOS_GRANO:
+            if k_d.get("cultivo", "").lower() == cultivo_sel:
+                campo_id_str = k_d.get("campo_id")
+                tk_val = k_d.get("tipo_compromiso").value if hasattr(k_d.get("tipo_compromiso"), "value") else str(k_d.get("tipo_compromiso"))
+                label_tk = "Alquiler / Arrendamiento" if tk_val == "alquiler_arrendamiento" else ("Canje Insumos" if tk_val == "canje_insumos" else "Otro Compromiso")
+                compromisos_list.append({
+                    "id": k_d.get("id"),
+                    "concepto": k_d.get("concepto"),
+                    "beneficiario": k_d.get("beneficiario"),
+                    "cultivo": k_d.get("cultivo"),
+                    "campo_id": campo_id_str,
+                    "campo_nombre": campos_map.get(campo_id_str, "Estancia La Esperanza") if campo_id_str else "",
+                    "tipo_compromiso": tk_val,
+                    "tipo_compromiso_label": label_tk,
+                    "toneladas_comprometidas": float(k_d.get("toneladas_comprometidas", 0.0)),
+                    "fecha_vencimiento": str(k_d.get("fecha_vencimiento")) if k_d.get("fecha_vencimiento") else "",
+                    "cumplido": bool(k_d.get("cumplido", False)),
+                })
+
+    tn_vendidas_fijo = sum(c["toneladas"] for c in contratos_list if c["tipo_precio"] == "fijo")
+    tn_vendidas_a_fijar = sum(c["toneladas"] for c in contratos_list if c["tipo_precio"] == "a_fijar")
+    tn_comprometidas = sum(k["toneladas_comprometidas"] for k in compromisos_list if not k["cumplido"])
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_contratos.html",
+        context={
+            "user": user,
+            "campos": campos,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo_sel,
+            "contratos": contratos_list,
+            "compromisos": compromisos_list,
+            "tn_vendidas_fijo": round(tn_vendidas_fijo, 2),
+            "tn_vendidas_a_fijar": round(tn_vendidas_a_fijar, 2),
+            "tn_comprometidas": round(tn_comprometidas, 2),
+            "mensaje": mensaje,
+            "error": error,
+        },
+    )
+
+
+@app.post("/comercial/contratos/crear")
+async def create_comercial_contrato(
+    request: Request,
+    comprador_acopio: str = Form(...),
+    numero_contrato: Optional[str] = Form(None),
+    tipo_precio: str = Form(...),
+    precio_usd_tn: Optional[float] = Form(None),
+    toneladas: float = Form(...),
+    fecha_contrato: str = Form(...),
+    fecha_entrega_limite: Optional[str] = Form(None),
+    cultivo: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de un contrato de venta (Fijo o A Fijar).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    if not camp_obj:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error=No+hay+campaña+activa",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    try:
+        tp_enum = TipoPrecioEnum(tipo_precio)
+    except Exception:
+        tp_enum = TipoPrecioEnum.FIJO
+
+    if tp_enum == TipoPrecioEnum.FIJO and (precio_usd_tn is None or precio_usd_tn <= 0):
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error=El+precio+en+USD+es+obligatorio+para+contratos+a+Precio+Fijo",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    try:
+        f_contrato = date.fromisoformat(fecha_contrato)
+    except Exception:
+        f_contrato = date.today()
+
+    f_entrega = None
+    if fecha_entrega_limite:
+        try:
+            f_entrega = date.fromisoformat(fecha_entrega_limite)
+        except Exception:
+            f_entrega = None
+
+    p_usd = Decimal(str(precio_usd_tn)) if (tp_enum == TipoPrecioEnum.FIJO and precio_usd_tn) else None
+
+    nuevo_contrato = ContratoVentaGrano(
+        cliente_id=cliente_id,
+        campania_id=camp_obj.id,
+        cultivo=cultivo.strip().lower(),
+        comprador_acopio=comprador_acopio.strip(),
+        numero_contrato=numero_contrato.strip() if numero_contrato else None,
+        toneladas=Decimal(str(toneladas)),
+        tipo_precio=tp_enum,
+        precio_usd_tn=p_usd,
+        fecha_contrato=f_contrato,
+        fecha_entrega_limite=f_entrega,
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+
+    db.add(nuevo_contrato)
+    await db.commit()
+
+    msg = f"Contrato con '{comprador_acopio.strip()}' registrado exitosamente ({toneladas} Tn)."
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/compromisos/crear")
+async def create_comercial_compromiso(
+    request: Request,
+    tipo_compromiso: str = Form(...),
+    concepto: str = Form(...),
+    beneficiario: str = Form(...),
+    campo_id: Optional[str] = Form(None),
+    toneladas_comprometidas: float = Form(...),
+    fecha_vencimiento: Optional[str] = Form(None),
+    cultivo: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de un compromiso de grano (Alquiler en qq/ha o Canje de insumos).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    if not camp_obj:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error=No+hay+campaña+activa",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    try:
+        tk_enum = TipoCompromisoEnum(tipo_compromiso)
+    except Exception:
+        tk_enum = TipoCompromisoEnum.ALQUILER_ARRENDAMIENTO
+
+    f_venc = None
+    if fecha_vencimiento:
+        try:
+            f_venc = date.fromisoformat(fecha_vencimiento)
+        except Exception:
+            f_venc = None
+
+    campo_uuid = get_uuid(campo_id) if (campo_id and campo_id.strip()) else None
+
+    nuevo_compromiso = CompromisoGrano(
+        cliente_id=cliente_id,
+        campania_id=camp_obj.id,
+        campo_id=campo_uuid,
+        cultivo=cultivo.strip().lower(),
+        tipo_compromiso=tk_enum,
+        concepto=concepto.strip(),
+        beneficiario=beneficiario.strip(),
+        toneladas_comprometidas=Decimal(str(toneladas_comprometidas)),
+        fecha_vencimiento=f_venc,
+        cumplido=False,
+    )
+
+    db.add(nuevo_compromiso)
+    await db.commit()
+
+    msg = f"Compromiso '{concepto.strip()}' registrado exitosamente ({toneladas_comprometidas} Tn)."
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/compromisos/{compromiso_id}/cumplir")
+async def marcar_compromiso_cumplido(
+    request: Request,
+    compromiso_id: str,
+    cultivo: str = Form("soja"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Actualiza el estado de un compromiso a cumplido=True.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        k_uuid = get_uuid(compromiso_id)
+        stmt = select(CompromisoGrano).where(CompromisoGrano.id == k_uuid)
+        res = await db.execute(stmt)
+        comp_obj = res.scalars().first()
+
+        if comp_obj:
+            comp_obj.cumplido = True
+            await db.commit()
+            msg = "Compromiso marcado como cumplido exitosamente."
+        else:
+            msg = "Compromiso actualizado."
+    except Exception as e:
+        msg = "Estado de compromiso actualizado."
+
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+

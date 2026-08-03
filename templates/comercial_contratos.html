@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Contratos y Compromisos Comercial</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN PRINCIPAL -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
+          📝
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              Contratos & Compromisos
+            </h1>
+            <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
+              Venta & Retenciones
+            </span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">
+            Cliente: <strong class="text-slate-800">{{ user.cliente_nombre }}</strong> | Campaña: <strong class="text-slate-800">{{ campania_activa }}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Selector de Cultivo -->
+        <a href="/comercial/contratos?cultivo=soja" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌱 Soja
+        </a>
+        <a href="/comercial/contratos?cultivo=maiz" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌽 Maíz
+        </a>
+        <a href="/" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors">
+          🏠 Portal
+        </a>
+      </div>
+    </header>
+
+    <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
+    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        📊 Resumen Comercial
+      </a>
+      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        🚜 Stock Físico
+      </a>
+      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs">
+        📝 Contratos & Compromisos
+      </a>
+    </div>
+
+    <!-- MENSAJES DE FEEDBACK VISUAL POST ACCIÓN -->
+    {% if mensaje %}
+    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-bold flex items-center justify-between shadow-xs transition-all">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">✅</span>
+        <span>{{ mensaje }}</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-xs text-emerald-700 hover:text-emerald-900 font-black px-2 py-1 bg-emerald-100 rounded-lg">✕</button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-sm font-bold flex items-center justify-between shadow-xs transition-all">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-xs text-red-700 hover:text-red-900 font-black px-2 py-1 bg-red-100 rounded-lg">✕</button>
+    </div>
+    {% endif %}
+
+    <!-- KPIS CON JERARQUÍA VISUAL Y FORMATO AR -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-blue-50/40 p-5 rounded-2xl border border-blue-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-blue-800 uppercase tracking-wider">Vendido Precio Fijo</span>
+        <div class="text-3xl font-black text-blue-900">{{ tn_vendidas_fijo | formato_ar }} <span class="text-base font-normal text-blue-600">Tn</span></div>
+        <p class="text-xs text-blue-700/80">Contratos cerrados en USD</p>
+      </div>
+
+      <div class="bg-amber-50/40 p-5 rounded-2xl border border-amber-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Vendido A Fijar</span>
+        <div class="text-3xl font-black text-amber-900">{{ tn_vendidas_a_fijar | formato_ar }} <span class="text-base font-normal text-amber-600">Tn</span></div>
+        <p class="text-xs text-amber-700/80">Pendientes de fijación de precio</p>
+      </div>
+
+      <div class="bg-purple-50/40 p-5 rounded-2xl border border-purple-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-purple-800 uppercase tracking-wider">Compromisos Pendientes</span>
+        <div class="text-3xl font-black text-purple-900">{{ tn_comprometidas | formato_ar }} <span class="text-base font-normal text-purple-600">Tn</span></div>
+        <p class="text-xs text-purple-700/80">Alquileres / Canjes de insumos</p>
+      </div>
+    </div>
+
+    <!-- SECCIÓN DE CONTRATOS DE VENTA -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- LISTADO DE CONTRATOS -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-black text-slate-900">Contratos de Venta ({{ cultivo_seleccionado | capitalize }})</h2>
+          <span class="text-xs text-slate-500 font-semibold">{{ contratos | length }} registrados</span>
+        </div>
+
+        {% if not contratos %}
+        <div class="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-3">
+          <div class="text-4xl">📜</div>
+          <h3 class="text-base font-bold text-slate-800">No hay contratos registrados para {{ cultivo_seleccionado | capitalize }}</h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            Podés registrar un nuevo contrato forward o disponible a precio fijo o a fijar desde el formulario lateral.
+          </p>
+        </div>
+        {% else %}
+        <div class="space-y-3">
+          {% for c in contratos %}
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase border {% if c.tipo_precio == 'fijo' %} bg-blue-100 text-blue-800 border-blue-200 {% else %} bg-amber-100 text-amber-800 border-amber-200 {% endif %}">
+                  {% if c.tipo_precio == 'fijo' %} 🔒 Precio Fijo {% else %} ⏳ A Fijar {% endif %}
+                </span>
+                <h3 class="text-base font-black text-slate-900">{{ c.comprador_acopio }}</h3>
+                {% if c.numero_contrato %}
+                <span class="text-xs text-slate-400 font-bold">({{ c.numero_contrato }})</span>
+                {% endif %}
+              </div>
+              <p class="text-xs text-slate-500">
+                Fecha Contrato: <strong class="text-slate-700">{{ c.fecha_contrato }}</strong>
+                {% if c.fecha_entrega_limite %} • Entrega Límite: <strong class="text-slate-700">{{ c.fecha_entrega_limite }}</strong> {% endif %}
+              </p>
+              {% if c.observaciones %}
+              <p class="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 mt-2">
+                💬 {{ c.observaciones }}
+              </p>
+              {% endif %}
+            </div>
+
+            <div class="text-right sm:self-center shrink-0 space-y-1">
+              <span class="text-2xl font-black text-slate-900 block">{{ c.toneladas | formato_ar }} Tn</span>
+              {% if c.tipo_precio == 'fijo' and c.precio_usd_tn %}
+              <span class="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 inline-block">
+                $ {{ c.precio_usd_tn | formato_ar }} USD/Tn
+              </span>
+              {% else %}
+              <span class="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                A Fijar Pizarra
+              </span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- FORMULARIO NUEVO CONTRATO -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>➕</span> Nuevo Contrato de Venta
+        </h2>
+        <p class="text-xs text-slate-500">Registrá un negocio de venta a precio fijo o a fijar.</p>
+
+        <form method="POST" action="/comercial/contratos/crear" class="space-y-4">
+          <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+
+          <!-- Comprador -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Comprador / Acopio</label>
+            <input type="text" name="comprador_acopio" required placeholder="Ej: Cargill, ACA, Bunge" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- N° Contrato -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">N° de Contrato / Boleto (Opcional)</label>
+            <input type="text" name="numero_contrato" placeholder="Ej: SOJ-2026-001" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Tipo Precio -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Modalidad de Precio</label>
+            <select name="tipo_precio" id="tipo_precio_select" required onchange="togglePrecioInput()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+              <option value="fijo">🔒 Precio Fijo (USD/Tn)</option>
+              <option value="a_fijar">⏳ A Fijar (Precio Abierto)</option>
+            </select>
+          </div>
+
+          <!-- Precio USD/Tn -->
+          <div id="precio_usd_wrapper">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Precio ($USD/Tn)</label>
+            <input type="number" step="0.01" min="0.01" name="precio_usd_tn" id="precio_usd_input" placeholder="Ej: 295,00" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Toneladas -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Toneladas (Tn)</label>
+            <input type="number" step="0.01" min="0.01" name="toneladas" required placeholder="Ej: 300,00" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Fecha Contrato & Entrega -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha Contrato</label>
+              <input type="date" name="fecha_contrato" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Entrega Límite</label>
+              <input type="date" name="fecha_entrega_limite" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+            </div>
+          </div>
+
+          <!-- Observaciones -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+            <textarea name="observaciones" rows="2" placeholder="Ej: Puerto Rosario, libre de mermas." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm py-3 rounded-xl shadow-md transition-colors">
+            Guardar Contrato
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- SECCIÓN DE COMPROMISOS (ALQUILERES Y CANJES) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-200">
+
+      <!-- LISTADO DE COMPROMISOS -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-black text-slate-900">Compromisos de Entrega (Alquileres / Canjes)</h2>
+          <span class="text-xs text-slate-500 font-semibold">{{ compromisos | length }} registrados</span>
+        </div>
+
+        {% if not compromisos %}
+        <div class="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-3">
+          <div class="text-4xl">🤝</div>
+          <h3 class="text-base font-bold text-slate-800">No hay compromisos cargados para {{ cultivo_seleccionado | capitalize }}</h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            Podés registrar un compromiso de arrendamiento en quintales o un canje de insumos a cosecha.
+          </p>
+        </div>
+        {% else %}
+        <div class="space-y-3">
+          {% for k in compromisos %}
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-purple-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase border {% if k.cumplido %} bg-emerald-100 text-emerald-800 border-emerald-200 {% else %} bg-purple-100 text-purple-800 border-purple-200 {% endif %}">
+                  {% if k.cumplido %} ✅ Cumplido {% else %} ⏳ Pendiente {% endif %}
+                </span>
+                <span class="text-xs font-bold text-slate-500 uppercase">[{{ k.tipo_compromiso_label }}]</span>
+                <h3 class="text-base font-black text-slate-900">{{ k.concepto }}</h3>
+              </div>
+              <p class="text-xs text-slate-500">
+                Beneficiario: <strong class="text-slate-700">{{ k.beneficiario }}</strong>
+                {% if k.campo_nombre %} • Campo: <strong class="text-slate-700">{{ k.campo_nombre }}</strong> {% endif %}
+                {% if k.fecha_vencimiento %} • Vencimiento: <strong class="text-slate-700">{{ k.fecha_vencimiento }}</strong> {% endif %}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-4 text-right sm:self-center shrink-0">
+              <div>
+                <span class="text-2xl font-black text-purple-900 block">{{ k.toneladas_comprometidas | formato_ar }} Tn</span>
+                <span class="text-[11px] font-bold text-slate-400">Retención/Entrega</span>
+              </div>
+              {% if not k.cumplido %}
+              <form method="POST" action="/comercial/compromisos/{{ k.id }}/cumplir">
+                <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+                <button type="submit" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition-colors" title="Marcar como cumplido/entregado">
+                  Marcar Cumplido
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- FORMULARIO NUEVO COMPROMISO -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>➕</span> Nuevo Compromiso
+        </h2>
+        <p class="text-xs text-slate-500">Registrá un alquiler en quintales o canje de insumos.</p>
+
+        <form method="POST" action="/comercial/compromisos/crear" class="space-y-4">
+          <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+
+          <!-- Tipo Compromiso -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Compromiso</label>
+            <select name="tipo_compromiso" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+              <option value="alquiler_arrendamiento">📜 Alquiler / Arrendamiento en quintales</option>
+              <option value="canje_insumos">🌱 Canje de Insumos (Semillas/Fertilizantes)</option>
+              <option value="otro">⚙️ Otro Compromiso de Entrega</option>
+            </select>
+          </div>
+
+          <!-- Concepto -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Concepto / Descripción</label>
+            <input type="text" name="concepto" required placeholder="Ej: Alquiler Lote 2 (12 qq/ha)" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Beneficiario -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Beneficiario / Dueño / Proveedor</label>
+            <input type="text" name="beneficiario" required placeholder="Ej: Familia Donati, YPF Agro" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Campo Asociado (Opcional) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campo Asociado (Opcional)</label>
+            <select name="campo_id" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+              <option value="">-- General / Sin campo específico --</option>
+              {% for c in campos %}
+              <option value="{{ c.id }}">🌱 {{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Toneladas -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Toneladas Comprometidas (Tn)</label>
+            <input type="number" step="0.01" min="0.01" name="toneladas_comprometidas" required placeholder="Ej: 240,00" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Fecha Vencimiento -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Vencimiento / Liquidación</label>
+            <input type="date" name="fecha_vencimiento" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <button type="submit" class="w-full bg-purple-700 hover:bg-purple-800 text-white font-black text-sm py-3 rounded-xl shadow-md transition-colors">
+            Guardar Compromiso
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    function togglePrecioInput() {
+      const select = document.getElementById('tipo_precio_select');
+      const wrapper = document.getElementById('precio_usd_wrapper');
+      const input = document.getElementById('precio_usd_input');
+      if (select.value === 'a_fijar') {
+        wrapper.style.display = 'none';
+        input.required = false;
+        input.value = '';
+      } else {
+        wrapper.style.display = 'block';
+        input.required = true;
+      }
+    }
+    togglePrecioInput();
+  </script>
+
+</body>
+</html>

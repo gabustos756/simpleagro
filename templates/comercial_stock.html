@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Stock Físico de Granos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN PRINCIPAL -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
+          🚜
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              Stock Físico de Granos
+            </h1>
+            <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
+              Silos Bolsa & Acopios
+            </span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">
+            Cliente: <strong class="text-slate-800">{{ user.cliente_nombre }}</strong> | Campaña: <strong class="text-slate-800">{{ campania_activa }}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Selector de Cultivo -->
+        <a href="/comercial/stock?cultivo=soja" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌱 Soja
+        </a>
+        <a href="/comercial/stock?cultivo=maiz" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌽 Maíz
+        </a>
+        <a href="/" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors">
+          🏠 Portal
+        </a>
+      </div>
+    </header>
+
+    <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
+    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        📊 Resumen Comercial
+      </a>
+      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs">
+        🚜 Stock Físico
+      </a>
+      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        📝 Contratos & Compromisos
+      </a>
+    </div>
+
+    <!-- BANNER DE FEEDBACK VISUAL POST ACCIÓN -->
+    {% if mensaje %}
+    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-bold flex items-center justify-between shadow-xs transition-all animate-fade-in">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">✅</span>
+        <span>{{ mensaje }}</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-xs text-emerald-700 hover:text-emerald-900 font-black px-2 py-1 bg-emerald-100 rounded-lg">✕</button>
+    </div>
+    {% endif %}
+
+    <!-- KPIS DE STOCK FÍSICO (FORMATO AR) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock en Silo Bolsa</span>
+        <div class="text-3xl font-black text-slate-900">{{ tn_silo_bolsa | formato_ar }} <span class="text-base font-normal text-slate-500">Tn</span></div>
+        <p class="text-xs text-slate-400">Embolsado en campo</p>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock en Acopio / Puerto</span>
+        <div class="text-3xl font-black text-slate-900">{{ tn_acopio | formato_ar }} <span class="text-base font-normal text-slate-500">Tn</span></div>
+        <p class="text-xs text-slate-400">Entregado en terceros sin liquidar</p>
+      </div>
+
+      <div class="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 shadow-xs space-y-1">
+        <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Total Stock Físico Real</span>
+        <div class="text-3xl font-black text-amber-900">{{ tn_total | formato_ar }} <span class="text-base font-normal text-slate-600">Tn</span></div>
+        <p class="text-xs text-amber-700 font-medium">Existencias físicas guardadas</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- LISTADO DE STOCKS -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-black text-slate-900">Registros de Stock Guardado ({{ cultivo_seleccionado | capitalize }})</h2>
+          <span class="text-xs text-slate-500 font-semibold">{{ stocks | length }} registros</span>
+        </div>
+
+        {% if not stocks %}
+        <div class="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-3">
+          <div class="text-4xl">🌾</div>
+          <h3 class="text-base font-bold text-slate-800">No hay existencias registradas de {{ cultivo_seleccionado | capitalize }}</h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            Podés cargar un nuevo Silo Bolsa en el campo o una entrega en acopio usando el formulario lateral.
+          </p>
+        </div>
+        {% else %}
+        <div class="space-y-3">
+          {% for st in stocks %}
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase border {% if st.ubicacion_tipo == 'silo_bolsa' %} bg-amber-100 text-amber-800 border-amber-200 {% else %} bg-blue-100 text-blue-800 border-blue-200 {% endif %}">
+                  {% if st.ubicacion_tipo == 'silo_bolsa' %} 🚜 Silo Bolsa {% else %} 🏢 Acopio / Puerto {% endif %}
+                </span>
+                <h3 class="text-base font-black text-slate-900">{{ st.identificador }}</h3>
+              </div>
+              <p class="text-xs text-slate-500">
+                📍 Campo: <strong class="text-slate-700">{{ st.campo_nombre|default('Campo General') }}</strong>
+                {% if st.fecha_ingreso %} • Ingreso: <strong class="text-slate-700">{{ st.fecha_ingreso }}</strong> {% endif %}
+              </p>
+              {% if st.observaciones %}
+              <p class="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 mt-2">
+                💬 {{ st.observaciones }}
+              </p>
+              {% endif %}
+            </div>
+
+            <div class="text-right sm:self-center shrink-0">
+              <span class="text-2xl font-black text-slate-900 block">{{ st.toneladas_almacenadas | formato_ar }} Tn</span>
+              <span class="text-[11px] font-bold text-slate-400">Existencia actual</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- FORMULARIO DE ALTA RÁPIDA -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>➕</span> Nuevo Stock Físico
+        </h2>
+        <p class="text-xs text-slate-500">Registrá existencias en Silo Bolsa o entregas en acopio.</p>
+
+        <form method="POST" action="/comercial/stock/crear" class="space-y-4">
+          <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+
+          <!-- Campo Origen -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campo Origen</label>
+            <select name="campo_id" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+              {% for c in campos %}
+              <option value="{{ c.id }}" {% if campo_activo and campo_activo.id == c.id %}selected{% endif %}>
+                🌱 {{ c.nombre }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Tipo de Ubicación -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Almacenamiento</label>
+            <select name="ubicacion_tipo" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+              <option value="silo_bolsa">🚜 Silo Bolsa (En Campo)</option>
+              <option value="acopio_tercero">🏢 Acopio de Terceros</option>
+              <option value="puerto">⚓ Puerto / Destino Directo</option>
+            </select>
+          </div>
+
+          <!-- Identificador -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Identificador / Nombre</label>
+            <input type="text" name="identificador" required placeholder="Ej: SiloBolsa N° 4 - Lote Norte" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Toneladas -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Toneladas Almacenadas (Tn)</label>
+            <input type="number" step="0.01" min="0.01" name="toneladas_almacenadas" required placeholder="Ej: 180,50" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Fecha Ingreso -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Ingreso / Embolsado</label>
+            <input type="date" name="fecha_ingreso" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <!-- Observaciones -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Humedad</label>
+            <textarea name="observaciones" rows="2" placeholder="Ej: Humedad 13.5%, bolsa ipacal en buen estado." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+
+          <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm py-3 rounded-xl shadow-md transition-colors">
+            Guardar Stock Físico
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

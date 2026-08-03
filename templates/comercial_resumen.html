@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Posición Comercial de Granos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- HEADER NAVEGACIÓN PRINCIPAL -->
+    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
+          📈
+        </div>
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              Posición Comercial de Granos
+            </h1>
+            <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
+              V1 Comercial
+            </span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">
+            Cliente: <strong class="text-slate-800">{{ user.cliente_nombre }}</strong> | Campaña Activa: <strong class="text-slate-800">{{ campania_activa }}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Selector de Cultivo -->
+        <a href="/comercial?cultivo=soja" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌱 Soja
+        </a>
+        <a href="/comercial?cultivo=maiz" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌽 Maíz
+        </a>
+        <a href="/" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors">
+          🏠 Portal
+        </a>
+      </div>
+    </header>
+
+    <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
+    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs">
+        📊 Resumen Comercial
+      </a>
+      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        🚜 Stock Físico
+      </a>
+      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+        📝 Contratos & Compromisos
+      </a>
+    </div>
+
+    <!-- TARJETAS DE INDICADORES (KPIS CON JERARQUÍA SEMÁNTICA Y FORMATO AR) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Producción Total -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-slate-500">
+          <span class="text-xs font-bold uppercase tracking-wider">Producción Total</span>
+          <span class="text-xl">🌾</span>
+        </div>
+        <div class="text-3xl font-black text-slate-900">
+          {{ posicion.produccion_total_tn | formato_ar }} <span class="text-base font-normal text-slate-500">Tn</span>
+        </div>
+        <p class="text-xs text-slate-400">Estimado/Real en lotes de {{ cultivo_seleccionado | capitalize }}</p>
+      </div>
+
+      <!-- Vendido Precio Fijo (Azul) -->
+      <div class="bg-blue-50/40 p-5 rounded-2xl border border-blue-200 shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-blue-700">
+          <span class="text-xs font-bold uppercase tracking-wider text-blue-800">Vendido Fijo</span>
+          <span class="text-xl">🔒</span>
+        </div>
+        <div class="text-3xl font-black text-blue-900">
+          {{ posicion.tn_vendidas_precio_fijo | formato_ar }} <span class="text-base font-normal text-blue-600">Tn</span>
+        </div>
+        <p class="text-xs text-blue-600/80">Contratos cerrados en USD</p>
+      </div>
+
+      <!-- Vendido A Fijar (Ámbar) -->
+      <div class="bg-amber-50/40 p-5 rounded-2xl border border-amber-200 shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-amber-700">
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-800">Vendido A Fijar</span>
+          <span class="text-xl">⏳</span>
+        </div>
+        <div class="text-3xl font-black text-amber-900">
+          {{ posicion.tn_vendidas_a_fijar | formato_ar }} <span class="text-base font-normal text-amber-600">Tn</span>
+        </div>
+        <p class="text-xs text-amber-700/80">Entregado / Abierto a fijar pizarra</p>
+      </div>
+
+      <!-- Comprometido (Púrpura) -->
+      <div class="bg-purple-50/40 p-5 rounded-2xl border border-purple-200 shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-purple-700">
+          <span class="text-xs font-bold uppercase tracking-wider text-purple-800">Comprometido</span>
+          <span class="text-xl">🤝</span>
+        </div>
+        <div class="text-3xl font-black text-purple-900">
+          {{ posicion.tn_comprometidas | formato_ar }} <span class="text-base font-normal text-purple-600">Tn</span>
+        </div>
+        <p class="text-xs text-purple-700/80">Alquileres en qq/ha y canjes insumos</p>
+      </div>
+
+    </div>
+
+    <!-- SECCIÓN POSICIÓN LIBRE Y MATRIZ VISUAL -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Posición Libre de Riesgo -->
+      <div class="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-black text-slate-900">Estado de Cobertura Comercial</h2>
+          <span class="px-3.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-full border border-emerald-200">
+            {{ posicion.porcentaje_cobertura | formato_ar }}% Cobertura Comercial
+          </span>
+        </div>
+
+        <!-- Termómetro Visual de Posición -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs font-bold text-slate-700">
+            <span>Matriz de Distribución de Producción (Tn)</span>
+            <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+              🌱 Libre de Riesgo: <strong>{{ posicion.tn_libres | formato_ar }} Tn</strong>
+            </span>
+          </div>
+
+          <div class="w-full h-7 bg-slate-100 rounded-xl overflow-hidden flex border border-slate-200 p-0.5">
+            <!-- Barra Precio Fijo -->
+            <div style="width: {{ (posicion.tn_vendidas_precio_fijo / (posicion.produccion_total_tn or 1)) * 100 }}%" 
+                 class="bg-blue-600 h-full rounded-l-lg flex items-center justify-center text-[10px] text-white font-bold" 
+                 title="Vendido Fijo: {{ posicion.tn_vendidas_precio_fijo | formato_ar }} Tn">
+            </div>
+            <!-- Barra A Fijar -->
+            <div style="width: {{ (posicion.tn_vendidas_a_fijar / (posicion.produccion_total_tn or 1)) * 100 }}%" 
+                 class="bg-amber-500 h-full flex items-center justify-center text-[10px] text-white font-bold" 
+                 title="A Fijar: {{ posicion.tn_vendidas_a_fijar | formato_ar }} Tn">
+            </div>
+            <!-- Barra Comprometido -->
+            <div style="width: {{ (posicion.tn_comprometidas / (posicion.produccion_total_tn or 1)) * 100 }}%" 
+                 class="bg-purple-600 h-full flex items-center justify-center text-[10px] text-white font-bold" 
+                 title="Comprometido: {{ posicion.tn_comprometidas | formato_ar }} Tn">
+            </div>
+            <!-- Barra Libre -->
+            <div style="width: {{ (posicion.tn_libres / (posicion.produccion_total_tn or 1)) * 100 }}%" 
+                 class="bg-emerald-500 h-full rounded-r-lg flex items-center justify-center text-[10px] text-white font-bold" 
+                 title="Libre: {{ posicion.tn_libres | formato_ar }} Tn">
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-4 text-xs font-semibold text-slate-700 pt-2">
+            <div class="flex items-center space-x-1.5 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+              <span class="w-3 h-3 rounded-full bg-blue-600"></span>
+              <span>Fijo: <strong>{{ posicion.tn_vendidas_precio_fijo | formato_ar }} Tn</strong></span>
+            </div>
+            <div class="flex items-center space-x-1.5 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
+              <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+              <span>A Fijar: <strong>{{ posicion.tn_vendidas_a_fijar | formato_ar }} Tn</strong></span>
+            </div>
+            <div class="flex items-center space-x-1.5 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+              <span class="w-3 h-3 rounded-full bg-purple-600"></span>
+              <span>Comprometido: <strong>{{ posicion.tn_comprometidas | formato_ar }} Tn</strong></span>
+            </div>
+            <div class="flex items-center space-x-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-900">
+              <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+              <span>Disponible Libre: <strong>{{ posicion.tn_libres | formato_ar }} Tn</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-sm text-emerald-950 flex items-start gap-3">
+          <span class="text-xl">💡</span>
+          <div>
+            <strong class="font-bold">Resumen de Posición:</strong> De <strong>{{ posicion.produccion_total_tn | formato_ar }} Tn</strong> producidas/estimadas de {{ cultivo_seleccionado }}, tenés <strong>{{ posicion.tn_libres | formato_ar }} Tn libres de riesgo comercial</strong> para capturar oportunidades de precio.
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen Stock Físico Guardado -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-lg font-black text-slate-900 flex items-center justify-between">
+          <span>Stock Físico Guardado</span>
+          <span class="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">Existencias</span>
+        </h2>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <span class="text-sm font-bold text-slate-700">🚜 Silo Bolsa (Campo)</span>
+            <span class="text-base font-black text-slate-900">{{ posicion.tn_stock_silo_bolsa | formato_ar }} Tn</span>
+          </div>
+          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <span class="text-sm font-bold text-slate-700">🏢 Acopio / Terceros</span>
+            <span class="text-base font-black text-slate-900">{{ posicion.tn_stock_acopio | formato_ar }} Tn</span>
+          </div>
+          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+            <span class="text-sm font-black text-amber-900">Total Físico Real</span>
+            <span class="text-lg font-black text-amber-900">{{ posicion.tn_stock_total | formato_ar }} Tn</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SECCIÓN MERCADO Y VALORIZACIÓN ESTIMADA (ENGANCHE MERCADO V1) -->
+    <div id="punto-enganche-mercado-v1" class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-700 relative overflow-hidden">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+        <div class="space-y-2 max-w-2xl">
+          <div class="flex items-center space-x-2">
+            <span class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
+              Punto de Enganche: Mercado V1
+            </span>
+            <span class="text-xs text-slate-400 font-semibold">• Próxima Integración Externa</span>
+          </div>
+          <h3 class="text-xl sm:text-2xl font-black text-white">
+            Precios de Mercado & Valorización en Tiempo Real
+          </h3>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            Acá se conectará la cotización de **Pizarra Rosario (CAC)** y **Matba Rofex** para valorizar automáticamente tus **{{ posicion.tn_libres | formato_ar }} Tn libres** en USD y ARS.
+          </p>
+        </div>
+
+        <div class="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-right shrink-0 space-y-1 w-full md:w-auto">
+          <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">Cotización Pizarra Estimada</span>
+          <div class="text-2xl font-black text-white">$ 295,00 <span class="text-xs font-normal text-slate-300">USD/Tn</span></div>
+          <span class="text-[10px] text-slate-400 block">Dólar Canje: $ 1.285,50 ARS</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

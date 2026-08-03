@@ -1,3 +1,5 @@
+from datetime import date
+from decimal import Decimal
 import uuid
 from app.auth import hash_password
 from app.enums import (
@@ -6,7 +8,10 @@ from app.enums import (
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
+    TipoCompromisoEnum,
+    TipoPrecioEnum,
     TipoServicioEnum,
+    UbicacionStockEnum,
 )
 
 # Cliente Real: Familia Matteuda (Laguna Larga, Córdoba)
@@ -17,6 +22,109 @@ DEMO_CLIENTE = {
     "ubicacion": "Laguna Larga, Córdoba",
     "activo": True,
 }
+
+# Campañas Agrícolas Demo
+DEMO_CAMPANIAS = [
+    {
+        "id": "campania-2025-2026",
+        "nombre": "Campaña 2025/2026",
+        "fecha_inicio": "2025-07-01",
+        "fecha_fin": "2026-06-30",
+        "activa": True,
+    },
+    {
+        "id": "campania-2024-2025",
+        "nombre": "Campaña 2024/2025",
+        "fecha_inicio": "2024-07-01",
+        "fecha_fin": "2025-06-30",
+        "activa": False,
+    },
+]
+
+# Contratos de Venta de Grano Demo (Familia Matteuda - Maíz y Soja)
+DEMO_CONTRATOS_GRANO = [
+    {
+        "id": "contrato-soja-001",
+        "campania_id": "campania-2025-2026",
+        "cultivo": "soja",
+        "comprador_acopio": "Cargill S.A. (Puerto San Martín)",
+        "numero_contrato": "SOJ-2026-0412",
+        "toneladas": Decimal("300.00"),
+        "tipo_precio": TipoPrecioEnum.FIJO,
+        "precio_usd_tn": Decimal("295.00"),
+        "fecha_contrato": date(2026, 3, 15),
+        "fecha_entrega_limite": date(2026, 5, 31),
+        "observaciones": "Forward Soja 1ra entregado en puerto San Martín.",
+    },
+    {
+        "id": "contrato-soja-002",
+        "campania_id": "campania-2025-2026",
+        "cultivo": "soja",
+        "comprador_acopio": "ACA Cooperativa Laguna Larga",
+        "numero_contrato": "SOJ-2026-0889",
+        "toneladas": Decimal("200.00"),
+        "tipo_precio": TipoPrecioEnum.A_FIJAR,
+        "precio_usd_tn": None,
+        "fecha_contrato": date(2026, 4, 10),
+        "fecha_entrega_limite": date(2026, 6, 30),
+        "observaciones": "Venta A Fijar a precio Pizarra Rosario mayo/junio.",
+    },
+    {
+        "id": "contrato-maiz-001",
+        "campania_id": "campania-2025-2026",
+        "cultivo": "maiz",
+        "comprador_acopio": "Bunge Argentina (Puerto Rosario)",
+        "numero_contrato": "MAI-2026-0155",
+        "toneladas": Decimal("450.00"),
+        "tipo_precio": TipoPrecioEnum.FIJO,
+        "precio_usd_tn": Decimal("180.00"),
+        "fecha_contrato": date(2026, 2, 20),
+        "fecha_entrega_limite": date(2026, 7, 31),
+        "observaciones": "Forward Maíz Temprano julio 2026.",
+    },
+]
+
+# Stock Físico de Grano Demo (Silo Bolsa y Acopio)
+DEMO_STOCKS_GRANO = [
+    {
+        "id": "stock-001",
+        "campo_id": "campo-001",
+        "campania_id": "campania-2025-2026",
+        "cultivo": "soja",
+        "ubicacion_tipo": UbicacionStockEnum.SILO_BOLSA,
+        "identificador": "SiloBolsa N° 2 - Lote 1 El Silo",
+        "toneladas_almacenadas": Decimal("180.50"),
+        "fecha_ingreso": date(2026, 5, 20),
+        "observaciones": "Bolsa Ipacal 9 pies. Humedad 13.2%.",
+    },
+    {
+        "id": "stock-002",
+        "campo_id": "campo-002",
+        "campania_id": "campania-2025-2026",
+        "cultivo": "maiz",
+        "ubicacion_tipo": UbicacionStockEnum.ACOPIO_TERCERO,
+        "identificador": "Acopio ACA Laguna Larga - Planta N° 1",
+        "toneladas_almacenadas": Decimal("320.00"),
+        "fecha_ingreso": date(2026, 7, 10),
+        "observaciones": "Cosecha Maíz 1ra depositada en acopio sin liquidar.",
+    },
+]
+
+# Compromisos de Grano Demo (Alquileres en Quintales / Canjes)
+DEMO_COMPROMISOS_GRANO = [
+    {
+        "id": "compromiso-001",
+        "campania_id": "campania-2025-2026",
+        "campo_id": "campo-001",
+        "cultivo": "soja",
+        "tipo_compromiso": TipoCompromisoEnum.ALQUILER_ARRENDAMIENTO,
+        "concepto": "Alquiler Lote 2 La Escuela (200 ha a 12 qq/ha soja)",
+        "beneficiario": "Familia Donati (Propietarios)",
+        "toneladas_comprometidas": Decimal("240.00"),
+        "fecha_vencimiento": date(2026, 11, 30),
+        "cumplido": False,
+    },
+]
 
 # Campos de la Familia Matteuda en Laguna Larga, Córdoba (Coordenadas Reales: -31.7766, -63.8011)
 DEMO_CAMPOS = [
@@ -517,42 +625,142 @@ def get_uuid(key_str: str) -> uuid.UUID:
 
 
 async def seed_initial_data(session):
-    """Pobla la base de datos PostgreSQL solo con Cliente y Usuarios iniciales."""
+    """Pobla la base de datos PostgreSQL con datos iniciales del ERP y del Módulo Comercial."""
     from sqlalchemy import select
-    from app.models import Cliente, Usuario
-
-    # Verificar si ya existen usuarios cargados
-    result = await session.execute(select(Usuario).limit(1))
-    if result.scalars().first():
-        return  # La base de datos ya contiene datos de usuarios
+    from app.models import (
+        Campo,
+        Campania,
+        Cliente,
+        CompromisoGrano,
+        ContratoVentaGrano,
+        StockGrano,
+        Usuario,
+    )
 
     # 1. Crear Cliente
     cliente_id = get_uuid(DEMO_CLIENTE["id"])
-    cliente = Cliente(
-        id=cliente_id,
-        nombre=DEMO_CLIENTE["nombre"],
-        cuit=DEMO_CLIENTE.get("cuit"),
-        ubicacion=DEMO_CLIENTE.get("ubicacion"),
-        activo=True,
-    )
-    session.add(cliente)
+    cliente = await session.get(Cliente, cliente_id)
+    if not cliente:
+        cliente = Cliente(
+            id=cliente_id,
+            nombre=DEMO_CLIENTE["nombre"],
+            cuit=DEMO_CLIENTE.get("cuit"),
+            ubicacion=DEMO_CLIENTE.get("ubicacion"),
+            activo=True,
+        )
+        session.add(cliente)
+        await session.flush()
+
+    # 2. Crear Usuarios Iniciales si no existen
+    result = await session.execute(select(Usuario).limit(1))
+    if not result.scalars().first():
+        for u_dict in DEMO_USUARIOS:
+            rol_val = u_dict["rol"]
+            if not isinstance(rol_val, RolUsuario):
+                rol_val = RolUsuario(rol_val)
+            user_obj = Usuario(
+                id=get_uuid(u_dict["id"]),
+                cliente_id=cliente_id,
+                nombre=u_dict["nombre"],
+                email=u_dict["email"],
+                password_hash=u_dict["password_hash"],
+                rol=rol_val,
+            )
+            session.add(user_obj)
+        await session.flush()
+
+    # 3. Crear Campos si no existen
+    for c_dict in DEMO_CAMPOS:
+        campo_id = get_uuid(c_dict["id"])
+        c_obj = await session.get(Campo, campo_id)
+        if not c_obj:
+            c_obj = Campo(
+                id=campo_id,
+                cliente_id=cliente_id,
+                nombre=c_dict["nombre"],
+                ubicacion=c_dict.get("ubicacion"),
+                localidad_referencia=c_dict.get("localidad_referencia"),
+                latitud=c_dict.get("latitud"),
+                longitud=c_dict.get("longitud"),
+                hectareas_totales=c_dict.get("hectareas_totales", 0.0),
+            )
+            session.add(c_obj)
     await session.flush()
 
-    # 2. Crear Usuarios Iniciales
-    for u_dict in DEMO_USUARIOS:
-        rol_val = u_dict["rol"]
-        if not isinstance(rol_val, RolUsuario):
-            rol_val = RolUsuario(rol_val)
-        user_obj = Usuario(
-            id=get_uuid(u_dict["id"]),
-            cliente_id=cliente_id,
-            nombre=u_dict["nombre"],
-            email=u_dict["email"],
-            password_hash=u_dict["password_hash"],
-            rol=rol_val,
-        )
-        session.add(user_obj)
+    # 4. Crear Campañas si no existen
+    for camp_dict in DEMO_CAMPANIAS:
+        camp_id = get_uuid(camp_dict["id"])
+        camp_obj = await session.get(Campania, camp_id)
+        if not camp_obj:
+            camp_obj = Campania(
+                id=camp_id,
+                cliente_id=cliente_id,
+                nombre=camp_dict["nombre"],
+                fecha_inicio=date.fromisoformat(camp_dict["fecha_inicio"]),
+                fecha_fin=date.fromisoformat(camp_dict["fecha_fin"]) if camp_dict.get("fecha_fin") else None,
+                activa=camp_dict.get("activa", True),
+            )
+            session.add(camp_obj)
+    await session.flush()
+
+    # 5. Crear Contratos de Venta Grano si no existen
+    res_contratos = await session.execute(select(ContratoVentaGrano).limit(1))
+    if not res_contratos.scalars().first():
+        for contr_dict in DEMO_CONTRATOS_GRANO:
+            contr_obj = ContratoVentaGrano(
+                id=get_uuid(contr_dict["id"]),
+                cliente_id=cliente_id,
+                campania_id=get_uuid(contr_dict["campania_id"]),
+                cultivo=contr_dict["cultivo"],
+                comprador_acopio=contr_dict["comprador_acopio"],
+                numero_contrato=contr_dict.get("numero_contrato"),
+                toneladas=contr_dict["toneladas"],
+                tipo_precio=contr_dict["tipo_precio"],
+                precio_usd_tn=contr_dict.get("precio_usd_tn"),
+                fecha_contrato=contr_dict["fecha_contrato"],
+                fecha_entrega_limite=contr_dict.get("fecha_entrega_limite"),
+                observaciones=contr_dict.get("observaciones"),
+            )
+            session.add(contr_obj)
+
+    # 6. Crear Stock Grano si no existen
+    res_stock = await session.execute(select(StockGrano).limit(1))
+    if not res_stock.scalars().first():
+        for st_dict in DEMO_STOCKS_GRANO:
+            st_obj = StockGrano(
+                id=get_uuid(st_dict["id"]),
+                cliente_id=cliente_id,
+                campo_id=get_uuid(st_dict["campo_id"]),
+                campania_id=get_uuid(st_dict["campania_id"]),
+                cultivo=st_dict["cultivo"],
+                ubicacion_tipo=st_dict["ubicacion_tipo"],
+                identificador=st_dict["identificador"],
+                toneladas_almacenadas=st_dict["toneladas_almacenadas"],
+                fecha_ingreso=st_dict["fecha_ingreso"],
+                observaciones=st_dict.get("observaciones"),
+            )
+            session.add(st_obj)
+
+    # 7. Crear Compromisos Grano si no existen
+    res_comp = await session.execute(select(CompromisoGrano).limit(1))
+    if not res_comp.scalars().first():
+        for comp_dict in DEMO_COMPROMISOS_GRANO:
+            comp_obj = CompromisoGrano(
+                id=get_uuid(comp_dict["id"]),
+                cliente_id=cliente_id,
+                campania_id=get_uuid(comp_dict["campania_id"]),
+                campo_id=get_uuid(comp_dict["campo_id"]) if comp_dict.get("campo_id") else None,
+                cultivo=comp_dict["cultivo"],
+                tipo_compromiso=comp_dict["tipo_compromiso"],
+                concepto=comp_dict["concepto"],
+                beneficiario=comp_dict["beneficiario"],
+                toneladas_comprometidas=comp_dict["toneladas_comprometidas"],
+                fecha_vencimiento=comp_dict.get("fecha_vencimiento"),
+                cumplido=comp_dict.get("cumplido", False),
+            )
+            session.add(comp_obj)
 
     await session.commit()
+
 
 

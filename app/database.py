@@ -45,6 +45,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db():
     """Inicializa la estructura de tablas en la base de datos PostgreSQL."""
+    import app.models  # Importa los modelos para registrarlos en Base.metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
 

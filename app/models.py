@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     Float,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
@@ -26,9 +27,12 @@ from app.enums import (
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
+    TipoCompromisoEnum,
     TipoLabor,
+    TipoPrecioEnum,
     TipoServicioEnum,
     TipoTransaccion,
+    UbicacionStockEnum,
 )
 
 
@@ -63,6 +67,15 @@ class Cliente(Base):
     lotes: Mapped[List["Lote"]] = relationship(
         "Lote", back_populates="cliente", cascade="all, delete-orphan"
     )
+    contratos_venta: Mapped[List["ContratoVentaGrano"]] = relationship(
+        "ContratoVentaGrano", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    stocks_grano: Mapped[List["StockGrano"]] = relationship(
+        "StockGrano", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    compromisos_grano: Mapped[List["CompromisoGrano"]] = relationship(
+        "CompromisoGrano", back_populates="cliente", cascade="all, delete-orphan"
+    )
 
 
 class Campo(Base):
@@ -95,6 +108,12 @@ class Campo(Base):
     )
     lotes: Mapped[List["Lote"]] = relationship(
         "Lote", back_populates="campo", cascade="all, delete-orphan"
+    )
+    stocks_grano: Mapped[List["StockGrano"]] = relationship(
+        "StockGrano", back_populates="campo", cascade="all, delete-orphan"
+    )
+    compromisos_grano: Mapped[List["CompromisoGrano"]] = relationship(
+        "CompromisoGrano", back_populates="campo"
     )
 
 
@@ -253,6 +272,15 @@ class Campania(Base):
 
     lotes: Mapped[List["Lote"]] = relationship("Lote", back_populates="campania")
     labores: Mapped[List["LaborCampo"]] = relationship("LaborCampo", back_populates="campania", cascade="all, delete-orphan")
+    contratos_venta: Mapped[List["ContratoVentaGrano"]] = relationship(
+        "ContratoVentaGrano", back_populates="campania", cascade="all, delete-orphan"
+    )
+    stocks_grano: Mapped[List["StockGrano"]] = relationship(
+        "StockGrano", back_populates="campania", cascade="all, delete-orphan"
+    )
+    compromisos_grano: Mapped[List["CompromisoGrano"]] = relationship(
+        "CompromisoGrano", back_populates="campania", cascade="all, delete-orphan"
+    )
 
 
 class LaborCampo(Base):
@@ -367,3 +395,113 @@ class TransaccionFinanciera(Base):
     pagado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     lote: Mapped[Optional["Lote"]] = relationship("Lote", back_populates="transacciones")
+
+
+class ContratoVentaGrano(Base):
+    __tablename__ = "contratos_venta_grano"
+    __table_args__ = (
+        Index("ix_contratos_cliente_campania_cultivo", "cliente_id", "campania_id", "cultivo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False
+    )
+    campania_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="CASCADE"), nullable=False
+    )
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False)
+    comprador_acopio: Mapped[str] = mapped_column(String(150), nullable=False)
+    numero_contrato: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    toneladas: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    tipo_precio: Mapped[TipoPrecioEnum] = mapped_column(
+        SQLEnum(TipoPrecioEnum, name="tipo_precio_enum", native_enum=True),
+        nullable=False,
+    )
+    precio_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    fecha_contrato: Mapped[date] = mapped_column(Date, nullable=False)
+    fecha_entrega_limite: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="contratos_venta")
+    campania: Mapped["Campania"] = relationship("Campania", back_populates="contratos_venta")
+
+
+class StockGrano(Base):
+    __tablename__ = "stock_grano"
+    __table_args__ = (
+        Index("ix_stock_cliente_campania_cultivo", "cliente_id", "campania_id", "cultivo"),
+        Index("ix_stock_campo", "campo_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False
+    )
+    campo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="CASCADE"), nullable=False
+    )
+    campania_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="CASCADE"), nullable=False
+    )
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False)
+    ubicacion_tipo: Mapped[UbicacionStockEnum] = mapped_column(
+        SQLEnum(UbicacionStockEnum, name="ubicacion_stock_enum", native_enum=True),
+        nullable=False,
+    )
+    identificador: Mapped[str] = mapped_column(String(150), nullable=False)
+    toneladas_almacenadas: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    fecha_ingreso: Mapped[date] = mapped_column(Date, nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="stocks_grano")
+    campo: Mapped["Campo"] = relationship("Campo", back_populates="stocks_grano")
+    campania: Mapped["Campania"] = relationship("Campania", back_populates="stocks_grano")
+
+
+class CompromisoGrano(Base):
+    __tablename__ = "compromisos_grano"
+    __table_args__ = (
+        Index("ix_compromisos_cliente_campania_cultivo", "cliente_id", "campania_id", "cultivo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False
+    )
+    campania_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="CASCADE"), nullable=False
+    )
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False)
+    tipo_compromiso: Mapped[TipoCompromisoEnum] = mapped_column(
+        SQLEnum(TipoCompromisoEnum, name="tipo_compromiso_enum", native_enum=True),
+        nullable=False,
+    )
+    concepto: Mapped[str] = mapped_column(String(200), nullable=False)
+    beneficiario: Mapped[str] = mapped_column(String(150), nullable=False)
+    toneladas_comprometidas: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    fecha_vencimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    cumplido: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="compromisos_grano")
+    campania: Mapped["Campania"] = relationship("Campania", back_populates="compromisos_grano")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo", back_populates="compromisos_grano")
+
