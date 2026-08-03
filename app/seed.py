@@ -633,6 +633,7 @@ async def seed_initial_data(session):
         Cliente,
         CompromisoGrano,
         ContratoVentaGrano,
+        PrecioMercadoCache,
         StockGrano,
         Usuario,
     )
@@ -760,7 +761,24 @@ async def seed_initial_data(session):
             )
             session.add(comp_obj)
 
+    # 8. Crear Precios de Mercado en Caché si no existen
+    res_pm = await session.execute(select(PrecioMercadoCache).limit(1))
+    if not res_pm.scalars().first():
+        from app.services.mercado import DEMO_PRECIOS_MERCADO
+        for pm_dict in DEMO_PRECIOS_MERCADO:
+            pm_obj = PrecioMercadoCache(
+                id=uuid.uuid4(),
+                cultivo=pm_dict["cultivo"],
+                fuente=pm_dict["fuente"],
+                fecha=pm_dict["fecha"],
+                precio_usd_tn=pm_dict["precio_usd_tn"],
+                precio_ars_tn=pm_dict["precio_ars_tn"],
+                dolar_referencia=pm_dict["dolar_referencia"],
+            )
+            session.add(pm_obj)
+
     await session.commit()
+
 
 
 

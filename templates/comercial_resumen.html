@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduAgro - Posición Comercial de Granos</title>
+  <title>EduAgro - Posición Comercial & Mercado de Granos</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -29,6 +29,17 @@
 
   <div class="max-w-7xl mx-auto space-y-6">
 
+    <!-- BANNER FEEDBACK DE ÉXITO -->
+    {% if mensaje_exito %}
+    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-sm flex items-center justify-between shadow-sm">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">✅</span>
+        <span>{{ mensaje_exito }}</span>
+      </div>
+      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="text-xs text-emerald-700 hover:text-emerald-900 underline">Descartar</a>
+    </div>
+    {% endif %}
+
     <!-- HEADER NAVEGACIÓN PRINCIPAL -->
     <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
@@ -41,7 +52,7 @@
               Posición Comercial de Granos
             </h1>
             <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
-              V1 Comercial
+              ERP Comercial V1.1
             </span>
           </div>
           <p class="text-sm text-slate-500 mt-1">
@@ -77,7 +88,163 @@
       </a>
     </div>
 
-    <!-- TARJETAS DE INDICADORES (KPIS CON JERARQUÍA SEMÁNTICA Y FORMATO AR) -->
+    <!-- 1. SECCIÓN MERCADO Y VALORIZACIÓN ENRIQUECIDA -->
+    <div id="punto-enganche-mercado-v1" class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-700 relative overflow-hidden">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+        <div class="space-y-2 max-w-2xl">
+          <div class="flex items-center space-x-2">
+            <span class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
+              Mercado V1.1 • {{ posicion.fuente_precio_mercado|default('Pizarra Rosario') }}
+            </span>
+            {% if posicion.fecha_precio_mercado %}
+            <span class="text-xs text-slate-400 font-semibold">• Ref: {{ posicion.fecha_precio_mercado }}</span>
+            {% endif %}
+          </div>
+          <h3 class="text-xl sm:text-2xl font-black text-white">
+            Cotización de Mercado & Valorización de Stock Libre
+          </h3>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            Cotización oficial de referencia para {{ cultivo_seleccionado | capitalize }}. Valorización estimada sobre tus <strong>{{ posicion.tn_libres | formato_ar }} Tn libres de riesgo</strong>:
+          </p>
+          {% if posicion.valorizacion_stock_libre_usd %}
+          <div class="inline-block bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-4 py-2 rounded-xl text-sm font-bold mt-2">
+            💰 Valor Estimado Stock Libre: <strong class="text-white text-base">$ {{ posicion.valorizacion_stock_libre_usd | formato_ar }} USD</strong>
+            {% if posicion.valorizacion_stock_libre_ars %}
+            <span class="text-xs font-normal text-emerald-200 block sm:inline sm:ml-2">($ {{ posicion.valorizacion_stock_libre_ars | formato_ar }} ARS)</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/15 text-right shrink-0 space-y-2 w-full md:w-auto">
+          <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">Precio Referencia {{ cultivo_seleccionado | capitalize }}</span>
+          {% if posicion.precio_mercado_usd_tn %}
+          <div class="text-3xl font-black text-white">$ {{ posicion.precio_mercado_usd_tn | formato_ar }} <span class="text-xs font-normal text-slate-300">USD/Tn</span></div>
+          {% if posicion.precio_mercado_ars_tn %}
+          <span class="text-xs text-amber-200 font-bold block">$ {{ posicion.precio_mercado_ars_tn | formato_ar }} ARS/Tn</span>
+          {% endif %}
+          {% if posicion.dolar_referencia %}
+          <span class="text-[10px] text-slate-400 block pt-1 border-t border-white/10">Dólar Canje: $ {{ posicion.dolar_referencia | formato_ar }} ARS</span>
+          {% endif %}
+          {% else %}
+          <div class="text-lg font-bold text-slate-300">Sin Cotización Vigente</div>
+          {% endif %}
+          <div class="pt-2">
+            <a href="/comercial/mercado/refrescar?cultivo={{ cultivo_seleccionado }}" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-colors">
+              <span>⚡ Refrescar Cotizaciones</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. TABLA DE REFERENCIAS DE MERCADO Y FUENTES OFICIALES VERIFICADAS (PRIORIDAD VISUAL ALTA) -->
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>📊</span> Cotizaciones de Mercado & Fuentes Oficiales
+          </h2>
+          <p class="text-xs text-slate-500">Precios de Pizarra Rosario (CAC/BCR) y fuentes oficiales persistidos en caché local.</p>
+        </div>
+        <span class="text-xs text-slate-500 font-semibold">{{ precios_mercado | length }} registros cargados</span>
+      </div>
+
+      <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
+            <tr>
+              <th class="p-3.5">Cultivo</th>
+              <th class="p-3.5">Fuente de Mercado</th>
+              <th class="p-3.5">Fecha Ref.</th>
+              <th class="p-3.5 text-right">Precio ARS/Tn (Oficial)</th>
+              <th class="p-3.5 text-right">Dólar Ref.</th>
+              <th class="p-3.5 text-right">Precio USD/Tn (Calc.)</th>
+              <th class="p-3.5 text-center">Fuente Verificada</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
+            {% for pm in precios_mercado %}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="p-3.5 font-bold">
+                {% if pm.cultivo.lower() == 'soja' %} 🌱 Soja {% else %} 🌽 Maíz {% endif %}
+              </td>
+              <td class="p-3.5 text-slate-600 font-semibold">{{ pm.fuente }}</td>
+              <td class="p-3.5 text-slate-500">{{ pm.fecha }}</td>
+              <td class="p-3.5 text-right font-black text-slate-900">
+                {% if pm.precio_ars_tn %} $ {{ pm.precio_ars_tn | formato_ar }} ARS {% else %} -- {% endif %}
+              </td>
+              <td class="p-3.5 text-right text-slate-600">
+                {% if pm.dolar_referencia %} $ {{ pm.dolar_referencia | formato_ar }} ARS {% else %} -- {% endif %}
+              </td>
+              <td class="p-3.5 text-right font-black text-amber-700 bg-amber-50/50">
+                $ {{ pm.precio_usd_tn | formato_ar }} USD
+              </td>
+              <td class="p-3.5 text-center">
+                <a href="{{ pm.url_fuente }}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200 inline-flex items-center gap-1 transition-colors">
+                  <span>Ver fuente</span> ↗
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. PANEL DE INSIGHTS DEL AGENTE COMERCIAL -->
+    {% if insights %}
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-600 text-white text-xl flex items-center justify-center shadow-md">
+            🤖
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-slate-900">Agente Comercial • Diagnóstico e Insights</h2>
+            <p class="text-xs text-slate-500">Interpretación automática basada en reglas de posición comercial y mercado.</p>
+          </div>
+        </div>
+        <span class="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-extrabold rounded-full border border-purple-200">
+          {{ insights | length }} Observaciones
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for ins in insights %}
+        <div class="p-5 rounded-2xl border transition-all shadow-2xs space-y-2.5 flex flex-col justify-between
+          {% if ins.nivel == 'warning' %} bg-amber-50/70 border-amber-200 text-amber-950
+          {% elif ins.nivel == 'danger' %} bg-red-50/70 border-red-200 text-red-950
+          {% elif ins.nivel == 'success' %} bg-emerald-50/70 border-emerald-200 text-emerald-950
+          {% else %} bg-purple-50/70 border-purple-200 text-purple-950 {% endif %}">
+          
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border
+                {% if ins.nivel == 'warning' %} bg-amber-100 text-amber-800 border-amber-300
+                {% elif ins.nivel == 'danger' %} bg-red-100 text-red-800 border-red-300
+                {% elif ins.nivel == 'success' %} bg-emerald-100 text-emerald-800 border-emerald-300
+                {% else %} bg-purple-100 text-purple-800 border-purple-300 {% endif %}">
+                [{{ ins.codigo }}]
+              </span>
+              <span class="text-xs font-bold opacity-75">
+                {% if ins.nivel == 'warning' %} ⚠️ Atención
+                {% elif ins.nivel == 'danger' %} 🚨 Alerta
+                {% elif ins.nivel == 'success' %} ✅ Favorable
+                {% else %} ℹ️ Diagnóstico {% endif %}
+              </span>
+            </div>
+            <h3 class="text-sm font-black tracking-tight leading-snug">{{ ins.titulo }}</h3>
+            <p class="text-xs opacity-90 leading-relaxed">{{ ins.mensaje }}</p>
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 4. TARJETAS DE INDICADORES (KPIS) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       
       <!-- Producción Total -->
@@ -130,7 +297,7 @@
 
     </div>
 
-    <!-- SECCIÓN POSICIÓN LIBRE Y MATRIZ VISUAL -->
+    <!-- 5. SECCIÓN POSICIÓN LIBRE Y MATRIZ VISUAL -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
       <!-- Posición Libre de Riesgo -->
@@ -224,32 +391,6 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- SECCIÓN MERCADO Y VALORIZACIÓN ESTIMADA (ENGANCHE MERCADO V1) -->
-    <div id="punto-enganche-mercado-v1" class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-700 relative overflow-hidden">
-      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
-        <div class="space-y-2 max-w-2xl">
-          <div class="flex items-center space-x-2">
-            <span class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
-              Punto de Enganche: Mercado V1
-            </span>
-            <span class="text-xs text-slate-400 font-semibold">• Próxima Integración Externa</span>
-          </div>
-          <h3 class="text-xl sm:text-2xl font-black text-white">
-            Precios de Mercado & Valorización en Tiempo Real
-          </h3>
-          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Acá se conectará la cotización de **Pizarra Rosario (CAC)** y **Matba Rofex** para valorizar automáticamente tus **{{ posicion.tn_libres | formato_ar }} Tn libres** en USD y ARS.
-          </p>
-        </div>
-
-        <div class="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-right shrink-0 space-y-1 w-full md:w-auto">
-          <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">Cotización Pizarra Estimada</span>
-          <div class="text-2xl font-black text-white">$ 295,00 <span class="text-xs font-normal text-slate-300">USD/Tn</span></div>
-          <span class="text-[10px] text-slate-400 block">Dólar Canje: $ 1.285,50 ARS</span>
-        </div>
-      </div>
     </div>
 
   </div>

@@ -505,3 +505,31 @@ class CompromisoGrano(Base):
     campania: Mapped["Campania"] = relationship("Campania", back_populates="compromisos_grano")
     campo: Mapped[Optional["Campo"]] = relationship("Campo", back_populates="compromisos_grano")
 
+
+class PrecioMercadoCache(Base):
+    """
+    Caché local de cotizaciones de mercado de granos (Soja, Maíz, etc.).
+    Almacena precios de referencia de fuentes externas como Pizarra Rosario (CAC) o SAGyP.
+    """
+    __tablename__ = "precios_mercado_cache"
+    __table_args__ = (
+        Index("ix_precios_mercado_cultivo_fecha", "cultivo", "fecha"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False)
+    fuente: Mapped[str] = mapped_column(String(100), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    precio_usd_tn: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    precio_ars_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    dolar_referencia: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+

@@ -28,6 +28,7 @@ from app.models import (
     StockGrano,
     ContratoVentaGrano,
     CompromisoGrano,
+    PrecioMercadoCache,
 )
 from app.services.comercial import calcular_posicion_comercial, obtener_campania_activa_para_cliente
 from app.enums import (
@@ -1753,6 +1754,7 @@ async def read_comercial_resumen(
     request: Request,
     campania_id: Optional[str] = None,
     cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -1793,6 +1795,50 @@ async def read_comercial_resumen(
             "tn_stock_total": Decimal("0.0"),
         }
 
+    # Evaluador de insights del Agente Comercial
+    from app.agents.comercial_rules import evaluar_insights_comerciales
+    insights = evaluar_insights_comerciales(posicion)
+
+    # Cargar cotizaciones de mercado en caché y resolver enlaces a fuentes oficiales
+    stmt_pm = select(PrecioMercadoCache).order_by(PrecioMercadoCache.fecha.desc(), PrecioMercadoCache.creado_en.desc())
+    res_pm = await db.execute(stmt_pm)
+    precios_objs = res_pm.scalars().all()
+
+    MAPA_FUENTES_URL = {
+        "Pizarra Rosario (CAC / BCR)": "https://www.cac.bcr.com.ar/es/precios-de-pizarra",
+        "SAGyP / FAS Teórico Oficial": "https://www.magyp.gob.ar/sitio/areas/ss_mercados_agropecuarios/precios/",
+        "Dólar BNA / Bluelytics API": "https://www.bna.com.ar/Personas",
+    }
+
+    precios_mercado = []
+    if precios_objs:
+        for p in precios_objs:
+            f_nombre = p.fuente or "Pizarra Rosario (CAC / BCR)"
+            precios_mercado.append({
+                "id": str(p.id),
+                "cultivo": p.cultivo.capitalize(),
+                "fuente": f_nombre,
+                "url_fuente": MAPA_FUENTES_URL.get(f_nombre, "https://www.bcr.com.ar"),
+                "fecha": str(p.fecha),
+                "precio_usd_tn": float(p.precio_usd_tn),
+                "precio_ars_tn": float(p.precio_ars_tn) if p.precio_ars_tn else None,
+                "dolar_referencia": float(p.dolar_referencia) if p.dolar_referencia else None,
+            })
+    else:
+        from app.services.mercado import DEMO_PRECIOS_MERCADO
+        for p in DEMO_PRECIOS_MERCADO:
+            f_nombre = p["fuente"]
+            precios_mercado.append({
+                "id": "demo",
+                "cultivo": p["cultivo"].capitalize(),
+                "fuente": f_nombre,
+                "url_fuente": MAPA_FUENTES_URL.get(f_nombre, "https://www.bcr.com.ar"),
+                "fecha": str(p["fecha"]),
+                "precio_usd_tn": float(p["precio_usd_tn"]),
+                "precio_ars_tn": float(p["precio_ars_tn"]),
+                "dolar_referencia": float(p["dolar_referencia"]),
+            })
+
     return templates.TemplateResponse(
         request=request,
         name="comercial_resumen.html",
@@ -1801,6 +1847,9 @@ async def read_comercial_resumen(
             "campania_activa": camp_nombre,
             "cultivo_seleccionado": cultivo_sel,
             "posicion": posicion,
+            "insights": insights,
+            "precios_mercado": precios_mercado,
+            "mensaje_exito": mensaje,
         },
     )
 
@@ -2292,6 +2341,63 @@ async def marcar_compromiso_cumplido(
         f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+@app.get("/comercial/mercado/refrescar")
+async def refrescar_precios_mercado_action(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    fuente: Optional[str] = "pizarra",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresca las cotizaciones de mercado desde las APIs externas y redirige a /comercial en la misma pestaña.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.services.mercado import actualizar_precios_mercado
+    cult_sel = (cultivo or "soja").strip().lower()
+    registros = await actualizar_precios_mercado(db, usar_fetcher_real=True, fuente_preferida=fuente or "pizarra")
+
+    msg = f"Cotizaciones de mercado actualizadas exitosamente ({len(registros)} registros)."
+    return RedirectResponse(
+        f"/comercial?cultivo={cult_sel}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.get("/api/comercial/mercado/refrescar")
+async def refrescar_precios_mercado_api(
+    request: Request,
+    fuente: Optional[str] = "pizarra",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Endpoint de actualización/fetch manual de precios de mercado desde fuentes externas.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return JSONResponse({"error": "Acceso denegado"}, status_code=status.HTTP_403_FORBIDDEN)
+
+    from app.services.mercado import actualizar_precios_mercado
+    registros = await actualizar_precios_mercado(db, usar_fetcher_real=True, fuente_preferida=fuente or "pizarra")
+
+    return JSONResponse({
+        "success": True,
+        "mensaje": f"Se actualizaron {len(registros)} cotizaciones de mercado en la base de datos.",
+        "precios": registros,
+    })
+
 
 
 

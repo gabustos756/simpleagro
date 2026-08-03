@@ -188,6 +188,32 @@ async def calcular_posicion_comercial(
     else:
         porcentaje_cobertura = Decimal("0.0")
 
+    # 7. Obtener Cotización Vigente y Valorización del Stock Libre (Mercado V1)
+    from app.services.mercado import obtener_precio_mercado_vigente
+
+    precio_mercado_obj = await obtener_precio_mercado_vigente(db, cultivo_norm)
+    if precio_mercado_obj:
+        precio_mercado_usd_tn = Decimal(str(precio_mercado_obj.precio_usd_tn)).quantize(Decimal("0.01"))
+        precio_mercado_ars_tn = Decimal(str(precio_mercado_obj.precio_ars_tn)).quantize(Decimal("0.01")) if precio_mercado_obj.precio_ars_tn else None
+        dolar_referencia = Decimal(str(precio_mercado_obj.dolar_referencia)).quantize(Decimal("0.01")) if precio_mercado_obj.dolar_referencia else None
+        fuente_precio_mercado = precio_mercado_obj.fuente
+        fecha_precio_mercado = str(precio_mercado_obj.fecha)
+
+        if tn_libres > Decimal("0.0"):
+            valorizacion_stock_libre_usd = (tn_libres * precio_mercado_usd_tn).quantize(Decimal("0.01"))
+            valorizacion_stock_libre_ars = (tn_libres * precio_mercado_ars_tn).quantize(Decimal("0.01")) if precio_mercado_ars_tn else None
+        else:
+            valorizacion_stock_libre_usd = Decimal("0.00")
+            valorizacion_stock_libre_ars = Decimal("0.00")
+    else:
+        precio_mercado_usd_tn = None
+        precio_mercado_ars_tn = None
+        dolar_referencia = None
+        fuente_precio_mercado = None
+        fecha_precio_mercado = None
+        valorizacion_stock_libre_usd = None
+        valorizacion_stock_libre_ars = None
+
     return {
         "cultivo": cultivo_norm,
         "produccion_total_tn": produccion_total_tn.quantize(Decimal("0.01")),
@@ -199,4 +225,12 @@ async def calcular_posicion_comercial(
         "tn_stock_silo_bolsa": tn_stock_silo_bolsa.quantize(Decimal("0.01")),
         "tn_stock_acopio": tn_stock_acopio.quantize(Decimal("0.01")),
         "tn_stock_total": tn_stock_total.quantize(Decimal("0.01")),
+        # Mercado V1
+        "precio_mercado_usd_tn": precio_mercado_usd_tn,
+        "precio_mercado_ars_tn": precio_mercado_ars_tn,
+        "dolar_referencia": dolar_referencia,
+        "fuente_precio_mercado": fuente_precio_mercado,
+        "fecha_precio_mercado": fecha_precio_mercado,
+        "valorizacion_stock_libre_usd": valorizacion_stock_libre_usd,
+        "valorizacion_stock_libre_ars": valorizacion_stock_libre_ars,
     }
