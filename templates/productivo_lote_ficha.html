@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduAgro - Ficha de Lote: {{ lote.nombre }}</title>
+  <title>EduAgro - Ficha de Lote V2: {{ lote.nombre }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -25,65 +25,362 @@
     }
   </script>
 </head>
-<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased">
 
-  <div class="max-w-5xl mx-auto space-y-6">
+  {% set active_page = 'productivo' %}
+  {% include 'components/header.html' %}
 
-    <!-- BOTÓN VOLVER & HEADER -->
-    <div class="flex items-center justify-between">
-      <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm">
+  <main class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- 1. BOTÓN VOLVER, POSICIÓN COMERCIAL & ACCIONES -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
         ← Volver al Listado de Lotes
       </a>
-      <div class="flex items-center space-x-2">
-        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-sm">
-          ✏️ Editar Lote
+
+      <div class="flex items-center space-x-2 w-full sm:w-auto">
+        {% if valorizacion %}
+        <a href="/comercial?cultivo={{ valorizacion.cultivo_key }}" class="px-3.5 py-2 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+          <span>📊</span> Ver en Posición Comercial ↗
+        </a>
+        {% endif %}
+
+        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+          <span>✏️</span> Editar Lote
         </a>
       </div>
     </div>
 
-    <!-- TARJETA PRINCIPAL FICHA DE LOTE -->
+    <!-- TARJETA PRINCIPAL FICHA DE LOTE V2 -->
     <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
       
-      <!-- Titular del Lote -->
+      <!-- 2. CABECERA AGRONÓMICA & ESTADO DEL LOTE -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{{ lote.campo_nombre }}</span>
-          <h1 class="text-3xl font-black text-slate-900 mt-1">{{ lote.nombre }}</h1>
-          <p class="text-xs text-slate-500 mt-0.5">Suelo: <strong class="text-slate-800 font-bold">{{ lote.tipo_suelo }}</strong></p>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">📍 {{ lote.campo_nombre }}</span>
+          <h1 class="text-3xl font-black text-slate-900 mt-1 flex items-center gap-2">
+            <span>{{ lote.nombre }}</span>
+          </h1>
+          <p class="text-xs text-slate-500 mt-0.5">Suelo: <strong class="text-slate-800 font-bold">{{ lote.tipo_suelo or 'Argiudol Típico' }}</strong></p>
         </div>
 
-        <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Badge Estado Productivo -->
+          <span class="px-3 py-1.5 rounded-full font-black text-xs inline-block {% if lote.estado_productivo == 'con_alerta' %}bg-amber-100 text-amber-900 border border-amber-300{% elif lote.estado_productivo == 'listo_cosecha' %}bg-emerald-100 text-emerald-900 border border-emerald-300{% elif lote.estado_productivo == 'en_crecimiento' %}bg-agro-100 text-agro-900 border border-agro-300{% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+            {% if lote.estado_productivo == 'con_alerta' %}⚠️{% elif lote.estado_productivo == 'listo_cosecha' %}🌾{% elif lote.estado_productivo == 'en_crecimiento' %}🌱{% else %}🚜{% endif %} {{ lote.estado_productivo_label or 'En Producción' }}
+          </span>
+
+          <!-- Badge Tenencia -->
           {% if lote.tenencia_tipo == 'propio' %}
-            <span class="px-4 py-2 bg-agro-50 text-agro-700 border border-agro-200 rounded-full font-black text-sm inline-block">
-              🌱 Régimen: PROPIO
+            <span class="px-3.5 py-1.5 bg-agro-50 text-agro-700 border border-agro-200 rounded-full font-black text-xs inline-block">
+              🌱 PROPIO
             </span>
           {% else %}
-            <span class="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-full font-black text-sm inline-block">
-              📜 Régimen: ALQUILADO (${{ lote.costo_alquiler_usd_ha }}/ha)
+            <span class="px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-full font-black text-xs inline-block">
+              📜 ALQUILADO (${{ lote.costo_alquiler_usd_ha | formato_ar }}/ha)
             </span>
           {% endif %}
         </div>
       </div>
 
-      <!-- Métricas Tácticas de Hectáreas y Producción -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
-        <div>
-          <span class="text-xs uppercase font-bold text-slate-500 block">Sup. Total</span>
-          <strong class="text-2xl font-black text-slate-900">{{ lote.superficie_total_ha }} ha</strong>
-        </div>
-        <div>
-          <span class="text-xs uppercase font-bold text-slate-500 block">Sup. Productiva</span>
-          <strong class="text-2xl font-black text-agro-700">{{ lote.superficie_productiva_ha }} ha</strong>
-        </div>
-        <div>
-          <span class="text-xs uppercase font-bold text-slate-500 block">Rendimiento Real</span>
-          <strong class="text-2xl font-black text-agro-700">{{ lote.qq_ha_real }} qq/ha</strong>
-        </div>
-        <div>
-          <span class="text-xs uppercase font-bold text-slate-500 block">Producción Total</span>
-          <strong class="text-2xl font-black text-slate-900">{{ lote.produccion_total_t }} t <span class="text-xs font-normal text-slate-500">({{ lote.produccion_total_qq }} qq)</span></strong>
+      <!-- CHECKLIST DE COMPLETITUD Y GUÍA DE CARGA DEL LOTE -->
+      <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs flex flex-wrap items-center justify-between gap-2">
+        <span class="font-extrabold text-slate-700 flex items-center gap-1.5">
+          <span>📋</span> Guía de Carga del Lote:
+        </span>
+        <div class="flex items-center gap-2 flex-wrap text-3xs font-black">
+          {% if valorizacion and valorizacion.tiene_valorizacion %}
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-md">✅ Cultivo Activo ({{ valorizacion.cultivo_key | capitalize }})</span>
+          {% else %}
+            <span class="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-200 rounded-md">📜 Barbecho / Sin Cultivo Comercial</span>
+          {% endif %}
+
+          {% if lote.superficie_productiva_ha and lote.superficie_productiva_ha > 0 %}
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-md">✅ {{ lote.superficie_productiva_ha }} ha Productivas</span>
+          {% else %}
+            <span class="px-2.5 py-1 bg-red-100 text-red-900 border border-red-200 rounded-md">⚠️ Falta Superficie</span>
+          {% endif %}
+
+          {% if lote.qq_ha_estimado or lote.qq_ha_real %}
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-md">✅ Rinde Parametrizado ({{ (lote.qq_ha_real or lote.qq_ha_estimado) }} qq/ha)</span>
+          {% else %}
+            <span class="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-200 rounded-md">⚠️ Cargar Rinde Estimado</span>
+          {% endif %}
+
+          {% if weather and weather.latitud %}
+            <span class="px-2.5 py-1 bg-sky-100 text-sky-900 border border-sky-200 rounded-md">✅ Clima Geolocalizado</span>
+          {% else %}
+            <span class="px-2.5 py-1 bg-slate-200 text-slate-700 border border-slate-300 rounded-md">📍 Clima Fallback (Córdoba)</span>
+          {% endif %}
         </div>
       </div>
+
+      <!-- 3. ASISTENTE DE DECISIONES DE COSECHA & VENTA DEL LOTE (MOTOR 1.0 INTEGRADO) -->
+      {% if valorizacion and valorizacion.tiene_valorizacion %}
+      <div class="bg-white p-5 sm:p-6 rounded-3xl border border-amber-200 shadow-xs space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-100">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white text-xl flex items-center justify-center shadow-md shadow-amber-500/20 font-black">
+              💡
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                Asistente de Decisiones del Lote <span class="text-3xs font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full uppercase">Motor 1.0</span>
+              </h3>
+              <p class="text-xs text-slate-500">Evaluación determinística de cosecha, secado en pie, pase de futuros y ventana agrometeorológica para <strong>{{ lote.nombre }}</strong>.</p>
+            </div>
+          </div>
+          <span class="text-3xs font-extrabold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+            {{ valorizacion.cultivo_key | capitalize }}
+          </span>
+        </div>
+
+        <!-- Formulario de Simulación de Humedad del Lote -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <span class="text-3xs font-black uppercase text-slate-500 tracking-wider block">
+            ⚙️ Humedad Medida en Lote (Runtime)
+          </span>
+
+          <form id="form-decision-lote" onsubmit="event.preventDefault(); reevaluarDecisionLote();" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+            <div>
+              <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Humedad Grano (%)</label>
+              <input type="number" step="0.1" id="lote-sim-humedad" value="{% if valorizacion.cultivo_key == 'maiz' %}17.5{% else %}15.0{% endif %}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="17.5">
+            </div>
+
+            <div>
+              <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Costo Secada (USD/pt)</label>
+              <input type="number" step="0.1" id="lote-sim-costo" value="2.50" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="2.50">
+            </div>
+
+            <div>
+              <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Lluvia 48h (mm)</label>
+              {% set precip_48h_val = (weather.pronostico_semanal[0].precipitacion_mm + weather.pronostico_semanal[1].precipitacion_mm) if (weather and weather.pronostico_semanal|length >= 2) else 0.0 %}
+              <input type="number" step="0.5" id="lote-sim-lluvia" value="{{ precip_48h_val }}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="0.0">
+            </div>
+
+            <div>
+              <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs py-2 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>⚡</span> Reevaluar
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Contenedor Dinámico de Cards de Insights -->
+        <div id="lote-decision-insights-container" class="space-y-2.5">
+          {% if decision_insights %}
+          {% for ins in decision_insights %}
+          <div class="p-3.5 rounded-2xl border flex items-start gap-3 transition-all {% if ins.nivel == 'danger' %}bg-red-50/80 border-red-200 text-red-950{% elif ins.nivel == 'warning' %}bg-amber-50/80 border-amber-200 text-amber-950{% elif ins.nivel == 'success' %}bg-emerald-50/80 border-emerald-200 text-emerald-950{% else %}bg-sky-50/80 border-sky-200 text-sky-950{% endif %}">
+            <div class="text-lg pt-0.5">
+              {% if ins.nivel == 'danger' %}🚨{% elif ins.nivel == 'warning' %}⚠️{% elif ins.nivel == 'success' %}✅{% else %}ℹ️{% endif %}
+            </div>
+            <div class="space-y-0.5 flex-1">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <h4 class="font-black text-xs tracking-tight">{{ ins.titulo }}</h4>
+                <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md {% if ins.nivel == 'danger' %}bg-red-200 text-red-900{% elif ins.nivel == 'warning' %}bg-amber-200 text-amber-900{% elif ins.nivel == 'success' %}bg-emerald-200 text-emerald-900{% else %}bg-sky-200 text-sky-900{% endif %}">
+                  {{ ins.codigo }}
+                </span>
+              </div>
+              <p class="text-xs opacity-90 leading-relaxed">{{ ins.mensaje }}</p>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="p-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+            Sin observaciones críticas para el estado del grano ingresado.
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <!-- Script JS Reevaluación asíncrona en cliente -->
+      <script>
+        async function reevaluarDecisionLote() {
+          const cultivo = "{{ valorizacion.cultivo_key }}";
+          const humedad = document.getElementById('lote-sim-humedad').value;
+          const costo = document.getElementById('lote-sim-costo').value;
+          const lluvia = document.getElementById('lote-sim-lluvia').value;
+          const container = document.getElementById('lote-decision-insights-container');
+
+          container.style.opacity = '0.5';
+
+          try {
+            const resp = await fetch(`/api/comercial/decision/evaluar?cultivo=${cultivo}&humedad_grano_pct=${humedad}&costo_secada_punto_usd=${costo}&lluvia_esperada_mm=${lluvia}`);
+            const data = await resp.json();
+
+            if (data.success && data.insights_generados) {
+              if (data.insights_generados.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">Sin observaciones críticas para la humedad ingresada. Condición estándar.</div>`;
+              } else {
+                let html = '';
+                data.insights_generados.forEach(ins => {
+                  let colorBg = 'bg-sky-50/80 border-sky-200 text-sky-950';
+                  let badgeBg = 'bg-sky-200 text-sky-900';
+                  let icon = 'ℹ️';
+                  if (ins.nivel === 'danger') {
+                    colorBg = 'bg-red-50/80 border-red-200 text-red-950';
+                    badgeBg = 'bg-red-200 text-red-900';
+                    icon = '🚨';
+                  } else if (ins.nivel === 'warning') {
+                    colorBg = 'bg-amber-50/80 border-amber-200 text-amber-950';
+                    badgeBg = 'bg-amber-200 text-amber-900';
+                    icon = '⚠️';
+                  } else if (ins.nivel === 'success') {
+                    colorBg = 'bg-emerald-50/80 border-emerald-200 text-emerald-950';
+                    badgeBg = 'bg-emerald-200 text-emerald-900';
+                    icon = '✅';
+                  }
+
+                  html += `
+                    <div class="p-3.5 rounded-2xl border flex items-start gap-3 transition-all ${colorBg}">
+                      <div class="text-lg pt-0.5">${icon}</div>
+                      <div class="space-y-0.5 flex-1">
+                        <div class="flex items-center justify-between flex-wrap gap-2">
+                          <h4 class="font-black text-xs tracking-tight">${ins.titulo}</h4>
+                          <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${badgeBg}">
+                            ${ins.codigo}
+                          </span>
+                        </div>
+                        <p class="text-xs opacity-90 leading-relaxed">${ins.mensaje}</p>
+                      </div>
+                    </div>
+                  `;
+                });
+                container.innerHTML = html;
+              }
+            }
+          } catch (e) {
+            console.error("Error al reevaluar decisión del lote:", e);
+          } finally {
+            container.style.opacity = '1';
+          }
+        }
+      </script>
+      {% else %}
+      <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-600 flex items-center gap-2">
+        <span>🚜</span> <span>Este lote se encuentra en barbecho o descanso. No dispone de cultivo comercial activo para evaluar decisiones de cosecha o secada.</span>
+      </div>
+      {% endif %}
+
+      <!-- 4. MÉTRICAS TÁCTICAS & VALORIZACIÓN COMERCIAL SIMPLE -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-black uppercase text-slate-500 tracking-wider">Métricas Tácticas y Valorización Estimada</h3>
+          {% if valorizacion and valorizacion.tiene_valorizacion %}
+          <span class="text-3xs font-extrabold text-slate-400 uppercase">Cultivo: {{ valorizacion.cultivo_key | capitalize }}</span>
+          {% else %}
+          <span class="text-3xs font-extrabold text-slate-400 uppercase">Estado: {{ lote.cultivo_actual or 'Sin Cultivo' }}</span>
+          {% endif %}
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+          <div>
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Sup. Productiva</span>
+            <strong class="text-2xl font-black text-slate-900">{{ lote.superficie_productiva_ha | formato_ar }} ha</strong>
+          </div>
+          <div>
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Rendimiento Real / Est.</span>
+            <strong class="text-2xl font-black text-agro-700">{{ (lote.qq_ha_real or lote.qq_ha_estimado) | formato_ar }} qq/ha</strong>
+          </div>
+          <div>
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Producción Total</span>
+            <strong class="text-2xl font-black text-slate-900">{{ (valorizacion.produccion_tn if valorizacion else 0.0) | formato_ar }} Tn</strong>
+          </div>
+          <div>
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Valor Spot Estimado</span>
+            {% if valorizacion and valorizacion.tiene_valorizacion %}
+            <strong class="text-2xl font-black text-amber-700">US$ {{ valorizacion.valor_spot_usd | formato_ar }}</strong>
+            {% else %}
+            <strong class="text-xl font-extrabold text-slate-400">Sin Cotizar</strong>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Sub-Barra Valorización Spot vs Futuro -->
+        {% if valorizacion and valorizacion.tiene_valorizacion %}
+        <div class="bg-slate-100/70 p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-3">
+            <span class="font-extrabold text-slate-700">Cotización Referencia:</span>
+            <span class="text-slate-600">Spot CAC: <strong>US$ {{ valorizacion.precio_spot_usd | formato_ar }}</strong>/Tn</span>
+            <span class="text-slate-300">|</span>
+            <span class="text-slate-600">Futuro ({{ valorizacion.contrato_futuro }}): <strong>US$ {{ valorizacion.precio_futuro_usd | formato_ar }}</strong>/Tn</span>
+          </div>
+
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            <span class="text-3xs uppercase text-slate-400 font-bold">Valor Futuro Lote:</span>
+            <span class="font-extrabold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200">
+              US$ {{ valorizacion.valor_futuro_usd | formato_ar }} (+US$ {{ valorizacion.diferencia_usd | formato_ar }})
+            </span>
+          </div>
+        </div>
+        {% elif valorizacion %}
+        <div class="bg-slate-100/70 p-3 rounded-xl border border-slate-200 text-xs text-slate-500 font-medium flex items-center gap-2">
+          <span>ℹ️</span> <span>{{ valorizacion.mensaje }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- 5. CLIMA GEOLOCALIZADO & VENTANA DE LABORES (RESUMEN 48/72H) -->
+      {% if weather %}
+      <div class="bg-sky-50/70 border border-sky-200/80 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-sky-200/60">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🌤️</span>
+            <h3 class="font-black text-sm text-sky-950">Resumen Agrometeorológico (48-72h)</h3>
+            <span class="text-3xs font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded border border-sky-200">
+              📍 {{ weather.localidad }}
+            </span>
+          </div>
+
+          <a href="/clima/campos/{{ lote.campo_id }}" class="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline inline-flex items-center gap-1">
+            <span>Ver Pronóstico 7 Días Completo</span> →
+          </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+          
+          <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Temperatura / ST</span>
+            <strong class="text-base font-black text-slate-900">{{ weather.temperatura_c }} °C <span class="text-2xs text-slate-500 font-semibold">(ST {{ weather.sensacion_termica_c }}°)</span></strong>
+          </div>
+
+          <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Humedad Relativa</span>
+            <strong class="text-base font-black text-sky-700">{{ weather.humedad_relativa_pct }} %</strong>
+          </div>
+
+          <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Viento & Dirección</span>
+            <strong class="text-base font-black text-amber-700">{{ weather.viento_kmh }} km/h <span class="text-2xs font-extrabold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">{{ weather.viento_direccion_cardinal }}</span></strong>
+          </div>
+
+          <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Lluvia 48h Estimada</span>
+            {% set precip_48h = (weather.proximo_72h.lluvia_acumulada_mm if weather.proximo_72h else (weather.pronostico_semanal[0].precipitacion_mm + weather.pronostico_semanal[1].precipitacion_mm)) %}
+            <strong class="text-base font-black text-sky-700">{{ precip_48h | formato_ar }} mm</strong>
+          </div>
+
+          <div class="col-span-2 sm:col-span-1 bg-white p-3 rounded-xl border border-sky-100 flex flex-col justify-center items-center text-center space-y-0.5">
+            <span class="text-3xs uppercase font-extrabold text-slate-400 block">Ventana Operativa</span>
+            {% if weather.alerta_lluvia or precip_48h > 10.0 %}
+            <span class="px-2 py-0.5 text-2xs font-extrabold bg-blue-100 text-blue-900 rounded border border-blue-200">
+              🌧️ Lluvia Próxima
+            </span>
+            {% elif weather.alerta_viento %}
+            <span class="px-2 py-0.5 text-2xs font-extrabold bg-amber-100 text-amber-900 rounded border border-amber-200">
+              💨 Viento Alto (>15 km/h)
+            </span>
+            {% else %}
+            <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-900 rounded border border-emerald-200">
+              ☀️ Ventana Seca Apta
+            </span>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Sección Contrato Alquiler (Si aplica) -->
       {% if lote.tenencia_tipo == 'alquilado' %}
@@ -92,16 +389,16 @@
           <span>📜</span> Detalles del Contrato de Arrendamiento
         </h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-amber-800">
-          <div>Costo de Alquiler: <strong>${{ lote.costo_alquiler_usd_ha }} USD/ha</strong></div>
+          <div>Costo de Alquiler: <strong>${{ lote.costo_alquiler_usd_ha | formato_ar }} USD/ha</strong></div>
           <div>Vencimiento del Contrato: <strong>{{ lote.vencimiento_alquiler or '2026-12-31' }}</strong></div>
           <div class="sm:col-span-2">Notas: {{ lote.notas_alquiler }}</div>
         </div>
       </div>
       {% endif %}
 
-      <!-- Secuencia y Rotación de Cultivos -->
+      <!-- 6. SECUENCIA Y ROTACIÓN DE CULTIVOS POR CAMPAÑA -->
       <div class="space-y-3">
-        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Rotación de Cultivos por Campaña</h3>
+        <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider">Rotación de Cultivos por Campaña</h3>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           
           <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
@@ -125,9 +422,9 @@
         </div>
       </div>
 
-      <!-- Rendimiento Estimado vs Real -->
+      <!-- 7. RENDIMIENTO ESTIMADO VS REAL -->
       <div class="space-y-3 pt-2">
-        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Rendimiento Agronómico (Quintales por Hectárea)</h3>
+        <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider">Rendimiento Agronómico (Quintales por Hectárea)</h3>
         <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
           <div class="flex justify-between text-xs font-bold">
             <span>Estimado vs Cosechado Real:</span>
@@ -154,19 +451,19 @@
         </div>
       </div>
 
-      <!-- Observaciones y Preparación IA Futura -->
+      <!-- Observaciones -->
       <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-500 gap-3">
         <div>
-          <strong>Observaciones:</strong> {{ lote.observaciones }}
+          <strong>Observaciones del Lote:</strong> {{ lote.observaciones }}
         </div>
         <div class="px-3 py-1 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-[11px] text-slate-600">
-          🤖 Base de Datos Lista para Recomendaciones de IA
+          🤖 Ficha V2 Adaptada para Toma de Decisiones
         </div>
       </div>
 
     </div>
 
-  </div>
+  </main>
 
 </body>
 </html>

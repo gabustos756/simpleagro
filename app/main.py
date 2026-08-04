@@ -62,11 +62,36 @@ logger = logging.getLogger("eduagro.performance")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Gestor del ciclo de vida: inicializa tablas y datos iniciales en PostgreSQL."""
+    """Gestor del ciclo de vida: inicializa tablas, datos iniciales y tarea en segundo plano de cotizaciones CAC."""
     await init_db()
     async with AsyncSessionLocal() as session:
         await seed_initial_data(session)
+        # Refresco de inicio de cotizaciones CAC en vivo
+        try:
+            from app.services.mercado import actualizar_precios_mercado
+            await actualizar_precios_mercado(session, usar_fetcher_real=True)
+            logger.info("[STARTUP REFRESH] Cotizaciones oficiales CAC Rosario inicializadas.")
+        except Exception as e:
+            logger.warning(f"[STARTUP REFRESH] No se pudo refrescar cotizaciones en arranque ({e}). Servir datos almacenados.")
+
+    # Tarea en segundo plano periódica para refresco automático cada 4 horas
+    import asyncio
+    async def periodic_refresh_task():
+        while True:
+            await asyncio.sleep(4 * 3600)  # Cada 4 horas
+            try:
+                async with AsyncSessionLocal() as bg_session:
+                    from app.services.mercado import actualizar_precios_mercado
+                    await actualizar_precios_mercado(bg_session, usar_fetcher_real=True)
+                    logger.info("[BACKGROUND REFRESH] Cotizaciones CAC Rosario actualizadas automáticamente.")
+            except Exception as e:
+                logger.warning(f"[BACKGROUND REFRESH] Error en refresco periódico: {e}")
+
+    refresh_task = asyncio.create_task(periodic_refresh_task())
+
     yield
+
+    refresh_task.cancel()
 
 
 app = FastAPI(
@@ -513,6 +538,17 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
     lotes_campo_activo = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
     servicios_vencidos_count = len([s for s in servicios if s.get("estado") == "vencido"])
 
+    from app.services.mercado import obtener_snapshot_precios_mercado
+    snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja"])
+    dolar_ref = float(snapshot[0].get("dolar_referencia", 1486.00)) if snapshot else 1486.00
+    dolar_info = {
+        "monto": dolar_ref,
+        "fuente": snapshot[0].get("fuente", "Dólar CAC Rosario (BCR)") if snapshot else "Dólar CAC Rosario (BCR)",
+        "fecha": snapshot[0].get("fecha", str(date.today())) if snapshot else str(date.today()),
+        "es_hoy": snapshot[0].get("es_hoy", True) if snapshot else True,
+        "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
+    }
+
     return templates.TemplateResponse(
         request=request,
         name="portal_entrada.html",
@@ -523,7 +559,8 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
             "lotes_count": len(lotes_campo_activo),
             "weather": weather_data,
             "servicios_vencidos_count": servicios_vencidos_count,
-            "cotizacion_dolar": "1285.50",
+            "cotizacion_dolar": dolar_ref,
+            "cotizacion_dolar_info": dolar_info,
             "campania_activa": "2025-2026",
         },
     )
@@ -562,6 +599,17 @@ async def read_dashboard_familiar(
     vencimientos = [s for s in servicios if s.get("estado") in ["vencido", "pendiente"]]
     toneladas_estimadas = sum(l.get("produccion_total_t", 0.0) for l in lotes_campo_activo)
 
+    from app.services.mercado import obtener_snapshot_precios_mercado
+    snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja"])
+    dolar_ref = float(snapshot[0].get("dolar_referencia", 1486.00)) if snapshot else 1486.00
+    dolar_info = {
+        "monto": dolar_ref,
+        "fuente": snapshot[0].get("fuente", "Dólar CAC Rosario (BCR)") if snapshot else "Dólar CAC Rosario (BCR)",
+        "fecha": snapshot[0].get("fecha", str(date.today())) if snapshot else str(date.today()),
+        "es_hoy": snapshot[0].get("es_hoy", True) if snapshot else True,
+        "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
+    }
+
     return templates.TemplateResponse(
         request=request,
         name="dashboard_familiar.html",
@@ -573,7 +621,8 @@ async def read_dashboard_familiar(
             "lotes_campo": lotes_campo_activo,
             "weather": weather_data,
             "campania_activa": "2025-2026",
-            "cotizacion_dolar": "1285.50",
+            "cotizacion_dolar": dolar_ref,
+            "cotizacion_dolar_info": dolar_info,
             "ha_totales": ha_totales,
             "ha_soja": ha_soja,
             "ha_trigo": ha_trigo,
@@ -1036,15 +1085,139 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
         return RedirectResponse(f"/login?next=/productivo/lotes/{lote_id}", status_code=status.HTTP_303_SEE_OTHER)
 
     campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
     lotes = await fetch_lotes_dicts(db)
     lote = next((l for l in lotes if l["id"] == lote_id), None)
     if not lote:
         return RedirectResponse("/productivo/lotes", status_code=status.HTTP_303_SEE_OTHER)
 
+    campo_obj = next((c for c in campos if c["id"] == lote.get("campo_id")), None)
+
+    # 1. Obtener clima geolocalizado del campo del lote
+    from app.services.clima import obtener_clima_para_campo
+    weather_info = obtener_clima_para_campo(
+        lat=campo_obj.get("latitud") if campo_obj else None,
+        lon=campo_obj.get("longitud") if campo_obj else None,
+        localidad=campo_obj.get("localidad_referencia", "Laguna Larga, Córdoba") if campo_obj else "Laguna Larga, Córdoba",
+        campo_nombre=lote.get("campo_nombre"),
+        lote_nombre=lote.get("nombre"),
+    )
+
+    # 2. Obtener cotización spot y futuros para el cultivo actual del lote (con soporte para Barbecho/Sin Cultivo)
+    from app.services.mercado import obtener_snapshot_precios_mercado, obtener_comparativa_futuros_mercado
+
+    cultivo_raw = (lote.get("cultivo_actual") or "").strip().lower()
+
+    # Detectar barbecho, descanso o vacíos sin producción activa
+    palabras_barbecho = ["barbecho", "vacio", "vacío", "sin cultivo", "descanso", "ninguno", "limpio"]
+    es_barbecho = any(pb in cultivo_raw for pb in palabras_barbecho) or not cultivo_raw
+
+    if es_barbecho:
+        valorizacion_lote = {
+            "tiene_valorizacion": False,
+            "cultivo_key": None,
+            "mensaje": "Lote en barbecho o descanso (Sin cultivo activo para valorizar)",
+            "produccion_tn": 0.0,
+            "precio_spot_usd": 0.0,
+            "precio_futuro_usd": 0.0,
+            "valor_spot_usd": 0.0,
+            "valor_futuro_usd": 0.0,
+            "diferencia_usd": 0.0,
+        }
+    else:
+        # Discriminador refinado de cultivo
+        if "soja" in cultivo_raw:
+            cultivo_key = "soja"
+        elif "maiz" in cultivo_raw or "maíz" in cultivo_raw:
+            cultivo_key = "maiz"
+        elif "sorgo" in cultivo_raw or "sorg" in cultivo_raw:
+            cultivo_key = "sorgo"
+        else:
+            cultivo_key = None
+
+        if cultivo_key:
+            snapshot = await obtener_snapshot_precios_mercado(db, cultivos=[cultivo_key])
+            p_spot_item = snapshot[0] if snapshot else {}
+            precio_spot_usd = float(p_spot_item.get("precio_usd_tn", 338.75 if cultivo_key == "soja" else (188.0 if cultivo_key == "maiz" else 155.0)))
+
+            futuros = obtener_comparativa_futuros_mercado(snapshot)
+            fut_item = next((f for f in futuros if f["cultivo"].lower() == cultivo_key), {})
+            precio_futuro_usd = float(fut_item.get("precio_futuro_usd", precio_spot_usd * 1.03))
+            contrato_futuro = fut_item.get("contrato", f"{cultivo_key.capitalize()} Matba Rofex")
+
+            prod_total_t = float(lote.get("produccion_total_t") or 0.0)
+            if prod_total_t == 0.0:
+                sup_prod = float(lote.get("superficie_productiva_ha") or 0.0)
+                qq_est = float(lote.get("qq_ha_estimado") or 0.0)
+                prod_total_t = (sup_prod * qq_est) / 10.0
+
+            valor_spot_usd = prod_total_t * precio_spot_usd
+            valor_futuro_usd = prod_total_t * precio_futuro_usd
+
+            valorizacion_lote = {
+                "tiene_valorizacion": True,
+                "cultivo_key": cultivo_key,
+                "precio_spot_usd": precio_spot_usd,
+                "precio_futuro_usd": precio_futuro_usd,
+                "contrato_futuro": contrato_futuro,
+                "produccion_tn": prod_total_t,
+                "valor_spot_usd": valor_spot_usd,
+                "valor_futuro_usd": valor_futuro_usd,
+                "diferencia_usd": valor_futuro_usd - valor_spot_usd,
+            }
+        else:
+            valorizacion_lote = {
+                "tiene_valorizacion": False,
+                "cultivo_key": None,
+                "mensaje": f"Cultivo no parametrizado comercialmente ({lote.get('cultivo_actual')})",
+                "produccion_tn": float(lote.get("produccion_total_t") or 0.0),
+                "precio_spot_usd": 0.0,
+                "precio_futuro_usd": 0.0,
+                "valor_spot_usd": 0.0,
+                "valor_futuro_usd": 0.0,
+                "diferencia_usd": 0.0,
+            }
+
+    # 4. Evaluación del Motor de Decisión 1.0 para el Lote
+    from app.services.decision_motor import evaluar_motor_decisiones
+    if valorizacion_lote.get("tiene_valorizacion"):
+        c_key = valorizacion_lote["cultivo_key"]
+        humedad_ini = 17.5 if c_key == "maiz" else 15.0
+        pron_sem = weather_info.get("pronostico_semanal", [])
+        precip_48h = (pron_sem[0].get("precipitacion_mm", 0.0) + pron_sem[1].get("precipitacion_mm", 0.0)) if len(pron_sem) >= 2 else 0.0
+        spread_per_tn = round(valorizacion_lote["precio_futuro_usd"] - valorizacion_lote["precio_spot_usd"], 2)
+
+        contexto_lote = {
+            "cultivo": c_key,
+            "precio_fisico_usd": valorizacion_lote["precio_spot_usd"],
+            "precio_futuro_usd": valorizacion_lote["precio_futuro_usd"],
+            "spread_futuro_usd": spread_per_tn,
+            "humedad_grano_pct": humedad_ini,
+            "costo_secada_punto_usd": 2.50,
+            "lluvia_esperada_mm": precip_48h,
+            "viento_max_kmh": weather_info.get("viento_kmh", 14.0),
+            "temp_min_c": 10.0,
+            "alerta_viento": weather_info.get("alerta_viento"),
+            "alerta_lluvia": weather_info.get("alerta_lluvia"),
+            "alerta_helada": weather_info.get("alerta_helada"),
+            "campo_nombre": lote.get("campo_nombre"),
+            "lote_nombre": lote.get("nombre"),
+        }
+        decision_insights = evaluar_motor_decisiones(contexto_lote)
+    else:
+        decision_insights = []
+
     return templates.TemplateResponse(
         request=request,
         name="productivo_lote_ficha.html",
-        context={"user": user, "campo_activo": campo_activo, "lote": lote},
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "lote": lote,
+            "weather": weather_info,
+            "valorizacion": valorizacion_lote,
+            "decision_insights": decision_insights,
+        },
     )
 
 
@@ -1302,13 +1475,19 @@ async def list_servicios_vencimientos(request: Request, db: AsyncSession = Depen
         return RedirectResponse("/login?next=/servicios/vencimientos", status_code=status.HTTP_303_SEE_OTHER)
 
     campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
     servicios = await fetch_servicios_dicts(db)
     servicios_ordenados = sorted(servicios, key=lambda s: s["fecha_vencimiento"])
 
     return templates.TemplateResponse(
         request=request,
         name="servicios_vencimientos.html",
-        context={"user": user, "campo_activo": campo_activo, "servicios": servicios_ordenados},
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "campos": campos,
+            "servicios": servicios_ordenados,
+        },
     )
 
 
@@ -1319,6 +1498,7 @@ async def list_instalaciones(request: Request, db: AsyncSession = Depends(get_db
         return RedirectResponse("/login?next=/servicios/instalaciones", status_code=status.HTTP_303_SEE_OTHER)
 
     campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
     instalaciones = await fetch_instalaciones_dicts(db)
     servicios = await fetch_servicios_dicts(db)
 
@@ -1328,6 +1508,7 @@ async def list_instalaciones(request: Request, db: AsyncSession = Depends(get_db
         context={
             "user": user,
             "campo_activo": campo_activo,
+            "campos": campos,
             "instalaciones": instalaciones,
             "servicios": servicios,
         },

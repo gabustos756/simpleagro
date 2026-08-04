@@ -25,40 +25,37 @@
     }
   </script>
 </head>
-<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased">
 
-  <div class="max-w-7xl mx-auto space-y-6">
+  {% set active_page = 'productivo' %}
+  {% include 'components/header.html' %}
 
-    <!-- HEADER NAVEGACIÓN -->
-    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- CABECERA DE SECCIÓN & SUBNAVEGACIÓN PRODUCTIVA -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
-        <div class="w-12 h-12 rounded-2xl bg-agro-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-agro-600/20">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-emerald-600/20">
           🌾
         </div>
         <div>
-          <div class="flex items-center space-x-3">
-            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-              EduAgro <span class="text-xs font-bold text-agro-700 bg-agro-50 border border-agro-200 px-2.5 py-0.5 rounded-full">ESTABLECIMIENTOS CAMPO</span>
-            </h1>
-          </div>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <span>Gestión de Campos</span>
+            <span class="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-full uppercase">Agronomía</span>
+          </h1>
           <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Gestión de Hectáreas Totales, Productivas y Tenencia • {{ user.cliente_nombre|default('Estancia El Mimbre') }}
+            Superficie Total, Productiva y Tenencia de {{ user.cliente_nombre|default('Establecimiento') }}
           </p>
         </div>
       </div>
 
-      <!-- Links de Navegación -->
+      <!-- Subnavegación Local del Módulo Productivo -->
       <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-        <a href="/" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🏠 Portal</a>
-        <a href="/dashboard" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📊 Dashboard</a>
-        <a href="/productivo/campos" class="px-3.5 py-2 bg-agro-600 text-white font-bold text-xs rounded-xl shadow-sm">🌾 Campos</a>
-        <a href="/productivo/lotes" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🚜 Lotes</a>
-        <a href="/productivo/rendimientos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📈 Rendimientos</a>
-        <a href="/clima/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">🌤️ Clima</a>
-        <a href="/servicios/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">⚡ Servicios</a>
-        <a href="/campo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">📱 Modo Campo</a>
+        <a href="/productivo/campos" class="px-3.5 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-xs">🌾 Campos</a>
+        <a href="/productivo/lotes" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">🚜 Lotes</a>
+        <a href="/productivo/rendimientos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">📈 Rendimientos</a>
       </div>
-    </header>
+    </div>
 
     <!-- METRICAS RESUMEN DE HECTÁREAS DEL PRODUCTOR -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -101,7 +98,7 @@
         
         <button
           onclick="document.getElementById('modalCampo').classList.remove('hidden')"
-          class="px-4 py-2.5 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all"
+          class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
         >
           <span>➕</span> Nuevo Campo
         </button>
@@ -110,10 +107,19 @@
       <!-- Tarjetas Bento de Campos -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         {% if not campos %}
-        <div class="col-span-full p-8 bg-white border border-slate-200 rounded-3xl text-center space-y-3">
-          <span class="text-4xl">🌾</span>
-          <h3 class="text-lg font-black text-slate-900">Todavía no hay campos cargados</h3>
-          <p class="text-xs text-slate-500">Registrá tu primer establecimiento usando el botón "Nuevo Campo".</p>
+        <div class="col-span-full p-8 sm:p-12 bg-white border border-slate-200 rounded-3xl text-center space-y-4 shadow-sm">
+          <div class="w-16 h-16 rounded-3xl bg-agro-100 text-agro-700 text-3xl flex items-center justify-center mx-auto font-black shadow-inner">
+            🌱
+          </div>
+          <div class="space-y-1">
+            <h3 class="text-xl font-black text-slate-900">Aún no cargaste establecimientos</h3>
+            <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+              Empezá por registrar tu primer campo con su nombre, ubicación y hectáreas. Es el paso inicial para gestionar lotes, clima geolocalizado y posición comercial.
+            </p>
+          </div>
+          <button onclick="document.getElementById('modalCampo').classList.remove('hidden')" class="px-5 py-2.5 bg-agro-600 hover:bg-agro-700 text-white font-extrabold text-xs rounded-xl shadow-md inline-flex items-center gap-2 cursor-pointer transition-all">
+            <span>➕</span> Cargar mi Primer Campo
+          </button>
         </div>
         {% else %}
         {% for c in campos %}
@@ -122,7 +128,7 @@
             <div>
               <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-bold uppercase tracking-wider">Establecimiento Campo</span>
               <h3 class="text-2xl font-black text-slate-900 mt-1">{{ c.nombre }}</h3>
-              <p class="text-xs text-slate-500">📍 {{ c.ubicacion }} • Lat: {{ c.latitud or -31.42 }}, Lon: {{ c.longitud or -64.18 }}</p>
+              <p class="text-xs text-slate-500 mt-0.5">📍 {{ c.ubicacion }}</p>
             </div>
             <a
               href="/productivo/lotes?campo={{ c.id }}"
@@ -140,6 +146,20 @@
             <div>
               <span class="text-slate-500 text-[10px] uppercase font-bold block">Sup. Productiva:</span>
               <strong class="text-xl font-black text-agro-700">{{ c.hectareas_productivas|default(c.hectareas_totales * 0.95) }} ha</strong>
+            </div>
+          </div>
+
+          <!-- CHECKLIST DE COMPLETITUD DEL CAMPO -->
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-3xs font-extrabold">
+            <span class="text-slate-400 uppercase tracking-wider font-bold">Estado de Carga:</span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              {% if c.latitud and c.longitud %}
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded">✅ GPS Cargado</span>
+              {% else %}
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-200 rounded">⚠️ Sin GPS (Usa Córdoba)</span>
+              {% endif %}
+
+              <span class="px-2 py-0.5 bg-sky-100 text-sky-900 border border-sky-200 rounded">🌾 Lotes Habilitados</span>
             </div>
           </div>
         </div>

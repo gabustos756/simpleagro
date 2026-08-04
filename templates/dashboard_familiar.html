@@ -25,87 +25,33 @@
     }
   </script>
 </head>
-<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
+<body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased">
 
-  <div class="max-w-7xl mx-auto space-y-6">
+  {% set active_page = 'dashboard' %}
+  {% include 'components/header.html' %}
 
-    <!-- 1. HEADER SUPERIOR CON UNIFICACIÓN DE MARCA Y AUTENTICACIÓN -->
-    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-      
-      <!-- Marca EduAgro + Cliente -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- CABECERA DE SECCIÓN DASHBOARD GERENCIAL -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
-        <div class="w-12 h-12 rounded-2xl bg-agro-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-agro-600/20">
-          🌱
+        <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-indigo-600/20">
+          📊
         </div>
         <div>
-          <div class="flex items-center space-x-3">
-            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-              EduAgro <span class="text-xs font-bold text-agro-700 bg-agro-50 border border-agro-200 px-2.5 py-0.5 rounded-full">ERP AGROPECUARIO</span>
-            </h1>
-          </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-0.5 flex flex-wrap items-center gap-2">
-            <span>🏡 Cliente: <strong class="text-slate-900 font-bold">{{ user.cliente_nombre|default('Cliente') }}</strong></span>
-            <span>•</span>
-            <span>Dólar Canje: <strong class="text-agro-700 font-bold">${{ cotizacion_dolar|default('1285.50') }} ARS</strong></span>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <span>Dashboard General</span>
+            <span class="text-xs font-bold text-indigo-800 bg-indigo-100 border border-indigo-200 px-2.5 py-0.5 rounded-full uppercase">Control Financiero</span>
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Vista Consolidada de Hectáreas, Gastos Acumulados y Control de Caja
           </p>
         </div>
       </div>
-
-      <!-- Selector de Campo Activo Persistente & Links de Navegación -->
-      <div class="flex flex-wrap items-center space-x-3 w-full md:w-auto justify-between md:justify-end gap-y-2">
-        
-        <!-- Form Selector de Campo Activo -->
-        <form method="POST" action="/cambiar-campo-activo" class="inline-block">
-          <select name="campo_id" onchange="this.form.submit()" class="bg-agro-600 text-white font-bold text-xs rounded-xl px-3 py-2 border border-agro-700 shadow-sm cursor-pointer hover:bg-agro-700 transition-all">
-            {% if not campos %}
-            <option value="">Sin Campos Registrados</option>
-            {% else %}
-            {% for c in campos %}
-            <option value="{{ c.id }}" {% if campo_activo and campo_activo.id == c.id %}selected{% endif %}>
-              🌱 Campo Activo: {{ c.nombre }} ({{ c.ubicacion }})
-            </option>
-            {% endfor %}
-            {% endif %}
-          </select>
-        </form>
-
-        <a href="/" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-all">
-          <span>🏠</span> Portal
-        </a>
-        <a href="/productivo/campos" class="px-3 py-2 bg-agro-50 hover:bg-agro-100 text-agro-800 font-bold text-xs rounded-xl border border-agro-200 flex items-center gap-1.5 transition-all">
-          <span>🌾</span> Productivo
-        </a>
-        <a href="/servicios/campos" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-200 flex items-center gap-1.5 transition-all">
-          <span>⚡</span> Servicios
-        </a>
-        <a href="/comercial" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-200 flex items-center gap-1.5 transition-all">
-          <span>📈</span> Comercial
-        </a>
-        <a href="/clima/campos" class="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs rounded-xl border border-sky-200 flex items-center gap-1.5 transition-all">
-          <span>🌤️</span> Clima
-        </a>
-        <a href="/campo" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 flex items-center gap-1.5 transition-all">
-          <span>📱</span> Modo Campo
-        </a>
-
-        <!-- Badge de Usuario Autenticado -->
-        <div class="bg-slate-100 p-2 px-3 rounded-2xl border border-slate-200 flex items-center space-x-3">
-          <div class="text-right">
-            <span class="block text-xs font-bold text-slate-900">{{ user.nombre|default('Usuario') }}</span>
-            <span class="block text-[10px] font-semibold text-agro-700 uppercase">{{ user.rol_label|default('Productor') }}</span>
-          </div>
-          <a
-            href="/logout"
-            title="Cerrar Sesión"
-            class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl border border-red-200 transition-all"
-          >
-            Salir 🚪
-          </a>
-        </div>
-
-      </div>
-
-    </header>
+      <span class="text-xs font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl">
+        🏡 {{ user.cliente_nombre|default('Establecimiento') }}
+      </span>
+    </div>
 
     <!-- 2. TARJETAS KPI PRINCIPALES (REPOSITORIO BD) -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -268,7 +214,7 @@
 
     </div>
 
-  </div>
+  </main>
 
 </body>
 </html>

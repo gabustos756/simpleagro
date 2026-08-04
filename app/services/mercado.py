@@ -11,6 +11,7 @@ from app.models import PrecioMercadoCache
 from app.services.comercial import normalizar_texto
 from app.services.fetchers import (
     obtener_cotizacion_dolar,
+    obtener_cotizacion_dolar_cac,
     obtener_precios_sagyp,
     obtener_precios_pizarra_cac,
 )
@@ -23,25 +24,25 @@ DEMO_PRECIOS_MERCADO = [
         "cultivo": "soja",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("500000.00"),
-        "precio_usd_tn": Decimal("338.75"),
-        "dolar_referencia": Decimal("1476.00"),
+        "precio_ars_tn": Decimal("506000.00"),
+        "precio_usd_tn": Decimal("340.51"),
+        "dolar_referencia": Decimal("1486.00"),
     },
     {
         "cultivo": "maiz",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("277490.00"),
-        "precio_usd_tn": Decimal("188.00"),
-        "dolar_referencia": Decimal("1476.00"),
+        "precio_ars_tn": Decimal("276400.00"),
+        "precio_usd_tn": Decimal("186.00"),
+        "dolar_referencia": Decimal("1486.00"),
     },
     {
         "cultivo": "sorgo",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("225000.00"),
-        "precio_usd_tn": Decimal("152.44"),
-        "dolar_referencia": Decimal("1476.00"),
+        "precio_ars_tn": Decimal("271940.00"),
+        "precio_usd_tn": Decimal("183.00"),
+        "dolar_referencia": Decimal("1486.00"),
     },
 ]
 
@@ -58,11 +59,15 @@ async def actualizar_precios_mercado(
     registros_guardados = []
 
     try:
-        data_dolar = obtener_cotizacion_dolar()
-        dolar_ref = data_dolar.get("dolar_comprador", Decimal("1477.50"))
+        data_dolar = obtener_cotizacion_dolar_cac()
+        dolar_ref = data_dolar.get("dolar_comprador", Decimal("1486.00"))
     except Exception as e:
-        logger.warning(f"[MERCADO SERVICIO] Falla al obtener cotización del dólar ({e}). Usando dólar comprador por defecto.")
-        dolar_ref = Decimal("1477.50")
+        logger.warning(f"[MERCADO SERVICIO] Falla al obtener cotización CAC Rosario ({e}). Usando dólar BNA secundario.")
+        try:
+            data_dolar = obtener_cotizacion_dolar()
+            dolar_ref = data_dolar.get("dolar_comprador", Decimal("1486.00"))
+        except Exception:
+            dolar_ref = Decimal("1486.00")
 
     precios_obtenidos = []
     if usar_fetcher_real:
@@ -70,7 +75,7 @@ async def actualizar_precios_mercado(
             if fuente_preferida == "sagyp":
                 precios_obtenidos = obtener_precios_sagyp(dolar_referencia=dolar_ref)
             else:
-                precios_obtenidos = obtener_precios_pizarra_cac()
+                precios_obtenidos = obtener_precios_pizarra_cac(dolar_referencia=dolar_ref)
         except Exception as e:
             logger.warning(f"[MERCADO SERVICIO] Falla en fetcher real ({e}). Usando datos demo de reserva.")
             precios_obtenidos = []
@@ -155,7 +160,8 @@ async def obtener_precio_mercado_vigente(
     res = await db.execute(stmt)
     registro = res.scalars().first()
 
-    if not registro:
+    if not registro or registro.fecha < date.today():
+        logger.info(f"[MERCADO CACHÉ] Cotización para {cult_norm} no existente o de fecha anterior. Ejecutando refresh en vivo...")
         await actualizar_precios_mercado(db, usar_fetcher_real=True)
         res = await db.execute(stmt)
         registro = res.scalars().first()
@@ -255,11 +261,23 @@ async def obtener_snapshot_precios_mercado(
     """
     Obtiene el snapshot con el registro más reciente por cultivo (Soja, Maíz, Sorgo),
     enriquecido con la variación del precio respecto a la jornada anterior.
+    Si la cotización almacenada es de una fecha anterior, ejecuta refresh en vivo.
     """
     if cultivos is None:
         cultivos = ["soja", "maiz", "sorgo"]
 
+    hoy_str = str(date.today())
     snapshot = []
+
+    # Chequeo previo de obsolescencia en DB
+    historico_test = await obtener_historico_precios_mercado(db, cultivo=cultivos[0], limit=1)
+    if not historico_test or (historico_test and historico_test[0]["fecha"] < hoy_str):
+        f_previa = historico_test[0]['fecha'] if historico_test else 'vacía'
+        logger.info(f"[MERCADO SNAPSHOT] Cotización en DB obsoleta ({f_previa}). Ejecutando refresh automático para fecha {hoy_str}...")
+        try:
+            await actualizar_precios_mercado(db, usar_fetcher_real=True)
+        except Exception as e:
+            logger.warning(f"[MERCADO SNAPSHOT] Error durante auto-refresh de cotizaciones ({e}). Servir datos almacenados.")
 
     for c in cultivos:
         historico_c = await obtener_historico_precios_mercado(db, cultivo=c, limit=2)
@@ -267,6 +285,7 @@ async def obtener_snapshot_precios_mercado(
             reciente = historico_c[0]
             f_nombre = reciente.get("fuente", "Pizarra Rosario (CAC / BCR)")
             reciente["url_fuente"] = MAPA_FUENTES_URL.get(f_nombre, "https://www.bcr.com.ar")
+            reciente["es_hoy"] = (reciente["fecha"] == hoy_str)
             snapshot.append(reciente)
         else:
             demo_item = next((dp for dp in DEMO_PRECIOS_MERCADO if dp["cultivo"].lower() == c.lower()), None)
@@ -285,6 +304,7 @@ async def obtener_snapshot_precios_mercado(
                     "var_pct_usd": 0.0,
                     "var_ars": 0.0,
                     "tendencia": "neutro",
+                    "es_hoy": True,
                 })
 
     return snapshot

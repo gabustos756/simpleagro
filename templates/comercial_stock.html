@@ -25,44 +25,40 @@
     }
   </script>
 </head>
-<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased">
 
-  <div class="max-w-7xl mx-auto space-y-6">
+  {% set active_page = 'comercial' %}
+  {% include 'components/header.html' %}
 
-    <!-- HEADER NAVEGACIÓN PRINCIPAL -->
-    <header class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- CABECERA DE SECCIÓN Y PESTAÑAS COMERCIALES -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
         <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
           🚜
         </div>
         <div>
-          <div class="flex items-center space-x-3">
-            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-              Stock Físico de Granos
-            </h1>
-            <span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
-              Silos Bolsa & Acopios
-            </span>
-          </div>
-          <p class="text-sm text-slate-500 mt-1">
-            Cliente: <strong class="text-slate-800">{{ user.cliente_nombre }}</strong> | Campaña: <strong class="text-slate-800">{{ campania_activa }}</strong>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <span>Stock Físico de Granos</span>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Silos & Acopios</span>
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre }}</strong> • Campaña Activa: <strong class="text-slate-800 font-bold">{{ campania_activa }}</strong>
           </p>
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <!-- Selector de Cultivo -->
-        <a href="/comercial/stock?cultivo=soja" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+      <!-- Selector de Cultivo en Pantalla -->
+      <div class="flex items-center gap-2">
+        <a href="/comercial/stock?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌱 Soja
         </a>
-        <a href="/comercial/stock?cultivo=maiz" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-md {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+        <a href="/comercial/stock?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌽 Maíz
         </a>
-        <a href="/" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors">
-          🏠 Portal
-        </a>
       </div>
-    </header>
+    </div>
 
     <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
     <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
