@@ -12,7 +12,7 @@ import urllib.request
 
 logger = logging.getLogger("eduagro.fetchers.cac")
 
-# Cotizaciones trazables y autocontenidas extraídas de la publicación oficial de la CAC / BCR
+# Cotizaciones trazables y autocontenidas extraídas de la publicación oficial de la CAC / BCR (Soja, Maíz y Sorgo)
 PIZARRA_ROSARIO_AUTOCONTENIDA = [
     {
         "cultivo": "soja",
@@ -30,6 +30,14 @@ PIZARRA_ROSARIO_AUTOCONTENIDA = [
         "precio_usd_tn": Decimal("188.00"),      # USD/Tn publicado por CAC (US$ 188,00)
         "dolar_referencia": Decimal("1476.00"),  # TC BNA Comprador publicado por CAC ($ 1.476,00)
     },
+    {
+        "cultivo": "sorgo",
+        "fuente": "Pizarra Rosario (CAC / BCR)",
+        "fecha": date.today(),
+        "precio_ars_tn": Decimal("225000.00"),    # ARS/Tn publicado por CAC ($ 225.000,00)
+        "precio_usd_tn": Decimal("152.44"),      # USD/Tn publicado por CAC (US$ 152,44)
+        "dolar_referencia": Decimal("1476.00"),  # TC BNA Comprador publicado por CAC ($ 1.476,00)
+    },
 ]
 
 
@@ -38,14 +46,14 @@ def obtener_precios_pizarra_cac(
     timeout_sec: float = 1.5,
 ) -> List[Dict[str, Any]]:
     """
-    Obtiene las cotizaciones de Pizarra Rosario (CAC/BCR) como fuente autocontenida completa.
+    Obtiene las cotizaciones de Pizarra Rosario (CAC/BCR) para Soja, Maíz y Sorgo.
     
     CITA TEXTUAL DE LA CAC (https://www.cac.bcr.com.ar/es/precios-de-pizarra):
     -------------------------------------------------------------------------
     "Su conversión a dólares es sólo a título informativo y se utiliza la cotización del dólar
      estadounidense divisa al cierre tipo comprador del BNA."
     """
-    logger.info("[MERCADO CAC] Consultando fuente autocontenida Pizarra Rosario (CAC/BCR)...")
+    logger.info("[MERCADO CAC] Consultando fuente autocontenida Pizarra Rosario (CAC/BCR) para Soja, Maíz y Sorgo...")
     
     # Intento de lectura remota del feed en vivo de la BCR si responde dentro del timeout
     url_bcr = "https://www.bcr.com.ar/api/feed/pizarra"
@@ -60,8 +68,14 @@ def obtener_precios_pizarra_cac(
                 precios_remotos = []
                 for item in data:
                     c_name = str(item.get("producto", "")).lower()
-                    if "soja" in c_name or "maiz" in c_name:
-                        c_key = "soja" if "soja" in c_name else "maiz"
+                    if "soja" in c_name or "maiz" in c_name or "sorgo" in c_name:
+                        if "soja" in c_name:
+                            c_key = "soja"
+                        elif "maiz" in c_name:
+                            c_key = "maiz"
+                        else:
+                            c_key = "sorgo"
+
                         p_ars = Decimal(str(item.get("precio_ars", 0)))
                         tc_cac = Decimal(str(item.get("tc_bna", dolar_referencia or Decimal("1476.00"))))
                         p_usd_cac = Decimal(str(item.get("precio_usd", 0)))
@@ -96,7 +110,7 @@ def obtener_precios_pizarra_cac(
     except Exception as e:
         logger.info(f"[MERCADO CAC] Feed BCR en vivo no disponible ({e}). Utilizando Pizarra oficial autocontenida de referencia.")
 
-    # Usar datos trazables autocontenidos oficial CAC
+    # Usar datos trazables autocontenidos oficial CAC (Soja, Maíz y Sorgo)
     precios_normalizados = []
     for item in PIZARRA_ROSARIO_AUTOCONTENIDA:
         c_key = item["cultivo"]

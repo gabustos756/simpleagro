@@ -138,59 +138,655 @@
       </div>
     </div>
 
-    <!-- 2. TABLA DE REFERENCIAS DE MERCADO Y FUENTES OFICIALES VERIFICADAS (PRIORIDAD VISUAL ALTA) -->
+    <!-- 2. SNAPSHOT DE PRECIOS DEL DÍA (COTIZACIONES VIGENTES POR CULTIVO) -->
     <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>📊</span> Cotizaciones de Mercado & Fuentes Oficiales
+            <span>📊</span> Cotizaciones del Día (Snapshot de Mercado)
           </h2>
-          <p class="text-xs text-slate-500">Precios de Pizarra Rosario (CAC/BCR) y fuentes oficiales persistidos en caché local.</p>
+          <p class="text-xs text-slate-500">Último precio vigente por cultivo en Pizarra Rosario (CAC/BCR) y Dólar Comprador BNA.</p>
         </div>
-        <span class="text-xs text-slate-500 font-semibold">{{ precios_mercado | length }} registros cargados</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+            3 granos activos
+          </span>
+          <a href="/comercial/mercado/refrescar" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all">
+            <span>🔄</span> Refrescar Cotizaciones
+          </a>
+        </div>
       </div>
 
-      <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
-        <table class="w-full text-left text-xs">
-          <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
-            <tr>
-              <th class="p-3.5">Cultivo</th>
-              <th class="p-3.5">Fuente de Mercado</th>
-              <th class="p-3.5">Fecha Ref.</th>
-              <th class="p-3.5 text-right">Precio ARS/Tn (Oficial)</th>
-              <th class="p-3.5 text-right">Dólar Ref.</th>
-              <th class="p-3.5 text-right">Precio USD/Tn (Calc.)</th>
-              <th class="p-3.5 text-center">Fuente Verificada</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
-            {% for pm in precios_mercado %}
-            <tr class="hover:bg-slate-50/80 transition-colors">
-              <td class="p-3.5 font-bold">
-                {% if pm.cultivo.lower() == 'soja' %} 🌱 Soja {% else %} 🌽 Maíz {% endif %}
-              </td>
-              <td class="p-3.5 text-slate-600 font-semibold">{{ pm.fuente }}</td>
-              <td class="p-3.5 text-slate-500">{{ pm.fecha }}</td>
-              <td class="p-3.5 text-right font-black text-slate-900">
-                {% if pm.precio_ars_tn %} $ {{ pm.precio_ars_tn | formato_ar }} ARS {% else %} -- {% endif %}
-              </td>
-              <td class="p-3.5 text-right text-slate-600">
-                {% if pm.dolar_referencia %} $ {{ pm.dolar_referencia | formato_ar }} ARS {% else %} -- {% endif %}
-              </td>
-              <td class="p-3.5 text-right font-black text-amber-700 bg-amber-50/50">
-                $ {{ pm.precio_usd_tn | formato_ar }} USD
-              </td>
-              <td class="p-3.5 text-center">
-                <a href="{{ pm.url_fuente }}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200 inline-flex items-center gap-1 transition-colors">
-                  <span>Ver fuente</span> ↗
-                </a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <!-- Grid de Cards de Snapshot (1 por cultivo) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+        {% for pm in precios_mercado %}
+        <div class="bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow space-y-4 flex flex-col justify-between">
+          
+          <!-- Encabezado de la Card: Icono + Cultivo + Fecha -->
+          <div class="flex items-center justify-between pb-3 border-b border-slate-200/60">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">
+                {% if pm.cultivo.lower() == 'soja' %}🌱{% elif pm.cultivo.lower() == 'maiz' %}🌽{% elif pm.cultivo.lower() == 'sorgo' %}🌾{% else %}🌾{% endif %}
+              </span>
+              <div>
+                <h3 class="font-extrabold text-base text-slate-900 leading-tight">
+                  {% if pm.cultivo.lower() == 'soja' %}Soja{% elif pm.cultivo.lower() == 'maiz' %}Maíz{% elif pm.cultivo.lower() == 'sorgo' %}Sorgo{% else %}{{ pm.cultivo }}{% endif %}
+                </h3>
+                <span class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Spot Pizarra</span>
+              </div>
+            </div>
+            <span class="text-xs text-slate-500 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+              {{ pm.fecha }}
+            </span>
+          </div>
+
+          <!-- Precios principales: ARS y USD + Variación vs Ayer -->
+          <div class="space-y-3">
+            <div>
+              <span class="text-3xs font-extrabold uppercase text-slate-400 tracking-wider">Precio Spot USD / Tn</span>
+              <div class="flex items-baseline justify-between gap-2 mt-0.5">
+                <span class="text-2xl font-black text-amber-700 tracking-tight">
+                  US$ {{ pm.precio_usd_tn | formato_ar }}
+                </span>
+                <!-- Badge Variación Diario USD -->
+                {% if pm.tendencia == 'suba' %}
+                <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300 flex items-center gap-0.5">
+                  ▲ +US$ {{ pm.var_usd | formato_ar }} (+{{ pm.var_pct_usd | formato_ar }}%)
+                </span>
+                {% elif pm.tendencia == 'baja' %}
+                <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300 flex items-center gap-0.5">
+                  ▼ -US$ {{ (pm.var_usd * -1) | formato_ar }} ({{ pm.var_pct_usd | formato_ar }}%)
+                </span>
+                {% else %}
+                <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300/60">
+                  = Sin cambio
+                </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200/70">
+                <span class="text-3xs text-slate-400 font-bold block">Precio ARS / Tn</span>
+                <span class="font-extrabold text-slate-900 text-sm">
+                  {% if pm.precio_ars_tn %}$ {{ pm.precio_ars_tn | formato_ar }}{% else %}--{% endif %}
+                </span>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200/70">
+                <span class="text-3xs text-slate-400 font-bold block">Dólar BNA Ref.</span>
+                <span class="font-bold text-slate-700 text-sm">
+                  {% if pm.dolar_referencia %}$ {{ pm.dolar_referencia | formato_ar }}{% else %}--{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pie de Card: Fuente con link verificado -->
+          <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs">
+            <span class="text-slate-500 text-2xs font-medium truncate max-w-[140px]" title="{{ pm.fuente }}">
+              {{ pm.fuente }}
+            </span>
+            <a href="{{ pm.url_fuente }}" target="_blank" rel="noopener noreferrer" class="text-2xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 inline-flex items-center gap-1 transition-colors">
+              <span>Fuente Oficial</span> ↗
+            </a>
+          </div>
+
+        </div>
+        {% endfor %}
       </div>
     </div>
+
+    <!-- 2.C REFERENCIA SIMPLE DE FUTUROS (MATBA ROFEX - SOJA & MAÍZ) -->
+    {% if futuros_mercado %}
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>🏛️</span> Mercado a Término & Futuros de Referencia (Matba Rofex)
+          </h2>
+          <p class="text-xs text-slate-500">Cotizaciones de posiciones futuras clave para Soja y Maíz comparadas contra el precio spot físico de hoy.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+            Referencia Matba Rofex
+          </span>
+          <a href="https://www.matbarofex.com.ar" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all">
+            <span>Matba Rofex Oficial</span> ↗
+          </a>
+        </div>
+      </div>
+
+      <!-- Grid de Referencias de Futuros -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {% for fut in futuros_mercado %}
+        <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow space-y-3 flex flex-col justify-between">
+          
+          <!-- Header Futuro -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">
+                {% if fut.cultivo.lower() == 'soja' %}🌱{% else %}🌽{% endif %}
+              </span>
+              <div>
+                <span class="font-extrabold text-sm text-slate-900 block leading-tight">{{ fut.contrato }}</span>
+                <span class="text-3xs text-slate-400 font-bold uppercase tracking-wider">{{ fut.posicion_label }}</span>
+              </div>
+            </div>
+            <span class="text-3xs font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500">
+              {{ fut.mercado }}
+            </span>
+          </div>
+
+          <!-- Precios y Comparativa vs Físico -->
+          <div class="space-y-2">
+            <div class="flex items-baseline justify-between">
+              <span class="text-3xs text-slate-400 font-bold uppercase">Precio Futuro USD</span>
+              <span class="text-xl font-black text-amber-700">US$ {{ fut.precio_futuro_usd | formato_ar }}</span>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+              <span class="text-slate-500 text-2xs">Físico Spot Hoy:</span>
+              <span class="font-bold text-slate-800 text-2xs">US$ {{ fut.precio_fisico_usd | formato_ar }}</span>
+            </div>
+
+            <div class="flex items-center justify-between text-2xs pt-1">
+              <span class="text-slate-500 font-medium">Spread vs Spot:</span>
+              {% if fut.spread_usd > 0 %}
+              <span class="font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                Pase +US$ {{ fut.spread_usd | formato_ar }} (+{{ fut.spread_pct | formato_ar }}%)
+              </span>
+              {% elif fut.spread_usd < 0 %}
+              <span class="font-extrabold text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-200">
+                Descuento -US$ {{ (fut.spread_usd * -1) | formato_ar }} ({{ fut.spread_pct | formato_ar }}%)
+              </span>
+              {% else %}
+              <span class="font-extrabold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded border border-slate-300">
+                Paridad (US$ 0.00)
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Pie informativo -->
+          <div class="pt-2 border-t border-slate-200/60 text-3xs text-slate-400 font-medium flex items-center justify-between">
+            <span>Ref: {{ fut.fecha }}</span>
+            <span title="Dato de referencia informativa. No constituye recomendación financiera.">Informativo ℹ️</span>
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 2.B HISTÓRICO RECIENTE DE PRECIOS Y TENDENCIA CON NAVEGACIÓN POR TABS POR CULTIVO -->
+    {% if historicos_mercado %}
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+      
+      <!-- Encabezado y Navegación por Tabs -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>📈</span> Histórico Reciente de Precios
+          </h2>
+          <p class="text-xs text-slate-500">Evolución física y variaciones diarias registradas en Pizarra Rosario (CAC/BCR).</p>
+        </div>
+
+        <!-- Botones de Tabs (Soja, Maíz, Sorgo) -->
+        <div class="inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200/80 self-start sm:self-auto" id="historico-tabs">
+          <button type="button" onclick="cambiarTabHistorico('soja')" id="tab-btn-soja" class="tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer {% if cultivo_seleccionado == 'soja' or cultivo_seleccionado not in ['maiz', 'sorgo'] %}bg-white text-slate-900 shadow-xs font-black{% else %}text-slate-600 hover:text-slate-900 font-bold{% endif %}">
+            <span>🌱</span> Soja
+          </button>
+          <button type="button" onclick="cambiarTabHistorico('maiz')" id="tab-btn-maiz" class="tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer {% if cultivo_seleccionado == 'maiz' %}bg-white text-slate-900 shadow-xs font-black{% else %}text-slate-600 hover:text-slate-900 font-bold{% endif %}">
+            <span>🌽</span> Maíz
+          </button>
+          <button type="button" onclick="cambiarTabHistorico('sorgo')" id="tab-btn-sorgo" class="tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer {% if cultivo_seleccionado == 'sorgo' %}bg-white text-slate-900 shadow-xs font-black{% else %}text-slate-600 hover:text-slate-900 font-bold{% endif %}">
+            <span>🌾</span> Sorgo
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Content: SOJA -->
+      <div id="tab-pane-soja" class="space-y-4 {% if cultivo_seleccionado != 'soja' and cultivo_seleccionado in ['maiz', 'sorgo'] %}hidden{% endif %}">
+        <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+          <span>Evolución de cotización para <strong>🌱 Soja</strong></span>
+          <span class="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">{{ historicos_mercado['soja'] | length }} jornadas registradas</span>
+        </div>
+
+        {% set sp_soja = sparklines_mercado['soja'] %}
+        {% if sp_soja and sp_soja.points %}
+        <div class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-slate-900">Curva de Tendencia Reciente (USD/Tn)</span>
+              {% if sp_soja.tendencia_global == 'suba' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
+                ▲ +US$ {{ sp_soja.var_total_usd | formato_ar }}
+              </span>
+              {% elif sp_soja.tendencia_global == 'baja' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300">
+                ▼ -US$ {{ (sp_soja.var_total_usd * -1) | formato_ar }}
+              </span>
+              {% else %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300">
+                = Sin cambio
+              </span>
+              {% endif %}
+            </div>
+            <div class="text-2xs text-slate-500 font-semibold flex items-center gap-3">
+              <span>Mín: <strong>US$ {{ sp_soja.min_usd | formato_ar }}</strong></span>
+              <span>Máx: <strong>US$ {{ sp_soja.max_usd | formato_ar }}</strong></span>
+              <span>Último: <strong class="text-amber-700 font-extrabold">US$ {{ sp_soja.ultimo_precio_usd | formato_ar }}</strong></span>
+            </div>
+          </div>
+
+          <div class="w-full overflow-hidden pt-1">
+            <svg viewBox="0 0 500 70" class="w-full h-16 overflow-visible">
+              <defs>
+                <linearGradient id="grad-soja" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <path d="{{ sp_soja.svg_area_path }}" fill="url(#grad-soja)" />
+              <path d="{{ sp_soja.svg_path }}" fill="none" stroke="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              {% for pt in sp_soja.points %}
+              {% if loop.last %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#64748b{% endif %}" opacity="0.3" />
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#475569{% endif %}" stroke="#ffffff" stroke-width="1.5" />
+              {% else %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="2.5" fill="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" />
+              {% endif %}
+              {% endfor %}
+            </svg>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if historicos_mercado['soja'] %}
+        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
+              <tr>
+                <th class="p-3.5">Fecha</th>
+                <th class="p-3.5">Fuente</th>
+                <th class="p-3.5 text-right">Precio ARS/Tn</th>
+                <th class="p-3.5 text-right">Dólar Ref.</th>
+                <th class="p-3.5 text-right">Precio USD/Tn</th>
+                <th class="p-3.5 text-center">Variación USD (Día ant.)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
+              {% for hp in historicos_mercado['soja'] %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3.5 font-bold text-slate-900">{{ hp.fecha }}</td>
+                <td class="p-3.5 text-slate-600 font-semibold">{{ hp.fuente }}</td>
+                <td class="p-3.5 text-right font-black text-slate-900">$ {{ hp.precio_ars_tn | formato_ar }} ARS</td>
+                <td class="p-3.5 text-right text-slate-600">$ {{ hp.dolar_referencia | formato_ar }} ARS</td>
+                <td class="p-3.5 text-right font-black text-amber-700">$ {{ hp.precio_usd_tn | formato_ar }} USD</td>
+                <td class="p-3.5 text-center font-bold">
+                  {% if hp.tendencia == 'suba' %}
+                  <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 inline-block">
+                    🟢 +$ {{ hp.var_usd | formato_ar }} USD (+{{ hp.var_pct_usd | formato_ar }}%)
+                  </span>
+                  {% elif hp.tendencia == 'baja' %}
+                  <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg border border-red-300 inline-block">
+                    🔴 -$ {{ (hp.var_usd * -1) | formato_ar }} USD ({{ hp.var_pct_usd | formato_ar }}%)
+                  </span>
+                  {% else %}
+                  <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200 inline-block">
+                    ⚪ Sin cambio
+                  </span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+          No hay registros históricos almacenados para Soja.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Tab Content: MAÍZ -->
+      <div id="tab-pane-maiz" class="space-y-4 {% if cultivo_seleccionado != 'maiz' %}hidden{% endif %}">
+        <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+          <span>Evolución de cotización para <strong>🌽 Maíz</strong></span>
+          <span class="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">{{ historicos_mercado['maiz'] | length }} jornadas registradas</span>
+        </div>
+
+        {% set sp_maiz = sparklines_mercado['maiz'] %}
+        {% if sp_maiz and sp_maiz.points %}
+        <div class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-slate-900">Curva de Tendencia Reciente (USD/Tn)</span>
+              {% if sp_maiz.tendencia_global == 'suba' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
+                ▲ +US$ {{ sp_maiz.var_total_usd | formato_ar }}
+              </span>
+              {% elif sp_maiz.tendencia_global == 'baja' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300">
+                ▼ -US$ {{ (sp_maiz.var_total_usd * -1) | formato_ar }}
+              </span>
+              {% else %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300">
+                = Sin cambio
+              </span>
+              {% endif %}
+            </div>
+            <div class="text-2xs text-slate-500 font-semibold flex items-center gap-3">
+              <span>Mín: <strong>US$ {{ sp_maiz.min_usd | formato_ar }}</strong></span>
+              <span>Máx: <strong>US$ {{ sp_maiz.max_usd | formato_ar }}</strong></span>
+              <span>Último: <strong class="text-amber-700 font-extrabold">US$ {{ sp_maiz.ultimo_precio_usd | formato_ar }}</strong></span>
+            </div>
+          </div>
+
+          <div class="w-full overflow-hidden pt-1">
+            <svg viewBox="0 0 500 70" class="w-full h-16 overflow-visible">
+              <defs>
+                <linearGradient id="grad-maiz" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <path d="{{ sp_maiz.svg_area_path }}" fill="url(#grad-maiz)" />
+              <path d="{{ sp_maiz.svg_path }}" fill="none" stroke="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              {% for pt in sp_maiz.points %}
+              {% if loop.last %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#64748b{% endif %}" opacity="0.3" />
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#475569{% endif %}" stroke="#ffffff" stroke-width="1.5" />
+              {% else %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="2.5" fill="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" />
+              {% endif %}
+              {% endfor %}
+            </svg>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if historicos_mercado['maiz'] %}
+        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
+              <tr>
+                <th class="p-3.5">Fecha</th>
+                <th class="p-3.5">Fuente</th>
+                <th class="p-3.5 text-right">Precio ARS/Tn</th>
+                <th class="p-3.5 text-right">Dólar Ref.</th>
+                <th class="p-3.5 text-right">Precio USD/Tn</th>
+                <th class="p-3.5 text-center">Variación USD (Día ant.)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
+              {% for hp in historicos_mercado['maiz'] %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3.5 font-bold text-slate-900">{{ hp.fecha }}</td>
+                <td class="p-3.5 text-slate-600 font-semibold">{{ hp.fuente }}</td>
+                <td class="p-3.5 text-right font-black text-slate-900">$ {{ hp.precio_ars_tn | formato_ar }} ARS</td>
+                <td class="p-3.5 text-right text-slate-600">$ {{ hp.dolar_referencia | formato_ar }} ARS</td>
+                <td class="p-3.5 text-right font-black text-amber-700">$ {{ hp.precio_usd_tn | formato_ar }} USD</td>
+                <td class="p-3.5 text-center font-bold">
+                  {% if hp.tendencia == 'suba' %}
+                  <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 inline-block">
+                    🟢 +$ {{ hp.var_usd | formato_ar }} USD (+{{ hp.var_pct_usd | formato_ar }}%)
+                  </span>
+                  {% elif hp.tendencia == 'baja' %}
+                  <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg border border-red-300 inline-block">
+                    🔴 -$ {{ (hp.var_usd * -1) | formato_ar }} USD ({{ hp.var_pct_usd | formato_ar }}%)
+                  </span>
+                  {% else %}
+                  <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200 inline-block">
+                    ⚪ Sin cambio
+                  </span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+          No hay registros históricos almacenados para Maíz.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Tab Content: SORGO -->
+      <div id="tab-pane-sorgo" class="space-y-4 {% if cultivo_seleccionado != 'sorgo' %}hidden{% endif %}">
+        <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+          <span>Evolución de cotización para <strong>🌾 Sorgo</strong></span>
+          <span class="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">{{ historicos_mercado['sorgo'] | length }} jornadas registradas</span>
+        </div>
+
+        {% set sp_sorgo = sparklines_mercado['sorgo'] %}
+        {% if sp_sorgo and sp_sorgo.points %}
+        <div class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-slate-900">Curva de Tendencia Reciente (USD/Tn)</span>
+              {% if sp_sorgo.tendencia_global == 'suba' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
+                ▲ +US$ {{ sp_sorgo.var_total_usd | formato_ar }}
+              </span>
+              {% elif sp_sorgo.tendencia_global == 'baja' %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300">
+                ▼ -US$ {{ (sp_sorgo.var_total_usd * -1) | formato_ar }}
+              </span>
+              {% else %}
+              <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300">
+                = Sin cambio
+              </span>
+              {% endif %}
+            </div>
+            <div class="text-2xs text-slate-500 font-semibold flex items-center gap-3">
+              <span>Mín: <strong>US$ {{ sp_sorgo.min_usd | formato_ar }}</strong></span>
+              <span>Máx: <strong>US$ {{ sp_sorgo.max_usd | formato_ar }}</strong></span>
+              <span>Último: <strong class="text-amber-700 font-extrabold">US$ {{ sp_sorgo.ultimo_precio_usd | formato_ar }}</strong></span>
+            </div>
+          </div>
+
+          <div class="w-full overflow-hidden pt-1">
+            <svg viewBox="0 0 500 70" class="w-full h-16 overflow-visible">
+              <defs>
+                <linearGradient id="grad-sorgo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{% if sp_sorgo.tendencia_global == 'suba' %}#10b981{% elif sp_sorgo.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="{% if sp_sorgo.tendencia_global == 'suba' %}#10b981{% elif sp_sorgo.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <path d="{{ sp_sorgo.svg_area_path }}" fill="url(#grad-sorgo)" />
+              <path d="{{ sp_sorgo.svg_path }}" fill="none" stroke="{% if sp_sorgo.tendencia_global == 'suba' %}#059669{% elif sp_sorgo.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              {% for pt in sp_sorgo.points %}
+              {% if loop.last %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{% if sp_sorgo.tendencia_global == 'suba' %}#10b981{% elif sp_sorgo.tendencia_global == 'baja' %}#ef4444{% else %}#64748b{% endif %}" opacity="0.3" />
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="{% if sp_sorgo.tendencia_global == 'suba' %}#059669{% elif sp_sorgo.tendencia_global == 'baja' %}#dc2626{% else %}#475569{% endif %}" stroke="#ffffff" stroke-width="1.5" />
+              {% else %}
+              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="2.5" fill="{% if sp_sorgo.tendencia_global == 'suba' %}#059669{% elif sp_sorgo.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" />
+              {% endif %}
+              {% endfor %}
+            </svg>
+          </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Script ligero para alternar pestañas en el cliente -->
+    <script>
+      function cambiarTabHistorico(cultivo) {
+        const cultivos = ['soja', 'maiz', 'sorgo'];
+        cultivos.forEach(c => {
+          const tabPane = document.getElementById('tab-pane-' + c);
+          const tabBtn = document.getElementById('tab-btn-' + c);
+          if (tabPane && tabBtn) {
+            if (c === cultivo) {
+              tabPane.classList.remove('hidden');
+              tabBtn.className = 'tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer bg-white text-slate-900 shadow-xs font-black';
+            } else {
+              tabPane.classList.add('hidden');
+              tabBtn.className = 'tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 font-bold';
+            }
+          }
+        });
+      }
+    </script>
+    {% endif %}
+
+    <!-- 2.D ASISTENTE DE DECISIONES DE COSECHA & VENTA (CRUCE CLIMA + MERCADO + OPERATIVO) -->
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white text-xl flex items-center justify-center shadow-md shadow-amber-500/20 font-black">
+            💡
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+              Asistente de Decisiones Cosecha & Venta <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">Simulador 1.0</span>
+            </h2>
+            <p class="text-xs text-slate-500">Evaluador agrometeorológico y comercial determinístico. Simula el impacto del costo de secada, el pase de futuros y ventanas de clima.</p>
+          </div>
+        </div>
+        <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+          Cruce Clima + Mercado
+        </span>
+      </div>
+
+      <!-- Barra de Simulación Interactivas (Inputs del Productor) -->
+      <div class="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
+        <span class="text-xs font-black uppercase text-slate-700 block tracking-wider">
+          ⚙️ Simular Condición Operativa del Lote / Grano
+        </span>
+
+        <form id="form-simulador-decision" onsubmit="event.preventDefault(); simularDecision();" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+          
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Cultivo</label>
+            <select id="sim-cultivo" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+              <option value="maiz" {% if cultivo_seleccionado == 'maiz' %}selected{% endif %}>🌽 Maíz</option>
+              <option value="soja" {% if cultivo_seleccionado == 'soja' or cultivo_seleccionado not in ['maiz', 'sorgo'] %}selected{% endif %}>🌱 Soja</option>
+              <option value="sorgo" {% if cultivo_seleccionado == 'sorgo' %}selected{% endif %}>🌾 Sorgo</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Humedad Grano (%)</label>
+            <input type="number" step="0.1" id="sim-humedad" value="{% if cultivo_seleccionado == 'maiz' %}17.5{% else %}15.0{% endif %}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="17.5">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Costo Secada (USD/pt)</label>
+            <input type="number" step="0.1" id="sim-costo-secada" value="2.50" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="2.50">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Lluvia 48h (mm)</label>
+            <input type="number" step="0.5" id="sim-lluvia" value="0.0" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="0.0">
+          </div>
+
+          <div>
+            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+              <span>⚡</span> Simular & Reevaluar
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- Contenedor de Insights del Motor de Decisión -->
+      <div id="contenedor-insights-decision" class="space-y-3">
+        {% if decision_insights %}
+        {% for ins in decision_insights %}
+        <div class="p-4 rounded-2xl border flex items-start gap-3 transition-all {% if ins.nivel == 'danger' %}bg-red-50/80 border-red-200 text-red-950{% elif ins.nivel == 'warning' %}bg-amber-50/80 border-amber-200 text-amber-950{% elif ins.nivel == 'success' %}bg-emerald-50/80 border-emerald-200 text-emerald-950{% else %}bg-sky-50/80 border-sky-200 text-sky-950{% endif %}">
+          <div class="text-xl pt-0.5">
+            {% if ins.nivel == 'danger' %}🚨{% elif ins.nivel == 'warning' %}⚠️{% elif ins.nivel == 'success' %}✅{% else %}ℹ️{% endif %}
+          </div>
+          <div class="space-y-1 flex-1">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <h4 class="font-black text-sm tracking-tight">{{ ins.titulo }}</h4>
+              <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md {% if ins.nivel == 'danger' %}bg-red-200 text-red-900{% elif ins.nivel == 'warning' %}bg-amber-200 text-amber-900{% elif ins.nivel == 'success' %}bg-emerald-200 text-emerald-900{% else %}bg-sky-200 text-sky-900{% endif %}">
+                {{ ins.codigo }}
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed opacity-90">{{ ins.mensaje }}</p>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+          Sin alertas críticas o recomendaciones especiales para la condición operativa seleccionada.
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- Script de Simulación Interactivo JS -->
+    <script>
+      async function simularDecision() {
+        const cultivo = document.getElementById('sim-cultivo').value;
+        const humedad = document.getElementById('sim-humedad').value;
+        const costo = document.getElementById('sim-costo-secada').value;
+        const lluvia = document.getElementById('sim-lluvia').value;
+        const container = document.getElementById('contenedor-insights-decision');
+
+        container.style.opacity = '0.5';
+
+        try {
+          const resp = await fetch(`/api/comercial/decision/evaluar?cultivo=${cultivo}&humedad_grano_pct=${humedad}&costo_secada_punto_usd=${costo}&lluvia_esperada_mm=${lluvia}`);
+          const data = await resp.json();
+
+          if (data.success && data.insights_generados) {
+            if (data.insights_generados.length === 0) {
+              container.innerHTML = `<div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">Sin observaciones críticas para los valores ingresados. Condición estándar.</div>`;
+            } else {
+              let html = '';
+              data.insights_generados.forEach(ins => {
+                let colorBg = 'bg-sky-50/80 border-sky-200 text-sky-950';
+                let badgeBg = 'bg-sky-200 text-sky-900';
+                let icon = 'ℹ️';
+                if (ins.nivel === 'danger') {
+                  colorBg = 'bg-red-50/80 border-red-200 text-red-950';
+                  badgeBg = 'bg-red-200 text-red-900';
+                  icon = '🚨';
+                } else if (ins.nivel === 'warning') {
+                  colorBg = 'bg-amber-50/80 border-amber-200 text-amber-950';
+                  badgeBg = 'bg-amber-200 text-amber-900';
+                  icon = '⚠️';
+                } else if (ins.nivel === 'success') {
+                  colorBg = 'bg-emerald-50/80 border-emerald-200 text-emerald-950';
+                  badgeBg = 'bg-emerald-200 text-emerald-900';
+                  icon = '✅';
+                }
+
+                html += `
+                  <div class="p-4 rounded-2xl border flex items-start gap-3 transition-all ${colorBg}">
+                    <div class="text-xl pt-0.5">${icon}</div>
+                    <div class="space-y-1 flex-1">
+                      <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-black text-sm tracking-tight">${ins.titulo}</h4>
+                        <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${badgeBg}">
+                          ${ins.codigo}
+                        </span>
+                      </div>
+                      <p class="text-xs leading-relaxed opacity-90">${ins.mensaje}</p>
+                    </div>
+                  </div>
+                `;
+              });
+              container.innerHTML = html;
+            }
+          }
+        } catch (e) {
+          console.error("Error al simular decisión:", e);
+        } finally {
+          container.style.opacity = '1';
+        }
+      }
+    </script>
 
     <!-- 3. PANEL DE INSIGHTS DEL AGENTE COMERCIAL -->
     {% if insights %}

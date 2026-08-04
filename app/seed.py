@@ -761,11 +761,36 @@ async def seed_initial_data(session):
             )
             session.add(comp_obj)
 
-    # 8. Crear Precios de Mercado en Caché si no existen
-    res_pm = await session.execute(select(PrecioMercadoCache).limit(1))
-    if not res_pm.scalars().first():
-        from app.services.mercado import DEMO_PRECIOS_MERCADO
-        for pm_dict in DEMO_PRECIOS_MERCADO:
+    # 8. Crear Precios de Mercado en Caché si no existen (Secuencia Histórica 5 Días)
+    res_pm = await session.execute(select(PrecioMercadoCache).limit(5))
+    if len(res_pm.scalars().all()) < 5:
+        from datetime import timedelta
+        hoy = date.today()
+        
+        # Secuencia histórica de 5 días para Soja, Maíz y Sorgo
+        historico_seed = [
+            # SOJA
+            {"cultivo": "soja", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=4), "precio_ars_tn": Decimal("492000.00"), "precio_usd_tn": Decimal("333.33"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "soja", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=3), "precio_ars_tn": Decimal("495000.00"), "precio_usd_tn": Decimal("335.37"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "soja", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=2), "precio_ars_tn": Decimal("498000.00"), "precio_usd_tn": Decimal("337.40"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "soja", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=1), "precio_ars_tn": Decimal("497500.00"), "precio_usd_tn": Decimal("337.06"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "soja", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy, "precio_ars_tn": Decimal("500000.00"), "precio_usd_tn": Decimal("338.75"), "dolar_referencia": Decimal("1476.00")},
+
+            # MAÍZ
+            {"cultivo": "maiz", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=4), "precio_ars_tn": Decimal("272000.00"), "precio_usd_tn": Decimal("184.28"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "maiz", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=3), "precio_ars_tn": Decimal("274000.00"), "precio_usd_tn": Decimal("185.64"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "maiz", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=2), "precio_ars_tn": Decimal("275500.00"), "precio_usd_tn": Decimal("186.65"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "maiz", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=1), "precio_ars_tn": Decimal("276000.00"), "precio_usd_tn": Decimal("186.99"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "maiz", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy, "precio_ars_tn": Decimal("277490.00"), "precio_usd_tn": Decimal("188.00"), "dolar_referencia": Decimal("1476.00")},
+
+            # SORGO
+            {"cultivo": "sorgo", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=4), "precio_ars_tn": Decimal("220000.00"), "precio_usd_tn": Decimal("149.05"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "sorgo", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=3), "precio_ars_tn": Decimal("221500.00"), "precio_usd_tn": Decimal("150.07"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "sorgo", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=2), "precio_ars_tn": Decimal("223000.00"), "precio_usd_tn": Decimal("151.08"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "sorgo", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy - timedelta(days=1), "precio_ars_tn": Decimal("224000.00"), "precio_usd_tn": Decimal("151.76"), "dolar_referencia": Decimal("1476.00")},
+            {"cultivo": "sorgo", "fuente": "Pizarra Rosario (CAC / BCR)", "fecha": hoy, "precio_ars_tn": Decimal("225000.00"), "precio_usd_tn": Decimal("152.44"), "dolar_referencia": Decimal("1476.00")},
+        ]
+        for pm_dict in historico_seed:
             pm_obj = PrecioMercadoCache(
                 id=uuid.uuid4(),
                 cultivo=pm_dict["cultivo"],

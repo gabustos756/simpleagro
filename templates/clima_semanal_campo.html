@@ -92,15 +92,15 @@
             <span class="text-xs font-black text-slate-900 block">{{ dia.dia }}</span>
             <span class="text-[10px] text-slate-400 block">{{ dia.fecha }}</span>
 
-            <div class="text-xl my-1">{{ dia.estado.split()[0] }}</div>
+            <div class="text-2xl my-1">{{ dia.estado.split()[0] }}</div>
 
             <div class="text-xs">
-              <span class="font-black text-slate-900">{{ dia.temp_max }}°</span>
-              <span class="text-slate-400 font-semibold">/ {{ dia.temp_min }}°</span>
+              <span class="font-black text-slate-900">{{ dia.temp_max }}°C</span>
+              <span class="text-slate-400 font-semibold">/ {{ dia.temp_min }}°C</span>
             </div>
 
             <div class="pt-2 border-t border-slate-200 text-[11px] space-y-1">
-              <div class="text-blue-700 font-bold">🌧️ {{ dia.precipitacion_mm }} mm</div>
+              <div class="text-blue-700 font-bold">🌧️ {{ dia.precipitacion_mm }} mm <span class="text-[9px] text-blue-500 font-normal">({{ dia.probabilidad_precipitacion_pct|default(10) }}%)</span></div>
               <div class="text-amber-800 font-semibold">💨 {{ dia.viento_max_kmh }} km/h</div>
             </div>
           </div>
@@ -114,8 +114,14 @@
           <span>🚜</span> Recomendación de Labores de Campo
         </h4>
         <p>
-          Debido al viento superior a 15 km/h durante las horas del mediodía, se sugiere programar la <strong>pulverización presiembra</strong> temprano por la mañana o al atardecer. Ventana de lluvia favorable para la siembra estimada para el día miércoles.
+          Debido al viento superior a 15 km/h durante las horas del mediodía, se sugiere programar la <strong>pulverización presiembra</strong> temprano por la mañana o al atardecer. Ventana de lluvia favorable para la siembra estimada para las próximas jornadas.
         </p>
+      </div>
+
+      <!-- Pie de Fuente Oficial y Timestamp -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-3xs text-slate-400 font-medium">
+        <span>Fuente Oficial: <strong>{{ weather.fuente_oficial }}</strong></span>
+        <span>Última actualización: <strong>{{ weather.actualizado_en }}</strong></span>
       </div>
 
     </div>

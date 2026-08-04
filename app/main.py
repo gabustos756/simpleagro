@@ -1454,14 +1454,16 @@ async def clima_resumen_campos(request: Request, db: AsyncSession = Depends(get_
     if not user:
         return RedirectResponse("/login?next=/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
+    from app.services.clima import obtener_clima_para_campo
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
     campos_clima = []
     for c in campos:
-        weather_info = get_weather_for_location(
-            c.get("latitud"),
-            c.get("longitud"),
-            c.get("localidad_referencia", "Laguna Larga, Córdoba"),
+        weather_info = obtener_clima_para_campo(
+            lat=c.get("latitud"),
+            lon=c.get("longitud"),
+            localidad=c.get("localidad_referencia", "Laguna Larga, Córdoba"),
+            campo_nombre=c.get("nombre"),
         )
         campos_clima.append({"campo": c, "weather": weather_info})
 
@@ -1478,16 +1480,18 @@ async def clima_semanal_campo(request: Request, campo_id: str, db: AsyncSession 
     if not user:
         return RedirectResponse(f"/login?next=/clima/campos/{campo_id}", status_code=status.HTTP_303_SEE_OTHER)
 
+    from app.services.clima import obtener_clima_para_campo
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
     campo = next((c for c in campos if c["id"] == campo_id), None)
     if not campo:
         return RedirectResponse("/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    weather_info = get_weather_for_location(
-        campo.get("latitud"),
-        campo.get("longitud"),
-        campo.get("localidad_referencia", "Laguna Larga, Córdoba"),
+    weather_info = obtener_clima_para_campo(
+        lat=campo.get("latitud"),
+        lon=campo.get("longitud"),
+        localidad=campo.get("localidad_referencia", "Laguna Larga, Córdoba"),
+        campo_nombre=campo.get("nombre"),
     )
 
     return templates.TemplateResponse(
@@ -1749,6 +1753,61 @@ async def comercial_debug_api(
     })
 
 
+@app.get("/api/comercial/decision/evaluar")
+async def comercial_decision_evaluar_api(
+    request: Request,
+    cultivo: Optional[str] = "maiz",
+    humedad_grano_pct: Optional[float] = 17.5,
+    costo_secada_punto_usd: Optional[float] = 2.50,
+    lluvia_esperada_mm: Optional[float] = 0.0,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Endpoint JSON de evaluación determinística del Motor de Decisión 1.0 (Clima + Comercial + Operativo).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    from app.services.mercado import obtener_snapshot_precios_mercado, obtener_comparativa_futuros_mercado
+    from app.services.clima import obtener_clima_para_campo
+    from app.services.decision_motor import evaluar_motor_decisiones
+
+    snapshot = await obtener_snapshot_precios_mercado(db, cultivos=[cultivo])
+    p_spot_item = snapshot[0] if snapshot else {}
+    p_spot_usd = p_spot_item.get("precio_usd_tn", 188.0)
+
+    futuros = obtener_comparativa_futuros_mercado(snapshot)
+    fut_item = next((f for f in futuros if f["cultivo"].lower() == cultivo.lower()), {})
+    p_futuro_usd = fut_item.get("precio_futuro_usd", 195.0)
+    spread_usd = fut_item.get("spread_usd", 7.0)
+
+    clima = obtener_clima_para_campo()
+
+    contexto = {
+        "cultivo": cultivo,
+        "precio_fisico_usd": p_spot_usd,
+        "precio_futuro_usd": p_futuro_usd,
+        "spread_futuro_usd": spread_usd,
+        "humedad_grano_pct": humedad_grano_pct,
+        "costo_secada_punto_usd": costo_secada_punto_usd,
+        "lluvia_esperada_mm": lluvia_esperada_mm if lluvia_esperada_mm > 0 else (14.5 if clima.get("alerta_lluvia") else 0.0),
+        "viento_max_kmh": clima.get("viento_kmh", 14.0),
+        "temp_min_c": 10.0,
+        "alerta_viento": clima.get("alerta_viento"),
+        "alerta_lluvia": clima.get("alerta_lluvia"),
+        "alerta_helada": clima.get("alerta_helada"),
+    }
+
+    insights = evaluar_motor_decisiones(contexto)
+
+    return JSONResponse({
+        "success": True,
+        "contexto_evaluado": contexto,
+        "insights_generados": insights,
+    })
+
+
 @app.get("/comercial", response_class=HTMLResponse)
 async def read_comercial_resumen(
     request: Request,
@@ -1799,45 +1858,52 @@ async def read_comercial_resumen(
     from app.agents.comercial_rules import evaluar_insights_comerciales
     insights = evaluar_insights_comerciales(posicion)
 
-    # Cargar cotizaciones de mercado en caché y resolver enlaces a fuentes oficiales
-    stmt_pm = select(PrecioMercadoCache).order_by(PrecioMercadoCache.fecha.desc(), PrecioMercadoCache.creado_en.desc())
-    res_pm = await db.execute(stmt_pm)
-    precios_objs = res_pm.scalars().all()
+    # Cargar snapshot de cotizaciones vigentes por cultivo (Soja, Maíz, Sorgo) con variación diaria
+    from app.services.mercado import (
+        obtener_snapshot_precios_mercado,
+        obtener_historico_precios_mercado,
+        generar_sparkline_data,
+        obtener_comparativa_futuros_mercado,
+    )
+    precios_mercado = await obtener_snapshot_precios_mercado(db)
 
-    MAPA_FUENTES_URL = {
-        "Pizarra Rosario (CAC / BCR)": "https://www.cac.bcr.com.ar/es/precios-de-pizarra",
-        "SAGyP / FAS Teórico Oficial": "https://www.magyp.gob.ar/sitio/areas/ss_mercados_agropecuarios/precios/",
-        "Dólar BNA / Bluelytics API": "https://www.bna.com.ar/Personas",
+    # Cargar cotizaciones de referencia de futuros (Matba Rofex) comparadas vs físico actual
+    futuros_mercado = obtener_comparativa_futuros_mercado(precios_mercado)
+
+    # Cargar histórico corto de los 3 cultivos (Soja, Maíz, Sorgo) para navegación por Tabs
+    historicos_mercado = {
+        "soja": await obtener_historico_precios_mercado(db, cultivo="soja", limit=7),
+        "maiz": await obtener_historico_precios_mercado(db, cultivo="maiz", limit=7),
+        "sorgo": await obtener_historico_precios_mercado(db, cultivo="sorgo", limit=7),
+    }
+    historico_precios = historicos_mercado.get(cultivo_sel, [])
+
+    # Generar trazados de mini gráficos (sparklines) por cultivo
+    sparklines_mercado = {
+        k: generar_sparkline_data(v) for k, v in historicos_mercado.items()
     }
 
-    precios_mercado = []
-    if precios_objs:
-        for p in precios_objs:
-            f_nombre = p.fuente or "Pizarra Rosario (CAC / BCR)"
-            precios_mercado.append({
-                "id": str(p.id),
-                "cultivo": p.cultivo.capitalize(),
-                "fuente": f_nombre,
-                "url_fuente": MAPA_FUENTES_URL.get(f_nombre, "https://www.bcr.com.ar"),
-                "fecha": str(p.fecha),
-                "precio_usd_tn": float(p.precio_usd_tn),
-                "precio_ars_tn": float(p.precio_ars_tn) if p.precio_ars_tn else None,
-                "dolar_referencia": float(p.dolar_referencia) if p.dolar_referencia else None,
-            })
-    else:
-        from app.services.mercado import DEMO_PRECIOS_MERCADO
-        for p in DEMO_PRECIOS_MERCADO:
-            f_nombre = p["fuente"]
-            precios_mercado.append({
-                "id": "demo",
-                "cultivo": p["cultivo"].capitalize(),
-                "fuente": f_nombre,
-                "url_fuente": MAPA_FUENTES_URL.get(f_nombre, "https://www.bcr.com.ar"),
-                "fecha": str(p["fecha"]),
-                "precio_usd_tn": float(p["precio_usd_tn"]),
-                "precio_ars_tn": float(p["precio_ars_tn"]),
-                "dolar_referencia": float(p["dolar_referencia"]),
-            })
+    # Evaluador del Motor de Decisión 1.0 (Clima + Mercado + Operativo)
+    from app.services.clima import obtener_clima_para_campo
+    from app.services.decision_motor import evaluar_motor_decisiones
+    clima_info = obtener_clima_para_campo()
+    fut_item = next((f for f in futuros_mercado if f["cultivo"].lower() == cultivo_sel.lower()), {})
+    humedad_ini = 17.5 if cultivo_sel == "maiz" else 14.5
+    contexto_decision_ini = {
+        "cultivo": cultivo_sel,
+        "precio_fisico_usd": fut_item.get("precio_fisico_usd", 188.0),
+        "precio_futuro_usd": fut_item.get("precio_futuro_usd", 195.0),
+        "spread_futuro_usd": fut_item.get("spread_usd", 7.0),
+        "humedad_grano_pct": humedad_ini,
+        "costo_secada_punto_usd": 2.50,
+        "lluvia_esperada_mm": 0.0,
+        "viento_max_kmh": clima_info.get("viento_kmh", 14.0),
+        "temp_min_c": 10.0,
+        "alerta_viento": clima_info.get("alerta_viento"),
+        "alerta_lluvia": clima_info.get("alerta_lluvia"),
+        "alerta_helada": clima_info.get("alerta_helada"),
+    }
+    decision_insights = evaluar_motor_decisiones(contexto_decision_ini)
 
     return templates.TemplateResponse(
         request=request,
@@ -1849,6 +1915,11 @@ async def read_comercial_resumen(
             "posicion": posicion,
             "insights": insights,
             "precios_mercado": precios_mercado,
+            "futuros_mercado": futuros_mercado,
+            "historicos_mercado": historicos_mercado,
+            "sparklines_mercado": sparklines_mercado,
+            "historico_precios": historico_precios,
+            "decision_insights": decision_insights,
             "mensaje_exito": mensaje,
         },
     )
