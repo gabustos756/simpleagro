@@ -1344,10 +1344,27 @@ async def list_rendimientos(request: Request, db: AsyncSession = Depends(get_db)
     lotes = await fetch_lotes_dicts(db)
     lotes_filtrados = [l for l in lotes if l["campo_id"] == campo_activo["id"]]
 
+    total_estimado_qq = sum((float(l.get("superficie_productiva_ha", 0.0)) * float(l.get("qq_ha_estimado", 0.0))) for l in lotes_filtrados)
+    total_estimado_tn = total_estimado_qq / 10.0
+    total_real_qq = sum(float(l.get("produccion_total_qq", 0.0)) for l in lotes_filtrados)
+    total_real_tn = total_real_qq / 10.0
+    total_ha = sum(float(l.get("superficie_productiva_ha", 0.0)) for l in lotes_filtrados)
+    rinde_promedio_pond = (total_real_qq / total_ha) if total_ha > 0 else 0.0
+
     return templates.TemplateResponse(
         request=request,
         name="productivo_rendimientos.html",
-        context={"user": user, "campo_activo": campo_activo, "lotes": lotes_filtrados},
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "lotes": lotes_filtrados,
+            "total_estimado_qq": total_estimado_qq,
+            "total_estimado_tn": total_estimado_tn,
+            "total_real_qq": total_real_qq,
+            "total_real_tn": total_real_tn,
+            "total_ha": total_ha,
+            "rinde_promedio_pond": rinde_promedio_pond,
+        },
     )
 
 
