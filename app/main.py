@@ -973,6 +973,33 @@ async def create_campo(
     return RedirectResponse("/productivo/campos", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@app.post("/productivo/campos/{campo_id}/eliminar")
+async def delete_campo(
+    campo_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        c_uuid = uuid.UUID(campo_id)
+        res = await db.execute(select(Campo).where(Campo.id == c_uuid))
+        campo_obj = res.scalar_one_or_none()
+        if campo_obj:
+            await db.delete(campo_obj)
+            await db.commit()
+            
+            # Limpiar de la sesión si era el campo activo
+            if request.session.get("campo_activo_id") == campo_id:
+                request.session.pop("campo_activo_id", None)
+    except Exception as e:
+        logger.error(f"Error al eliminar campo {campo_id}: {e}")
+
+    return RedirectResponse("/productivo/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/productivo/lotes", response_class=HTMLResponse)
 async def list_lotes(
     request: Request,

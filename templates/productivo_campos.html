@@ -130,12 +130,19 @@
               <h3 class="text-2xl font-black text-slate-900 mt-1">{{ c.nombre }}</h3>
               <p class="text-xs text-slate-500 mt-0.5">📍 {{ c.ubicacion }}</p>
             </div>
-            <a
-              href="/productivo/lotes?campo={{ c.id }}"
-              class="px-3.5 py-2 bg-agro-50 border border-agro-200 text-agro-700 font-black text-xs rounded-xl hover:bg-agro-100 transition-all"
-            >
-              Ver Lotes →
-            </a>
+            <div class="flex items-center gap-2">
+              <a
+                href="/productivo/lotes?campo={{ c.id }}"
+                class="px-3.5 py-2 bg-agro-50 border border-agro-200 text-agro-700 font-black text-xs rounded-xl hover:bg-agro-100 transition-all"
+              >
+                Ver Lotes →
+              </a>
+              <form method="POST" action="/productivo/campos/{{ c.id }}/eliminar" onsubmit="return confirm('¿Seguro que deseas eliminar el campo {{ c.nombre }}? Se borrarán sus lotes e información vinculada.');" class="inline">
+                <button type="submit" class="p-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all cursor-pointer" title="Eliminar Campo">
+                  🗑️
+                </button>
+              </form>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
