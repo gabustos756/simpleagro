@@ -23,7 +23,7 @@ from app.enums import (
 
 
 class ClienteBase(BaseModel):
-    nombre: str = Field(..., min_length=2, max_length=150, example="Estancia El Mimbre")
+    nombre: str = Field(..., min_length=2, max_length=150, example="Establecimiento Agropecuario")
     cuit: Optional[str] = Field(None, example="30-71234567-8")
     ubicacion: Optional[str] = Field(None, example="Río Cuarto, Córdoba")
     activo: bool = True

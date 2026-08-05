@@ -118,7 +118,7 @@ export default function DashboardFamiliar() {
             <div>
               <div className="flex items-center space-x-3">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  Estancia El Mimbre <span className="text-emerald-400 text-lg font-normal">ERP Cordobés</span>
+                  EduAgro <span className="text-emerald-400 text-lg font-normal">ERP Cordobés</span>
                 </h1>
                 <span className="hidden sm:inline-block px-3 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-semibold rounded-full">
                   Campaña 2025-2026

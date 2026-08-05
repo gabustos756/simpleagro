@@ -121,8 +121,9 @@ async def add_process_time_header(request: Request, call_next):
 
 
 # Configuración de Plantillas Jinja2 y Archivos Estáticos
-templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+templates_dir = os.path.join(BASE_DIR, "templates")
+static_dir = os.path.join(BASE_DIR, "static")
 
 templates = Jinja2Templates(directory=templates_dir)
 
@@ -175,7 +176,7 @@ def campo_to_dict(c: Campo, lotes_count: int = 0) -> dict:
     }
 
 
-def lote_to_dict(l: Lote, campo_nombre: str = "Estancia La Esperanza") -> dict:
+def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
     tenencia_str = l.tenencia_tipo.value if hasattr(l.tenencia_tipo, "value") else str(l.tenencia_tipo or "propio")
     r_real = float(l.qq_ha_real) if l.qq_ha_real is not None else 0.0
     prod_qq = float(l.produccion_total_qq) if l.produccion_total_qq is not None else (float(l.superficie_productiva_ha) * r_real)
@@ -191,7 +192,7 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Estancia La Esperanza") -> dict:
         "tenencia_label": "Propio" if tenencia_str == "propio" else "Alquilado",
         "costo_alquiler_usd_ha": float(l.costo_alquiler_usd_ha) if l.costo_alquiler_usd_ha is not None else 0.0,
         "vencimiento_alquiler": str(l.vencimiento_alquiler) if l.vencimiento_alquiler else None,
-        "notas_alquiler": l.notas_alquiler or "Tierra familiar de la Familia Matteuda.",
+        "notas_alquiler": l.notas_alquiler or "Contrato de arrendamiento rural.",
         "cultivo_anterior": l.cultivo_anterior or "Trigo 24/25",
         "cultivo_actual": l.cultivo_actual or "Soja 1ra",
         "cultivo_planificado": l.cultivo_planificado or "Maíz Tardío 26/27",
@@ -206,7 +207,7 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Estancia La Esperanza") -> dict:
     }
 
 
-def instalacion_to_dict(inst: Instalacion, campo_nombre: str = "Estancia La Esperanza") -> dict:
+def instalacion_to_dict(inst: Instalacion, campo_nombre: str = "Campo General") -> dict:
     tipo_str = inst.tipo or "casa"
     tipo_labels = {
         "casa": "🏡 Casa Principal",
@@ -225,7 +226,7 @@ def instalacion_to_dict(inst: Instalacion, campo_nombre: str = "Estancia La Espe
     }
 
 
-def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Estancia La Esperanza", inst_nombre: str = "Instalación General") -> dict:
+def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Campo General", inst_nombre: str = "Instalación General") -> dict:
     tipo_str = s.tipo_servicio.value if hasattr(s.tipo_servicio, "value") else str(s.tipo_servicio)
     frec_str = s.frecuencia_pago.value if hasattr(s.frecuencia_pago, "value") else str(s.frecuencia_pago)
     est_str = s.estado.value if hasattr(s.estado, "value") else str(s.estado)
@@ -500,6 +501,20 @@ async def login_submit(
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/descargar-guia")
+@app.get("/manual-pdf")
+def descargar_guia_pdf():
+    pdf_path = os.path.join(BASE_DIR, "Manual_Usuario_EduAgro.pdf")
+    if os.path.exists(pdf_path):
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename="Manual_Usuario_EduAgro.pdf",
+            content_disposition_type="inline"
+        )
+    return HTMLResponse("<h1>Manual PDF no encontrado</h1>", status_code=404)
 
 
 # ----------------------------------------------------------------------
@@ -2170,7 +2185,7 @@ async def read_comercial_stock(
                 stocks_list.append({
                     "id": st_d.get("id"),
                     "campo_id": campo_id_str,
-                    "campo_nombre": campos_map.get(campo_id_str, "Estancia La Esperanza"),
+                    "campo_nombre": campos_map.get(campo_id_str, "Campo General"),
                     "cultivo": st_d.get("cultivo"),
                     "ubicacion_tipo": ub_val,
                     "identificador": st_d.get("identificador"),
@@ -2375,7 +2390,7 @@ async def read_comercial_contratos(
                     "beneficiario": k_d.get("beneficiario"),
                     "cultivo": k_d.get("cultivo"),
                     "campo_id": campo_id_str,
-                    "campo_nombre": campos_map.get(campo_id_str, "Estancia La Esperanza") if campo_id_str else "",
+                    "campo_nombre": campos_map.get(campo_id_str, "Campo General") if campo_id_str else "",
                     "tipo_compromiso": tk_val,
                     "tipo_compromiso_label": label_tk,
                     "toneladas_comprometidas": float(k_d.get("toneladas_comprometidas", 0.0)),
