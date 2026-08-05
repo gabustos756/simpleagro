@@ -18,31 +18,39 @@ from app.services.fetchers import (
 
 logger = logging.getLogger("eduagro.mercado")
 
-# Precios fallback demo por defecto alineados con CAC/BCR (Soja, Maíz y Sorgo)
+# Precios fallback demo por defecto alineados con CAC/BCR (Soja, Maíz, Trigo y Sorgo)
 DEMO_PRECIOS_MERCADO = [
     {
         "cultivo": "soja",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("506000.00"),
-        "precio_usd_tn": Decimal("340.51"),
-        "dolar_referencia": Decimal("1486.00"),
+        "precio_ars_tn": Decimal("505000.00"),
+        "precio_usd_tn": Decimal("339.61"),
+        "dolar_referencia": Decimal("1487.00"),
     },
     {
         "cultivo": "maiz",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("276400.00"),
-        "precio_usd_tn": Decimal("186.00"),
-        "dolar_referencia": Decimal("1486.00"),
+        "precio_ars_tn": Decimal("275100.00"),
+        "precio_usd_tn": Decimal("185.00"),
+        "dolar_referencia": Decimal("1487.00"),
+    },
+    {
+        "cultivo": "trigo",
+        "fuente": "Pizarra Rosario (CAC / BCR)",
+        "fecha": date.today(),
+        "precio_ars_tn": Decimal("310800.00"),
+        "precio_usd_tn": Decimal("209.01"),
+        "dolar_referencia": Decimal("1487.00"),
     },
     {
         "cultivo": "sorgo",
         "fuente": "Pizarra Rosario (CAC / BCR)",
         "fecha": date.today(),
-        "precio_ars_tn": Decimal("271940.00"),
-        "precio_usd_tn": Decimal("183.00"),
-        "dolar_referencia": Decimal("1486.00"),
+        "precio_ars_tn": Decimal("272130.00"),
+        "precio_usd_tn": Decimal("183.01"),
+        "dolar_referencia": Decimal("1487.00"),
     },
 ]
 
@@ -264,7 +272,7 @@ async def obtener_snapshot_precios_mercado(
     Si la cotización almacenada es de una fecha anterior, ejecuta refresh en vivo.
     """
     if cultivos is None:
-        cultivos = ["soja", "maiz", "sorgo"]
+        cultivos = ["soja", "maiz", "trigo", "sorgo"]
 
     hoy_str = str(date.today())
     snapshot = []

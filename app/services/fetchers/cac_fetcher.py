@@ -137,40 +137,34 @@ def obtener_precios_pizarra_cac(
         date_m = re.search(r"Precios Pizarra del d[ií]a\s+([\d]{2}/[\d]{2}/[\d]{4})", content)
         fecha_pizarra_str = date_m.group(1) if date_m else str(date.today())
 
-        # 3. Mapeo de Pizarra en ARS
-        precios_ars = {}
-        for match in re.finditer(r"board-([a-z]+)[\s\S]*?<div class=\"price\">\s*(?:\(E\))?\s*\$?\s*([\d\.,]+)", content):
-            crop = match.group(1).lower()
-            p_clean = match.group(2).replace(".", "").replace(",", ".")
-            precios_ars[crop] = Decimal(p_clean)
-
+        # 3. Mapeo de Pizarra en ARS mediante bloques HTML de CAC/BCR
         precios_encontrados = []
-        cultivos_interes = [("soja", "soja"), ("maiz", "maiz"), ("sorgo", "sorgo")]
+        cultivos_interes = ["soja", "maiz", "trigo", "sorgo"]
+        blocks = content.split('board board-')
 
-        for key_slug, key_norm in cultivos_interes:
-            if key_slug in precios_ars:
-                p_ars = precios_ars[key_slug]
-            elif key_slug == "soja" and "girasol" in precios_ars:
-                p_ars = Decimal("506000.00")
-            elif key_slug == "maiz":
-                p_ars = Decimal("276400.00")
-            else:
-                p_ars = Decimal("271940.00")
+        for b in blocks[1:]:
+            crop_name = b.split()[0].replace('"', '').replace('>', '').strip().lower()
+            if crop_name not in cultivos_interes:
+                continue
 
-            p_usd = (p_ars / tc_cac).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            ars_match = re.search(r'class="price"[\s\S]*?\$?\s*([\d\.,]+)', b)
+            if ars_match:
+                p_ars = Decimal(ars_match.group(1).replace(".", "").replace(",", "."))
+                p_usd = (p_ars / tc_cac).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            precios_encontrados.append({
-                "cultivo": key_norm,
-                "fuente": "Pizarra Rosario (CAC / BCR)",
-                "fecha": date.today(),
-                "fecha_pizarra": fecha_pizarra_str,
-                "precio_ars_tn": p_ars,
-                "precio_usd_tn": p_usd,
-                "dolar_referencia": tc_cac,
-                "es_fallback": False,
-            })
+                precios_encontrados.append({
+                    "cultivo": crop_name,
+                    "fuente": "Pizarra Rosario (CAC / BCR)",
+                    "fecha": date.today(),
+                    "fecha_pizarra": fecha_pizarra_str,
+                    "precio_ars_tn": p_ars,
+                    "precio_usd_tn": p_usd,
+                    "dolar_referencia": tc_cac,
+                    "es_fallback": False,
+                })
 
         if precios_encontrados:
+            logger.info(f"[MERCADO CAC EN VIVO] Éxito al parsear {len(precios_encontrados)} cotizaciones de Pizarra Rosario.")
             return precios_encontrados
 
     except Exception as e:
