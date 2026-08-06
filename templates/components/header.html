@@ -195,6 +195,15 @@
           </div>
           <span class="text-xs">⬇️</span>
         </a>
+
+        <!-- BOTÓN INSTALAR APP PWA EN IPHONE / CHROME / DISPOSITIVOS -->
+        <button id="pwa-install-nav-btn" type="button" onclick="handlePWAInstallClick()" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 mt-1">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">📲</span>
+            <span>Instalar App (Chrome / iPhone)</span>
+          </div>
+          <span class="text-xs bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-lg font-bold">PWA</span>
+        </button>
       </nav>
 
       <!-- SECCIÓN DE USUARIO (DENTRO DEL MENÚ MÓVIL) -->
@@ -220,7 +229,175 @@
   </div>
 </header>
 
+<!-- MODAL GUÍA DE INSTALACIÓN PWA MULTI-NAVEGADOR (CHROME & SAFARI) -->
+<div id="pwa-guide-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+  <div class="bg-slate-900 border border-slate-700/80 text-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 relative">
+    
+    <button type="button" onclick="closePWAModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold p-1 rounded-lg hover:bg-slate-800 transition-colors">
+      ✕
+    </button>
+
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-2xl bg-agro-600 flex items-center justify-center text-2xl shadow-lg">
+        📲
+      </div>
+      <div>
+        <h3 class="text-lg font-black text-white">Instalar App EduAgro</h3>
+        <p class="text-xs text-slate-400">Guía rápida de instalación en tu dispositivo</p>
+      </div>
+    </div>
+
+    <!-- PESTAÑAS SELECCIÓN NAVEGADOR: CHROME Y SAFARI -->
+    <div class="flex rounded-xl bg-slate-800/90 p-1 border border-slate-700/60 gap-1 text-xs font-bold">
+      <button id="pwa-tab-chrome-btn" type="button" onclick="switchPWATab('chrome')" class="flex-1 py-1.5 px-2 rounded-lg bg-agro-600 text-white transition-all flex items-center justify-center gap-1.5">
+        <span>🌐</span> <span>Google Chrome</span>
+      </button>
+      <button id="pwa-tab-safari-btn" type="button" onclick="switchPWATab('safari')" class="flex-1 py-1.5 px-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5">
+        <span>🍎</span> <span>iPhone Safari</span>
+      </button>
+    </div>
+
+    <!-- CONTENIDO PESTAÑA GOOGLE CHROME (ANDROID / MAC / WINDOWS) -->
+    <div id="pwa-tab-chrome-content" class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 space-y-3 text-xs">
+      
+      <!-- ACCIÓN NATIVA CHROME DE 1-CLIC (SI ESTÁ DISPONIBLE) -->
+      <div id="pwa-chrome-direct-action" class="hidden pb-2 border-b border-slate-700">
+        <button type="button" onclick="triggerNativeChromeInstall()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <span>⚡</span> <span>Instalar Ahora en Chrome (1-Clic)</span>
+        </button>
+      </div>
+
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-sky-500/20 text-sky-300 font-extrabold flex items-center justify-center shrink-0 border border-sky-500/30">1</span>
+        <div>
+          <strong class="text-white block">Tocá el menú de Chrome (3 Puntos)</strong>
+          <span class="text-slate-300">En la esquina superior derecha de Chrome, presioná los 3 puntos <span class="bg-slate-700 px-1.5 py-0.5 rounded text-sky-300 font-bold">⋮</span>.</span>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-sky-500/20 text-sky-300 font-extrabold flex items-center justify-center shrink-0 border border-sky-500/30">2</span>
+        <div>
+          <strong class="text-white block">Elegí "Instalar aplicación" o "Agregar a inicio"</strong>
+          <span class="text-slate-300">Seleccioná <span class="bg-slate-700 px-1.5 py-0.5 rounded text-emerald-300 font-bold">📲 Instalar aplicación</span> o <span class="bg-slate-700 px-1.5 py-0.5 rounded text-amber-300 font-bold">➕ Agregar a la pantalla principal</span>.</span>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-sky-500/20 text-sky-300 font-extrabold flex items-center justify-center shrink-0 border border-sky-500/30">3</span>
+        <div>
+          <strong class="text-white block">¡Confirmá e ingresá Offline!</strong>
+          <span class="text-slate-300">Se creará el ícono nativo de EduAgro en tu pantalla o escritorio.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTENIDO PESTAÑA APPLE SAFARI (IPHONE / IPAD) -->
+    <div id="pwa-tab-safari-content" class="hidden bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 space-y-3 text-xs">
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-agro-500/20 text-agro-300 font-extrabold flex items-center justify-center shrink-0 border border-agro-500/30">1</span>
+        <div>
+          <strong class="text-white block">Tocá el botón Compartir en Safari</strong>
+          <span class="text-slate-300">En la barra inferior de Safari en tu iPhone, presioná el ícono de compartir <span class="bg-slate-700 px-1.5 py-0.5 rounded text-amber-300 font-bold">⎋ / 🔗</span>.</span>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-agro-500/20 text-agro-300 font-extrabold flex items-center justify-center shrink-0 border border-agro-500/30">2</span>
+        <div>
+          <strong class="text-white block">Elegí "Agregar a la pantalla de inicio"</strong>
+          <span class="text-slate-300">Desplazate hacia abajo en la lista y tocá <span class="bg-slate-700 px-1.5 py-0.5 rounded text-emerald-300 font-bold">➕ Agregar a inicio</span>.</span>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-3">
+        <span class="w-6 h-6 rounded-full bg-agro-500/20 text-agro-300 font-extrabold flex items-center justify-center shrink-0 border border-agro-500/30">3</span>
+        <div>
+          <strong class="text-white block">¡Listo para usar Modo Campo Offline!</strong>
+          <span class="text-slate-300">EduAgro aparecerá en la pantalla principal de tu iPhone como app independiente.</span>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" onclick="closePWAModal()" class="w-full py-2.5 bg-agro-600 hover:bg-agro-500 text-white font-extrabold rounded-xl transition-all shadow-md">
+      Entendido 👍
+    </button>
+  </div>
+</div>
+
 <script>
+  let deferredPWAInstallPrompt = null;
+
+  // Capturar evento nativo de instalación 1-Clic en Chrome
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPWAInstallPrompt = e;
+    const directActionDiv = document.getElementById('pwa-chrome-direct-action');
+    if (directActionDiv) {
+      directActionDiv.classList.remove('hidden');
+    }
+  });
+
+  function handlePWAInstallClick() {
+    if (deferredPWAInstallPrompt) {
+      deferredPWAInstallPrompt.prompt();
+      deferredPWAInstallPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          deferredPWAInstallPrompt = null;
+        }
+      });
+    } else {
+      openPWAModal();
+    }
+  }
+
+  function triggerNativeChromeInstall() {
+    if (deferredPWAInstallPrompt) {
+      deferredPWAInstallPrompt.prompt();
+      deferredPWAInstallPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          deferredPWAInstallPrompt = null;
+          closePWAModal();
+        }
+      });
+    }
+  }
+
+  function openPWAModal() {
+    const modal = document.getElementById('pwa-guide-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  }
+
+  function closePWAModal() {
+    const modal = document.getElementById('pwa-guide-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  function switchPWATab(tab) {
+    const btnChrome = document.getElementById('pwa-tab-chrome-btn');
+    const btnSafari = document.getElementById('pwa-tab-safari-btn');
+    const contentChrome = document.getElementById('pwa-tab-chrome-content');
+    const contentSafari = document.getElementById('pwa-tab-safari-content');
+
+    if (tab === 'chrome') {
+      btnChrome.className = "flex-1 py-1.5 px-2 rounded-lg bg-agro-600 text-white transition-all flex items-center justify-center gap-1.5";
+      btnSafari.className = "flex-1 py-1.5 px-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5";
+      contentChrome.classList.remove('hidden');
+      contentSafari.classList.add('hidden');
+    } else {
+      btnSafari.className = "flex-1 py-1.5 px-2 rounded-lg bg-agro-600 text-white transition-all flex items-center justify-center gap-1.5";
+      btnChrome.className = "flex-1 py-1.5 px-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5";
+      contentSafari.classList.remove('hidden');
+      contentChrome.classList.add('hidden');
+    }
+  }
+
   (function() {
     function setupMobileMenu() {
       const btn = document.getElementById('mobile-menu-btn');
@@ -247,7 +424,7 @@
       };
 
       document.addEventListener('click', function(e) {
-        if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !btn.contains(e.target)) {
+        if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !btn.contains(e.target) && !e.target.closest('#pwa-guide-modal')) {
           menu.classList.add('hidden');
           btn.setAttribute('aria-expanded', 'false');
           if (iconOpen) iconOpen.classList.remove('hidden');
