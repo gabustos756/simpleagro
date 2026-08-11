@@ -94,27 +94,6 @@ async def calcular_posicion_comercial(
 
             prod_lote_tn = (sup_ha * rinde_qq) / Decimal("10.0")
             produccion_total_tn += prod_lote_tn
-    else:
-        # Fallback a datos demo si la base de datos no tiene Lotes persistidos aún
-        from app.seed import DEMO_LOTES
-
-        for l_dict in DEMO_LOTES:
-            cult_actual = normalizar_texto(l_dict.get("cultivo_actual"))
-            cult_planif = normalizar_texto(l_dict.get("cultivo_planificado"))
-            if cultivo_norm in cult_actual or cultivo_norm in cult_planif:
-                sup_ha = Decimal(str(l_dict.get("superficie_productiva_ha", 0.0)))
-                qq_real = l_dict.get("qq_ha_real")
-                qq_est = l_dict.get("qq_ha_estimado")
-
-                if qq_real is not None and float(qq_real) > 0:
-                    rinde_qq = Decimal(str(qq_real))
-                elif qq_est is not None and float(qq_est) > 0:
-                    rinde_qq = Decimal(str(qq_est))
-                else:
-                    rinde_qq = Decimal("0.0")
-
-                prod_lote_tn = (sup_ha * rinde_qq) / Decimal("10.0")
-                produccion_total_tn += prod_lote_tn
 
     # 2. Obtener Contratos de Venta de Granos (Fijo vs A Fijar)
     stmt_contratos = select(ContratoVentaGrano).where(

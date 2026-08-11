@@ -670,96 +670,23 @@ async def seed_initial_data(session):
             session.add(user_obj)
         await session.flush()
 
-    # 3. Crear Campos si no existen
-    for c_dict in DEMO_CAMPOS:
-        campo_id = get_uuid(c_dict["id"])
-        c_obj = await session.get(Campo, campo_id)
-        if not c_obj:
-            c_obj = Campo(
-                id=campo_id,
-                cliente_id=cliente_id,
-                nombre=c_dict["nombre"],
-                ubicacion=c_dict.get("ubicacion"),
-                localidad_referencia=c_dict.get("localidad_referencia"),
-                latitud=c_dict.get("latitud"),
-                longitud=c_dict.get("longitud"),
-                hectareas_totales=c_dict.get("hectareas_totales", 0.0),
-            )
-            session.add(c_obj)
-    await session.flush()
-
-    # 4. Crear Campañas si no existen
-    for camp_dict in DEMO_CAMPANIAS:
-        camp_id = get_uuid(camp_dict["id"])
-        camp_obj = await session.get(Campania, camp_id)
-        if not camp_obj:
-            camp_obj = Campania(
-                id=camp_id,
-                cliente_id=cliente_id,
-                nombre=camp_dict["nombre"],
-                fecha_inicio=date.fromisoformat(camp_dict["fecha_inicio"]),
-                fecha_fin=date.fromisoformat(camp_dict["fecha_fin"]) if camp_dict.get("fecha_fin") else None,
-                activa=camp_dict.get("activa", True),
-            )
-            session.add(camp_obj)
-    await session.flush()
-
-    # 5. Crear Contratos de Venta Grano si no existen
-    res_contratos = await session.execute(select(ContratoVentaGrano).limit(1))
-    if not res_contratos.scalars().first():
-        for contr_dict in DEMO_CONTRATOS_GRANO:
-            contr_obj = ContratoVentaGrano(
-                id=get_uuid(contr_dict["id"]),
-                cliente_id=cliente_id,
-                campania_id=get_uuid(contr_dict["campania_id"]),
-                cultivo=contr_dict["cultivo"],
-                comprador_acopio=contr_dict["comprador_acopio"],
-                numero_contrato=contr_dict.get("numero_contrato"),
-                toneladas=contr_dict["toneladas"],
-                tipo_precio=contr_dict["tipo_precio"],
-                precio_usd_tn=contr_dict.get("precio_usd_tn"),
-                fecha_contrato=contr_dict["fecha_contrato"],
-                fecha_entrega_limite=contr_dict.get("fecha_entrega_limite"),
-                observaciones=contr_dict.get("observaciones"),
-            )
-            session.add(contr_obj)
-
-    # 6. Crear Stock Grano si no existen
-    res_stock = await session.execute(select(StockGrano).limit(1))
-    if not res_stock.scalars().first():
-        for st_dict in DEMO_STOCKS_GRANO:
-            st_obj = StockGrano(
-                id=get_uuid(st_dict["id"]),
-                cliente_id=cliente_id,
-                campo_id=get_uuid(st_dict["campo_id"]),
-                campania_id=get_uuid(st_dict["campania_id"]),
-                cultivo=st_dict["cultivo"],
-                ubicacion_tipo=st_dict["ubicacion_tipo"],
-                identificador=st_dict["identificador"],
-                toneladas_almacenadas=st_dict["toneladas_almacenadas"],
-                fecha_ingreso=st_dict["fecha_ingreso"],
-                observaciones=st_dict.get("observaciones"),
-            )
-            session.add(st_obj)
-
-    # 7. Crear Compromisos Grano si no existen
-    res_comp = await session.execute(select(CompromisoGrano).limit(1))
-    if not res_comp.scalars().first():
-        for comp_dict in DEMO_COMPROMISOS_GRANO:
-            comp_obj = CompromisoGrano(
-                id=get_uuid(comp_dict["id"]),
-                cliente_id=cliente_id,
-                campania_id=get_uuid(comp_dict["campania_id"]),
-                campo_id=get_uuid(comp_dict["campo_id"]) if comp_dict.get("campo_id") else None,
-                cultivo=comp_dict["cultivo"],
-                tipo_compromiso=comp_dict["tipo_compromiso"],
-                concepto=comp_dict["concepto"],
-                beneficiario=comp_dict["beneficiario"],
-                toneladas_comprometidas=comp_dict["toneladas_comprometidas"],
-                fecha_vencimiento=comp_dict.get("fecha_vencimiento"),
-                cumplido=comp_dict.get("cumplido", False),
-            )
-            session.add(comp_obj)
+    # 3. Crear Campaña inicial si no existe ninguna
+    res_camp = await session.execute(select(Campania).limit(1))
+    if not res_camp.scalars().first():
+        for camp_dict in DEMO_CAMPANIAS:
+            camp_id = get_uuid(camp_dict["id"])
+            camp_obj = await session.get(Campania, camp_id)
+            if not camp_obj:
+                camp_obj = Campania(
+                    id=camp_id,
+                    cliente_id=cliente_id,
+                    nombre=camp_dict["nombre"],
+                    fecha_inicio=date.fromisoformat(camp_dict["fecha_inicio"]),
+                    fecha_fin=date.fromisoformat(camp_dict["fecha_fin"]) if camp_dict.get("fecha_fin") else None,
+                    activa=camp_dict.get("activa", True),
+                )
+                session.add(camp_obj)
+        await session.flush()
 
     # 8. Crear Precios de Mercado en Caché si no existen (Secuencia Histórica 5 Días)
     res_pm = await session.execute(select(PrecioMercadoCache).limit(5))

@@ -155,7 +155,7 @@ def get_service_worker_root():
 
 
 # Store de Tareas Operativas en Memoria (Modo Campo)
-TAREAS_STORE = list(DEMO_TAREAS)
+TAREAS_STORE = []
 
 
 # ----------------------------------------------------------------------
@@ -2220,23 +2220,6 @@ async def read_comercial_stock(
                 "fecha_ingreso": str(st.fecha_ingreso) if st.fecha_ingreso else "",
                 "observaciones": st.observaciones or "",
             })
-    else:
-        from app.seed import DEMO_STOCKS_GRANO
-        for st_d in DEMO_STOCKS_GRANO:
-            if st_d.get("cultivo", "").lower() == cultivo_sel:
-                campo_id_str = st_d.get("campo_id", "campo-001")
-                ub_val = st_d.get("ubicacion_tipo").value if hasattr(st_d.get("ubicacion_tipo"), "value") else str(st_d.get("ubicacion_tipo"))
-                stocks_list.append({
-                    "id": st_d.get("id"),
-                    "campo_id": campo_id_str,
-                    "campo_nombre": campos_map.get(campo_id_str, "Campo General"),
-                    "cultivo": st_d.get("cultivo"),
-                    "ubicacion_tipo": ub_val,
-                    "identificador": st_d.get("identificador"),
-                    "toneladas_almacenadas": float(st_d.get("toneladas_almacenadas", 0.0)),
-                    "fecha_ingreso": str(st_d.get("fecha_ingreso")),
-                    "observaciones": st_d.get("observaciones", ""),
-                })
 
     tn_silo_bolsa = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] == "silo_bolsa")
     tn_acopio = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] != "silo_bolsa")
@@ -2375,23 +2358,6 @@ async def read_comercial_contratos(
                 "fecha_entrega_limite": str(c.fecha_entrega_limite) if c.fecha_entrega_limite else "",
                 "observaciones": c.observaciones or "",
             })
-    else:
-        from app.seed import DEMO_CONTRATOS_GRANO
-        for c_d in DEMO_CONTRATOS_GRANO:
-            if c_d.get("cultivo", "").lower() == cultivo_sel:
-                tp_val = c_d.get("tipo_precio").value if hasattr(c_d.get("tipo_precio"), "value") else str(c_d.get("tipo_precio"))
-                contratos_list.append({
-                    "id": c_d.get("id"),
-                    "comprador_acopio": c_d.get("comprador_acopio"),
-                    "numero_contrato": c_d.get("numero_contrato", ""),
-                    "cultivo": c_d.get("cultivo"),
-                    "toneladas": float(c_d.get("toneladas", 0.0)),
-                    "tipo_precio": tp_val,
-                    "precio_usd_tn": float(c_d.get("precio_usd_tn")) if c_d.get("precio_usd_tn") is not None else None,
-                    "fecha_contrato": str(c_d.get("fecha_contrato")),
-                    "fecha_entrega_limite": str(c_d.get("fecha_entrega_limite")) if c_d.get("fecha_entrega_limite") else "",
-                    "observaciones": c_d.get("observaciones", ""),
-                })
 
     stmt_comp = select(CompromisoGrano).where(
         CompromisoGrano.cliente_id == cliente_id,
@@ -2421,26 +2387,6 @@ async def read_comercial_contratos(
                 "fecha_vencimiento": str(k.fecha_vencimiento) if k.fecha_vencimiento else "",
                 "cumplido": bool(k.cumplido),
             })
-    else:
-        from app.seed import DEMO_COMPROMISOS_GRANO
-        for k_d in DEMO_COMPROMISOS_GRANO:
-            if k_d.get("cultivo", "").lower() == cultivo_sel:
-                campo_id_str = k_d.get("campo_id")
-                tk_val = k_d.get("tipo_compromiso").value if hasattr(k_d.get("tipo_compromiso"), "value") else str(k_d.get("tipo_compromiso"))
-                label_tk = "Alquiler / Arrendamiento" if tk_val == "alquiler_arrendamiento" else ("Canje Insumos" if tk_val == "canje_insumos" else "Otro Compromiso")
-                compromisos_list.append({
-                    "id": k_d.get("id"),
-                    "concepto": k_d.get("concepto"),
-                    "beneficiario": k_d.get("beneficiario"),
-                    "cultivo": k_d.get("cultivo"),
-                    "campo_id": campo_id_str,
-                    "campo_nombre": campos_map.get(campo_id_str, "Campo General") if campo_id_str else "",
-                    "tipo_compromiso": tk_val,
-                    "tipo_compromiso_label": label_tk,
-                    "toneladas_comprometidas": float(k_d.get("toneladas_comprometidas", 0.0)),
-                    "fecha_vencimiento": str(k_d.get("fecha_vencimiento")) if k_d.get("fecha_vencimiento") else "",
-                    "cumplido": bool(k_d.get("cumplido", False)),
-                })
 
     tn_vendidas_fijo = sum(c["toneladas"] for c in contratos_list if c["tipo_precio"] == "fijo")
     tn_vendidas_a_fijar = sum(c["toneladas"] for c in contratos_list if c["tipo_precio"] == "a_fijar")
