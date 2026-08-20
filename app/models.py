@@ -87,6 +87,18 @@ class Cliente(Base):
     deliveries: Mapped[List["GrainDelivery"]] = relationship(
         "GrainDelivery", back_populates="cliente", cascade="all, delete-orphan"
     )
+    storage_locations: Mapped[List["StorageLocation"]] = relationship(
+        "StorageLocation", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    stock_partidas: Mapped[List["StockPartida"]] = relationship(
+        "StockPartida", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    stock_reservations: Mapped[List["StockReservation"]] = relationship(
+        "StockReservation", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    stock_allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
+        "StockDeliveryAllocation", back_populates="cliente", cascade="all, delete-orphan"
+    )
 
 
 class Campo(Base):
@@ -515,6 +527,9 @@ class CompromisoGrano(Base):
     cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="compromisos_grano")
     campania: Mapped["Campania"] = relationship("Campania", back_populates="compromisos_grano")
     campo: Mapped[Optional["Campo"]] = relationship("Campo", back_populates="compromisos_grano")
+    reservations: Mapped[List["StockReservation"]] = relationship(
+        "StockReservation", back_populates="compromiso", cascade="all, delete-orphan"
+    )
 
 
 class PrecioMercadoCache(Base):
@@ -711,6 +726,9 @@ class GrainDelivery(Base):
     waybills: Mapped[List["GrainWaybill"]] = relationship(
         "GrainWaybill", back_populates="entrega", cascade="all, delete-orphan"
     )
+    allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
+        "StockDeliveryAllocation", back_populates="delivery", cascade="all, delete-orphan"
+    )
 
 
 class GrainWaybill(Base):
@@ -758,6 +776,290 @@ class GrainWaybill(Base):
     )
 
     entrega: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="waybills")
+
+
+class StorageLocation(Base):
+    """Entidad de Ubicación Física o Custodia de Grano (Silo Propio, Silobolsa, Acopio, etc.)."""
+    __tablename__ = "storage_locations"
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "tipo", "nombre", name="uq_storage_locations_cliente_tipo_nombre"),
+        Index("ix_storage_locations_cliente_campo", "cliente_id", "campo_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), default="silo_propio", nullable=False)
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    ubicacion_referencia: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    identificador_fisico: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    capacidad_nominal_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    estado: Mapped[str] = mapped_column(String(50), default="activo", nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="storage_locations")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo")
+    partidas: Mapped[List["StockPartida"]] = relationship(
+        "StockPartida", back_populates="storage_location", cascade="all, delete-orphan"
+    )
+
+
+class StockPartida(Base):
+    """Entidad de Partida Física Identificable de Grano."""
+    __tablename__ = "stock_partidas"
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "tracking_number", name="uq_stock_partidas_cliente_tracking"),
+        Index("ix_stock_partidas_cliente_estado", "cliente_id", "estado"),
+        Index("ix_stock_partidas_storage_location", "storage_location_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tracking_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    campania_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="SET NULL"), nullable=True
+    )
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="SET NULL"), nullable=True
+    )
+    storage_location_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    fecha_cosecha: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_ingreso: Mapped[date] = mapped_column(Date, nullable=False)
+    origen_conocido: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    origen_descripcion: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+    cantidad_inicial_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    estado: Mapped[str] = mapped_column(String(50), default="activa", nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="stock_partidas")
+    campania: Mapped[Optional["Campania"]] = relationship("Campania")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo")
+    lote: Mapped[Optional["Lote"]] = relationship("Lote")
+    storage_location: Mapped["StorageLocation"] = relationship("StorageLocation", back_populates="partidas")
+    movements: Mapped[List["StockMovement"]] = relationship(
+        "StockMovement", back_populates="stock_partida", cascade="all, delete-orphan"
+    )
+    quality_measurements: Mapped[List["StockQualityMeasurement"]] = relationship(
+        "StockQualityMeasurement", back_populates="stock_partida", cascade="all, delete-orphan"
+    )
+    reservations: Mapped[List["StockReservation"]] = relationship(
+        "StockReservation", back_populates="stock_partida", cascade="all, delete-orphan"
+    )
+    allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
+        "StockDeliveryAllocation", back_populates="stock_partida", cascade="all, delete-orphan"
+    )
+
+
+class StockMovement(Base):
+    """Libro de Movimientos Auditables de Stock Físico (Única Fuente de Variación)."""
+    __tablename__ = "stock_movements"
+    __table_args__ = (
+        Index("ix_stock_movements_cliente_partida", "cliente_id", "stock_partida_id"),
+        Index("ix_stock_movements_fecha", "fecha_movimiento"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stock_partida_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_partidas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    cantidad_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    fecha_movimiento: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    referencia_tipo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    referencia_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    motivo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    stock_partida: Mapped["StockPartida"] = relationship("StockPartida", back_populates="movements")
+
+
+class StockQualityMeasurement(Base):
+    """Registro Histórico de Mediciones de Calidad y Condición de Partida."""
+    __tablename__ = "stock_quality_measurements"
+    __table_args__ = (
+        Index("ix_stock_quality_partida_measured", "stock_partida_id", "measured_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stock_partida_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_partidas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    humedad_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    temperatura_c: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    estado_calidad: Mapped[str] = mapped_column(String(50), default="apto", nullable=False)
+    fuente: Mapped[str] = mapped_column(String(50), default="propia", nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    stock_partida: Mapped["StockPartida"] = relationship("StockPartida", back_populates="quality_measurements")
+
+
+class StockReservation(Base):
+    """Reserva de Stock Físico para un Compromiso Comercial (Bloqueo Comercial)."""
+    __tablename__ = "stock_reservations"
+    __table_args__ = (
+        Index("ix_stock_reservations_cliente_partida", "cliente_id", "stock_partida_id"),
+        Index("ix_stock_reservations_compromiso", "compromiso_id"),
+        Index("ix_stock_reservations_estado", "estado"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stock_partida_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_partidas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    compromiso_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("compromisos_grano.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    cantidad_reserva_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    estado: Mapped[str] = mapped_column(String(50), default="activa", nullable=False)
+
+    fecha_reserva: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_liberacion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo_liberacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    released_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="stock_reservations")
+    stock_partida: Mapped["StockPartida"] = relationship("StockPartida", back_populates="reservations")
+    compromiso: Mapped["CompromisoGrano"] = relationship("CompromisoGrano", back_populates="reservations")
+    allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
+        "StockDeliveryAllocation", back_populates="reservation"
+    )
+
+
+class StockDeliveryAllocation(Base):
+    """Asignación Manual de Partida a Entrega de Grano (Bloqueo Operativo)."""
+    __tablename__ = "stock_delivery_allocations"
+    __table_args__ = (
+        Index("ix_stock_allocations_cliente_partida", "cliente_id", "stock_partida_id"),
+        Index("ix_stock_allocations_delivery", "grain_delivery_id"),
+        Index("ix_stock_allocations_reservation", "stock_reservation_id"),
+        Index("ix_stock_allocations_estado", "estado"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stock_partida_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_partidas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    grain_delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_deliveries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stock_reservation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_reservations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    compromiso_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("compromisos_grano.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    cantidad_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    origen_asignacion: Mapped[str] = mapped_column(String(50), default="libre", nullable=False)
+    estado: Mapped[str] = mapped_column(String(50), default="activa", nullable=False)
+
+    fecha_asignacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_cancelacion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo_cancelacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    cancelled_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="stock_allocations")
+    stock_partida: Mapped["StockPartida"] = relationship("StockPartida", back_populates="allocations")
+    delivery: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="allocations")
+    reservation: Mapped[Optional["StockReservation"]] = relationship("StockReservation", back_populates="allocations")
+    compromiso: Mapped[Optional["CompromisoGrano"]] = relationship("CompromisoGrano")
+
+
 
 
 

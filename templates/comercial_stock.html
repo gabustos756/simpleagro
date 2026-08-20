@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduAgro - Stock Físico de Granos</title>
+  <title>EduAgro - Stock Físico & Comercial de Granos (V1B)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -32,7 +32,7 @@
 
   <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
-    <!-- CABECERA DE SECCIÓN Y PESTAÑAS COMERCIALES -->
+    <!-- CABECERA DE SECCIÓN -->
     <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
         <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
@@ -40,8 +40,8 @@
         </div>
         <div>
           <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <span>Stock Físico de Granos</span>
-            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Silos & Acopios</span>
+            <span>Stock Físico & Comercial</span>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Stock 1B & Capacidad Auditable</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
             Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre }}</strong> • Campaña Activa: <strong class="text-slate-800 font-bold">{{ campania_activa }}</strong>
@@ -49,7 +49,7 @@
         </div>
       </div>
 
-      <!-- Selector de Cultivo en Pantalla -->
+      <!-- Selector de Cultivo -->
       <div class="flex items-center gap-2">
         <a href="/comercial/stock?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌱 Soja
@@ -57,31 +57,37 @@
         <a href="/comercial/stock?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌽 Maíz
         </a>
+        <a href="/comercial/stock?cultivo=trigo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'trigo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌾 Trigo
+        </a>
+        <a href="/comercial/stock?cultivo=sorgo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'sorgo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🥣 Sorgo
+        </a>
       </div>
     </div>
 
-    <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
-    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
-      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+    <!-- NAVEGACIÓN PRINCIPAL DE COMERCIAL -->
+    <div class="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
         📊 Resumen Comercial
       </a>
-      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs">
-        🚜 Stock Físico
+      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs shrink-0">
+        🚜 Stock Físico V1
       </a>
-      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
         📝 Contratos & Compromisos
       </a>
-      <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+      <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
         🚚 Fletes y destinos
       </a>
-      <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all">
+      <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
         🚚 Entregas
       </a>
     </div>
 
-    <!-- BANNER DE FEEDBACK VISUAL POST ACCIÓN -->
+    <!-- BANNERS DE FEEDBACK VISUAL -->
     {% if mensaje %}
-    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-bold flex items-center justify-between shadow-xs transition-all animate-fade-in">
+    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-bold flex items-center justify-between shadow-xs">
       <div class="flex items-center space-x-2">
         <span class="text-xl">✅</span>
         <span>{{ mensaje }}</span>
@@ -90,69 +96,399 @@
     </div>
     {% endif %}
 
-    <!-- KPIS DE STOCK FÍSICO (FORMATO AR) -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock en Silo Bolsa</span>
-        <div class="text-3xl font-black text-slate-900">{{ tn_silo_bolsa | formato_ar }} <span class="text-base font-normal text-slate-500">Tn</span></div>
-        <p class="text-xs text-slate-400">Embolsado en campo</p>
+    {% if error %}
+    <div class="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-sm font-bold flex items-center justify-between shadow-xs">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-xs text-rose-700 hover:text-rose-900 font-black px-2 py-1 bg-rose-100 rounded-lg">✕</button>
+    </div>
+    {% endif %}
+
+    <!-- KPIS PRINCIPALES SEPARADOS DE STOCK 1B -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <!-- FÍSICO -->
+      <div class="bg-amber-50/60 p-4 rounded-3xl border border-amber-200 shadow-xs space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Físico Total</span>
+          <span class="text-[10px] font-bold text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded-full" title="Existencias reales registradas por movimientos">Movimientos</span>
+        </div>
+        <div class="text-2xl font-black text-amber-950">
+          {{ stock_summary.total_tn_fisico_registrado | formato_ar }} <span class="text-xs font-normal text-amber-800">Tn</span>
+        </div>
+        <p class="text-[10px] text-amber-800">Grano real almacenado</p>
       </div>
 
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock en Acopio / Puerto</span>
-        <div class="text-3xl font-black text-slate-900">{{ tn_acopio | formato_ar }} <span class="text-base font-normal text-slate-500">Tn</span></div>
-        <p class="text-xs text-slate-400">Entregado en terceros sin liquidar</p>
+      <!-- RESERVADO -->
+      <div class="bg-blue-50/60 p-4 rounded-3xl border border-blue-200 shadow-xs space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Reservado</span>
+          <span class="text-[10px] font-bold text-blue-700 bg-blue-200 px-1.5 py-0.5 rounded-full" title="Bloqueado para compromisos comerciales">Comercial</span>
+        </div>
+        <div class="text-2xl font-black text-blue-950">
+          {{ stock_summary.total_tn_reservado | formato_ar }} <span class="text-xs font-normal text-blue-800">Tn</span>
+        </div>
+        <p class="text-[10px] text-blue-800">Bloqueado para compromisos</p>
       </div>
 
-      <div class="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 shadow-xs space-y-1">
-        <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Total Stock Físico Real</span>
-        <div class="text-3xl font-black text-amber-900">{{ tn_total | formato_ar }} <span class="text-base font-normal text-slate-600">Tn</span></div>
-        <p class="text-xs text-amber-700 font-medium">Existencias físicas guardadas</p>
+      <!-- ASIGNADO -->
+      <div class="bg-indigo-50/60 p-4 rounded-3xl border border-indigo-200 shadow-xs space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">Asignado</span>
+          <span class="text-[10px] font-bold text-indigo-700 bg-indigo-200 px-1.5 py-0.5 rounded-full" title="Bloqueado para entregas operativas">Operativo</span>
+        </div>
+        <div class="text-2xl font-black text-indigo-950">
+          {{ stock_summary.total_tn_asignado | formato_ar }} <span class="text-xs font-normal text-indigo-800">Tn</span>
+        </div>
+        <p class="text-[10px] text-indigo-800">Preparado para entregas</p>
+      </div>
+
+      <!-- DISPONIBLE -->
+      <div class="bg-emerald-50/60 p-4 rounded-3xl border border-emerald-200 shadow-xs space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Disponible Libre</span>
+          <span class="text-[10px] font-bold text-emerald-700 bg-emerald-200 px-1.5 py-0.5 rounded-full" title="Físico - Reservado - Asignado">Utilizable</span>
+        </div>
+        <div class="text-2xl font-black text-emerald-950">
+          {{ stock_summary.total_tn_disponible | formato_ar }} <span class="text-xs font-normal text-emerald-800">Tn</span>
+        </div>
+        <p class="text-[10px] text-emerald-800">Sin comprometer ni asignar</p>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- BOTONES DE ACCIÓN RÁPIDA -->
+    <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones Rápidas:</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="document.getElementById('modal-nueva-partida').classList.remove('hidden')" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5">
+          <span>➕</span> Nueva Partida
+        </button>
+        <button onclick="document.getElementById('modal-nueva-reserva').classList.remove('hidden')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5">
+          <span>🔒</span> Reservar para Compromiso
+        </button>
+        <button onclick="document.getElementById('modal-nueva-asignacion').classList.remove('hidden')" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5">
+          <span>🚚</span> Asignar a Entrega
+        </button>
+        <button onclick="document.getElementById('modal-nueva-ubicacion').classList.remove('hidden')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5">
+          <span>🏢</span> Nueva Ubicación
+        </button>
+        <button onclick="document.getElementById('modal-nuevo-ajuste').classList.remove('hidden')" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-all flex items-center gap-1.5">
+          <span>⚖️</span> Ajuste
+        </button>
+      </div>
+    </div>
 
-      <!-- LISTADO DE STOCKS -->
-      <div class="lg:col-span-2 space-y-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-black text-slate-900">Registros de Stock Guardado ({{ cultivo_seleccionado | capitalize }})</h2>
-          <span class="text-xs text-slate-500 font-semibold">{{ stocks | length }} registros</span>
+    <!-- TABS INTERNAS DEL MÓDULO STOCK -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-xs p-5 space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2 overflow-x-auto">
+          <button id="tab-btn-partidas" onclick="switchStockTab('partidas')" class="px-4 py-2 rounded-xl text-xs font-black transition-all bg-amber-600 text-white shadow-xs">
+            📦 Partidas Físicas ({{ partidas | length }})
+          </button>
+          <button id="tab-btn-reservas" onclick="switchStockTab('reservas')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:bg-slate-100">
+            🔒 Reservas ({{ reservas | length }})
+          </button>
+          <button id="tab-btn-asignaciones" onclick="switchStockTab('asignaciones')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:bg-slate-100">
+            🚚 Asignaciones ({{ asignaciones | length }})
+          </button>
+          <button id="tab-btn-ubicaciones" onclick="switchStockTab('ubicaciones')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:bg-slate-100">
+            🏢 Ubicaciones ({{ ubicaciones | length }})
+          </button>
+          <button id="tab-btn-movimientos" onclick="switchStockTab('movimientos')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:bg-slate-100">
+            📑 Movimientos ({{ movimientos | length }})
+          </button>
+          <button id="tab-btn-legacy" onclick="switchStockTab('legacy')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-500 hover:bg-slate-100">
+            📁 Legacy ({{ stocks_legacy | length }})
+          </button>
         </div>
+      </div>
 
-        {% if not stocks %}
-        <div class="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-3">
-          <div class="text-4xl">🌾</div>
-          <h3 class="text-base font-bold text-slate-800">No hay existencias registradas de {{ cultivo_seleccionado | capitalize }}</h3>
+      <!-- TAB 1: PARTIDAS FÍSICAS Y SALDOS COMERCIALES -->
+      <div id="tab-content-partidas" class="space-y-4">
+        {% if not partidas %}
+        <div class="p-8 text-center space-y-3 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+          <div class="text-4xl">📦</div>
+          <h3 class="text-base font-bold text-slate-800">No hay partidas físicas registradas de {{ cultivo_seleccionado | capitalize }}</h3>
           <p class="text-xs text-slate-500 max-w-md mx-auto">
-            Podés cargar un nuevo Silo Bolsa en el campo o una entrega en acopio usando el formulario lateral.
+            Registrá la primera partida usando el botón "Nueva Partida".
           </p>
+          <button onclick="document.getElementById('modal-nueva-partida').classList.remove('hidden')" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold shadow-xs">
+            ➕ Cargar Primera Partida
+          </button>
         </div>
         {% else %}
-        <div class="space-y-3">
-          {% for st in stocks %}
-          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div class="space-y-1">
-              <div class="flex items-center space-x-2">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase border {% if st.ubicacion_tipo == 'silo_bolsa' %} bg-amber-100 text-amber-800 border-amber-200 {% else %} bg-blue-100 text-blue-800 border-blue-200 {% endif %}">
-                  {% if st.ubicacion_tipo == 'silo_bolsa' %} 🚜 Silo Bolsa {% else %} 🏢 Acopio / Puerto {% endif %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase border-b border-slate-200">
+              <tr>
+                <th class="p-3">Tracking</th>
+                <th class="p-3">Cultivo / Origen</th>
+                <th class="p-3">Ubicación</th>
+                <th class="p-3">Calidad / Humedad</th>
+                <th class="p-3 text-right" title="Registrado por movimientos">Físico</th>
+                <th class="p-3 text-right text-blue-700" title="Reservado para compromisos">Reservado</th>
+                <th class="p-3 text-right text-indigo-700" title="Asignado a entregas">Asignado</th>
+                <th class="p-3 text-right text-emerald-700" title="Físico - Reservado - Asignado">Disponible</th>
+                <th class="p-3 text-center">Estado</th>
+                <th class="p-3 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for p in partidas %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3 font-black text-slate-900">
+                  {{ p.tracking_number }}
+                  <span class="block text-[10px] font-normal text-slate-500">{{ p.fecha_ingreso }} ({{ p.dias_almacenado }} días)</span>
+                </td>
+                <td class="p-3 font-bold text-slate-800">
+                  {{ p.cultivo | capitalize }}
+                  <span class="block text-[10px] font-normal text-slate-500">📍 {{ p.campo_nombre }}</span>
+                </td>
+                <td class="p-3 font-bold text-slate-800">🏢 {{ p.ubicacion_nombre }}</td>
+                <td class="p-3">
+                  {% if p.humedad_ultima is not none %}
+                  <span class="font-bold text-amber-900">💧 {{ p.humedad_ultima | formato_ar }}%</span>
+                  <span class="block text-[10px] text-slate-500">Última med. válida: {{ p.humedad_fecha_ultima }}</span>
+                  {% elif p.has_invalid_legacy %}
+                  <span class="text-rose-700 font-bold flex items-center gap-1" title="Contiene registros anteriores fuera del rango permitido (5-35%)">
+                    <span>⚠️</span> Sin medición válida
+                  </span>
+                  {% else %}
+                  <span class="text-slate-400 font-medium italic">Sin humedad registrada</span>
+                  {% endif %}
+                  <span class="inline-block mt-0.5 px-2 py-0.2 rounded-full text-[9px] font-bold uppercase bg-slate-100 text-slate-700">
+                    {{ p.estado_calidad_ultimo }}
+                  </span>
+                </td>
+                <td class="p-3 text-right font-black text-amber-900">
+                  {{ p.saldo_fisico_tn | formato_ar }} Tn
+                </td>
+                <td class="p-3 text-right font-bold text-blue-700">
+                  {{ p.saldo_reservado_tn | formato_ar }} Tn
+                </td>
+                <td class="p-3 text-right font-bold text-indigo-700">
+                  {{ p.saldo_asignado_tn | formato_ar }} Tn
+                </td>
+                <td class="p-3 text-right font-black text-emerald-700 text-sm">
+                  {{ p.saldo_disponible_tn | formato_ar }} Tn
+                </td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if p.estado == 'activa' %} bg-emerald-100 text-emerald-800 border-emerald-200 {% else %} bg-slate-100 text-slate-700 border-slate-200 {% endif %}">
+                    {{ p.estado }}
+                  </span>
+                </td>
+                <td class="p-3 text-center">
+                  <div class="flex items-center justify-center space-x-1 flex-wrap gap-y-1">
+                    <button onclick="openModalMedicion('{{ p.id }}', '{{ p.tracking_number }}')" title="Registrar Medición de Calidad" class="px-2 py-1 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 text-[11px] font-bold border border-amber-200">
+                      + Medición
+                    </button>
+                    <button onclick="openModalHistorial('{{ p.id }}', '{{ p.tracking_number }}')" title="Ver Historial de Calidad" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 text-[11px] font-bold border border-slate-300">
+                      Ver historial
+                    </button>
+                    <button onclick="openModalReserva('{{ p.id }}')" title="Reservar para compromiso" class="p-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold border border-blue-200">
+                      🔒
+                    </button>
+                    <button onclick="openModalAsignacion('{{ p.id }}')" title="Asignar a entrega" class="p-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold border border-indigo-200">
+                      🚚
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- TAB 2: RESERVAS POR COMPROMISOS -->
+      <div id="tab-content-reservas" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-900">Reservas Activas e Históricas para Compromisos</h3>
+          <button onclick="document.getElementById('modal-nueva-reserva').classList.remove('hidden')" class="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs">
+            🔒 Nueva Reserva
+          </button>
+        </div>
+
+        {% if not reservas %}
+        <p class="text-xs text-slate-500 text-center py-6">No hay reservas de stock registradas.</p>
+        {% else %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase border-b border-slate-200">
+              <tr>
+                <th class="p-3">Fecha</th>
+                <th class="p-3">Partida</th>
+                <th class="p-3">Compromiso / Beneficiario</th>
+                <th class="p-3 text-right">Cantidad (Tn)</th>
+                <th class="p-3 text-center">Estado</th>
+                <th class="p-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for r in reservas %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3 text-slate-600 font-medium">{{ r.fecha_reserva }}</td>
+                <td class="p-3 font-bold text-slate-900">{{ r.tracking_partida }}</td>
+                <td class="p-3">
+                  <strong class="text-slate-800">{{ r.compromiso_concepto }}</strong>
+                  <span class="block text-[10px] text-slate-500">{{ r.compromiso_beneficiario }}</span>
+                </td>
+                <td class="p-3 text-right font-black text-blue-900">{{ r.cantidad_reserva_tn | formato_ar }} Tn</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if r.estado == 'activa' %} bg-blue-100 text-blue-800 border-blue-200 {% elif r.estado == 'parcialmente_asignada' %} bg-amber-100 text-amber-800 border-amber-200 {% else %} bg-slate-100 text-slate-700 border-slate-200 {% endif %}">
+                    {{ r.estado }}
+                  </span>
+                </td>
+                <td class="p-3 text-center">
+                  {% if r.estado in ['activa', 'parcialmente_asignada'] %}
+                  <button onclick="openModalLiberarReserva('{{ r.id }}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold border border-slate-300">
+                    Liberar
+                  </button>
+                  {% else %}
+                  <span class="text-slate-400 text-[10px]">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- TAB 3: ASIGNACIONES A ENTREGAS -->
+      <div id="tab-content-asignaciones" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-900">Asignaciones Manuales de Partidas a Entregas</h3>
+          <button onclick="document.getElementById('modal-nueva-asignacion').classList.remove('hidden')" class="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs">
+            🚚 Nueva Asignación
+          </button>
+        </div>
+
+        {% if not asignaciones %}
+        <p class="text-xs text-slate-500 text-center py-6">No hay asignaciones a entregas registradas.</p>
+        {% else %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase border-b border-slate-200">
+              <tr>
+                <th class="p-3">Fecha</th>
+                <th class="p-3">Partida</th>
+                <th class="p-3">Entrega / Destino</th>
+                <th class="p-3 text-right">Cantidad (Tn)</th>
+                <th class="p-3 text-center">Origen</th>
+                <th class="p-3 text-center">Estado</th>
+                <th class="p-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for a in asignaciones %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3 text-slate-600 font-medium">{{ a.fecha_asignacion }}</td>
+                <td class="p-3 font-bold text-slate-900">{{ a.tracking_partida }}</td>
+                <td class="p-3">
+                  <strong class="text-slate-800">{{ a.tracking_entrega }}</strong>
+                  <span class="block text-[10px] text-slate-500">📍 {{ a.destino_entrega }}</span>
+                </td>
+                <td class="p-3 text-right font-black text-indigo-900">{{ a.cantidad_tn | formato_ar }} Tn</td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
+                    {{ a.origen_asignacion }}
+                  </span>
+                </td>
+                <td class="p-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if a.estado == 'activa' %} bg-indigo-100 text-indigo-800 border-indigo-200 {% else %} bg-slate-100 text-slate-700 border-slate-200 {% endif %}">
+                    {{ a.estado }}
+                  </span>
+                </td>
+                <td class="p-3 text-center">
+                  {% if a.estado == 'activa' %}
+                  <button onclick="openModalCancelarAsignacion('{{ a.id }}')" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold border border-rose-200">
+                    Cancelar
+                  </button>
+                  {% else %}
+                  <span class="text-slate-400 text-[10px]">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- TAB 4: UBICACIONES DE GUARDA CON CAPACIDAD Y OCUPACIÓN -->
+      <div id="tab-content-ubicaciones" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-900">Ubicaciones de Almacenamiento & Capacidad Física</h3>
+          <button onclick="document.getElementById('modal-nueva-ubicacion').classList.remove('hidden')" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl text-xs font-bold">
+            ➕ Nueva Ubicación
+          </button>
+        </div>
+
+        {% if not ubicaciones %}
+        <p class="text-xs text-slate-500 text-center py-6">No hay ubicaciones registradas aún.</p>
+        {% else %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {% for u in ubicaciones %}
+          <div class="bg-slate-50 p-4 rounded-2xl border {% if u.estado_capacidad == 'capacidad_pendiente' %} border-amber-300 bg-amber-50/40 {% elif u.estado_capacidad == 'sobrecapacidad' %} border-rose-300 bg-rose-50/40 {% else %} border-slate-200 {% endif %} space-y-3 shadow-xs">
+            <div class="flex items-center justify-between">
+              <span class="font-black text-slate-900 text-sm">🏢 {{ u.nombre }}</span>
+              <div class="flex items-center space-x-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
+                  {{ u.tipo }}
                 </span>
-                <h3 class="text-base font-black text-slate-900">{{ st.identificador }}</h3>
+                {% if u.estado_capacidad == 'capacidad_pendiente' %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-200 text-amber-900 border border-amber-300">
+                  Capacidad Pendiente
+                </span>
+                {% elif u.estado_capacidad == 'sobrecapacidad' %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-200 text-rose-900 border border-rose-300">
+                  Sobrecapacidad
+                </span>
+                {% endif %}
               </div>
-              <p class="text-xs text-slate-500">
-                📍 Campo: <strong class="text-slate-700">{{ st.campo_nombre|default('Campo General') }}</strong>
-                {% if st.fecha_ingreso %} • Ingreso: <strong class="text-slate-700">{{ st.fecha_ingreso }}</strong> {% endif %}
-              </p>
-              {% if st.observaciones %}
-              <p class="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 mt-2">
-                💬 {{ st.observaciones }}
-              </p>
-              {% endif %}
             </div>
 
-            <div class="text-right sm:self-center shrink-0">
-              <span class="text-2xl font-black text-slate-900 block">{{ st.toneladas_almacenadas | formato_ar }} Tn</span>
-              <span class="text-[11px] font-bold text-slate-400">Existencia actual</span>
+            <p class="text-xs text-slate-600">
+              📍 Campo: <strong>{{ u.campo_nombre|default('General') }}</strong>
+              {% if u.identificador_fisico %} • ID: {{ u.identificador_fisico }}{% endif %}
+            </p>
+
+            <!-- BARRA DE OCUPACIÓN -->
+            {% if u.capacidad_nominal_tn is not none and u.capacidad_nominal_tn > 0 %}
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-[11px] font-bold">
+                <span class="text-slate-600">Ocupación: {{ u.ocupacion_pct | formato_ar }}%</span>
+                <span class="{% if u.supera_capacidad %} text-rose-700 {% else %} text-slate-700 {% endif %}">
+                  {{ u.stock_actual_tn | formato_ar }} / {{ u.capacidad_nominal_tn | formato_ar }} Tn
+                </span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                <div class="h-full {% if u.supera_capacidad %} bg-rose-600 {% elif u.ocupacion_pct >= 90 %} bg-amber-500 {% else %} bg-emerald-600 {% endif %}" style="width: {{ [u.ocupacion_pct, 100]|min }}%"></div>
+              </div>
+            </div>
+            {% else %}
+            <div class="p-2.5 rounded-xl bg-amber-100/60 border border-amber-200 text-amber-900 text-[11px] font-medium flex items-center justify-between">
+              <span>⚠️ Capacidad no definida</span>
+              {% if u.requires_capacity %}
+              <button onclick="openModalEditarUbicacion('{{ u.id }}', '{{ u.nombre }}', '{{ u.tipo }}', '{{ u.campo_id }}', '{{ u.identificador_fisico }}', '{{ u.capacidad_nominal_tn }}', '{{ u.estado }}')" class="px-2 py-0.5 bg-amber-700 text-white rounded-md text-[10px] font-bold">
+                Completar Capacidad
+              </button>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+              <span class="text-slate-600">Disponible: <strong class="{% if u.disponible_tn is not none and u.disponible_tn <= 0 %} text-rose-700 {% else %} text-emerald-800 {% endif %}">{% if u.disponible_tn is not none %}{{ u.disponible_tn | formato_ar }} Tn{% else %}Sin Límite{% endif %}</strong></span>
+              <button onclick="openModalEditarUbicacion('{{ u.id }}', '{{ u.nombre }}', '{{ u.tipo }}', '{{ u.campo_id }}', '{{ u.identificador_fisico }}', '{{ u.capacidad_nominal_tn }}', '{{ u.estado }}')" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[11px] rounded-lg">
+                ✏️ Editar
+              </button>
             </div>
           </div>
           {% endfor %}
@@ -160,71 +496,862 @@
         {% endif %}
       </div>
 
-      <!-- FORMULARIO DE ALTA RÁPIDA -->
-      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-          <span>➕</span> Nuevo Stock Físico
-        </h2>
-        <p class="text-xs text-slate-500">Registrá existencias en Silo Bolsa o entregas en acopio.</p>
-
-        <form method="POST" action="/comercial/stock/crear" class="space-y-4">
-          <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
-
-          <!-- Campo Origen -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campo Origen</label>
-            <select name="campo_id" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
-              {% for c in campos %}
-              <option value="{{ c.id }}" {% if campo_activo and campo_activo.id == c.id %}selected{% endif %}>
-                🌱 {{ c.nombre }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <!-- Tipo de Ubicación -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Almacenamiento</label>
-            <select name="ubicacion_tipo" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
-              <option value="silo_bolsa">🚜 Silo Bolsa (En Campo)</option>
-              <option value="acopio_tercero">🏢 Acopio de Terceros</option>
-              <option value="puerto">⚓ Puerto / Destino Directo</option>
-            </select>
-          </div>
-
-          <!-- Identificador -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Identificador / Nombre</label>
-            <input type="text" name="identificador" required placeholder="Ej: SiloBolsa N° 4 - Lote Norte" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
-          </div>
-
-          <!-- Toneladas -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Toneladas Almacenadas (Tn)</label>
-            <input type="number" step="0.01" min="0.01" name="toneladas_almacenadas" required placeholder="Ej: 180,50" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
-          </div>
-
-          <!-- Fecha Ingreso -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Ingreso / Embolsado</label>
-            <input type="date" name="fecha_ingreso" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500">
-          </div>
-
-          <!-- Observaciones -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones / Humedad</label>
-            <textarea name="observaciones" rows="2" placeholder="Ej: Humedad 13.5%, bolsa ipacal en buen estado." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500"></textarea>
-          </div>
-
-          <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm py-3 rounded-xl shadow-md transition-colors">
-            Guardar Stock Físico
+      <!-- TAB 5: MOVIMIENTOS AUDITABLES -->
+      <div id="tab-content-movimientos" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-900">Libro Inmutable de Movimientos</h3>
+          <button onclick="document.getElementById('modal-nuevo-ajuste').classList.remove('hidden')" class="px-3 py-1.5 bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs">
+            ⚖️ Registrar Ajuste de Inventario
           </button>
-        </form>
+        </div>
+
+        {% if not movimientos %}
+        <p class="text-xs text-slate-500 text-center py-6">No hay movimientos registrados.</p>
+        {% else %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase border-b border-slate-200">
+              <tr>
+                <th class="p-3">Fecha</th>
+                <th class="p-3">Partida</th>
+                <th class="p-3">Tipo Movimiento</th>
+                <th class="p-3 text-right">Cantidad (kg)</th>
+                <th class="p-3 text-right">Cantidad (Tn)</th>
+                <th class="p-3">Motivo / Referencia</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for m in movimientos %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3 text-slate-600 font-medium">{{ m.fecha_movimiento }}</td>
+                <td class="p-3 font-bold text-slate-900">{{ m.tracking_partida }}</td>
+                <td class="p-3">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if m.tipo == 'ingreso_inicial' %} bg-emerald-100 text-emerald-800 border-emerald-200 {% else %} bg-blue-100 text-blue-800 border-blue-200 {% endif %}">
+                    {{ m.tipo }}
+                  </span>
+                </td>
+                <td class="p-3 text-right font-black {% if m.cantidad_kg > 0 %} text-emerald-700 {% else %} text-rose-700 {% endif %}">
+                  {{ m.cantidad_kg | formato_ar }} kg
+                </td>
+                <td class="p-3 text-right font-bold text-slate-800">
+                  {{ (m.cantidad_kg / 1000.0) | formato_ar }} Tn
+                </td>
+                <td class="p-3 text-slate-600 font-medium">{{ m.motivo|default(m.observaciones|default('-')) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- TAB 6: REGISTROS LEGACY -->
+      <div id="tab-content-legacy" class="hidden space-y-4">
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+          <h4 class="font-bold text-slate-800 flex items-center gap-1.5">
+            <span>📁</span> Registros Históricos / Legacy (Tabla StockGrano)
+          </h4>
+          <p>Se conservan como referencia histórica estática. No poseen libro de movimientos inmutables ni forman parte del Stock V1.</p>
+        </div>
+
+        {% if not stocks_legacy %}
+        <p class="text-xs text-slate-400 text-center py-4">No hay registros legacy existentes.</p>
+        {% else %}
+        <div class="space-y-2">
+          {% for st in stocks_legacy %}
+          <div class="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+            <div>
+              <span class="font-bold text-slate-800">{{ st.identificador }}</span>
+              <span class="text-slate-500 ml-2">({{ st.campo_nombre }})</span>
+            </div>
+            <div class="font-black text-slate-700">
+              {{ st.toneladas_almacenadas | formato_ar }} Tn
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
 
     </div>
 
+  </main>
+
+  <!-- CONTENEDOR SEPARADO DE PLANTILLAS SSR DE HISTORIAL (FUERA DE LA TABLA) -->
+  <div id="historiales-partidas-container" class="hidden">
+    {% for p in partidas %}
+    <div id="historial-partida-{{ p.id }}">
+      {% if not p.quality_history %}
+      <p class="text-xs text-slate-500 text-center py-6">Sin mediciones registradas en el historial de esta partida.</p>
+      {% else %}
+      <div class="space-y-3">
+        {% if p.has_invalid_legacy %}
+        <div class="p-3 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-xs font-medium flex items-center gap-2">
+          <span>⚠️</span>
+          <span>Contiene registros de humedad anteriores a la validación actual (5–35%). Verificar o cargar una medición correctiva.</span>
+        </div>
+        {% endif %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase border-b border-slate-200">
+              <tr>
+                <th class="p-2.5">Fecha / Hora</th>
+                <th class="p-2.5 text-right">Humedad (%)</th>
+                <th class="p-2.5 text-right">Temperatura (°C)</th>
+                <th class="p-2.5 text-center">Estado Calidad</th>
+                <th class="p-2.5 text-center">Fuente</th>
+                <th class="p-2.5">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for q in p.quality_history %}
+              <tr class="hover:bg-slate-50/80">
+                <td class="p-2.5 font-bold text-slate-900">{{ q.measured_at }}</td>
+                <td class="p-2.5 text-right font-black">
+                  {% if q.humedad_pct is not none %}
+                    {% if q.is_invalid_legacy %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-900 border border-rose-300" title="Registro anterior a la validación actual">
+                      ⚠️ {{ q.humedad_pct | formato_ar }}% (VALOR A REVISAR)
+                    </span>
+                    {% else %}
+                    <span class="text-amber-900">{{ q.humedad_pct | formato_ar }}%</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-slate-400 font-normal italic">Sin humedad</span>
+                  {% endif %}
+                </td>
+                <td class="p-2.5 text-right font-medium">
+                  {% if q.temperatura_c is not none %}
+                    {{ q.temperatura_c | formato_ar }} °C
+                  {% else %}
+                    <span class="text-slate-400 font-normal">-</span>
+                  {% endif %}
+                </td>
+                <td class="p-2.5 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-800">
+                    {{ q.estado_calidad }}
+                  </span>
+                </td>
+                <td class="p-2.5 text-center text-slate-600 font-medium">{{ q.fuente }}</td>
+                <td class="p-2.5 text-slate-600 font-medium">{{ q.observaciones|default('-') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
   </div>
+
+  <!-- MODAL: NUEVA PARTIDA DE STOCK -->
+  <div id="modal-nueva-partida" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>📦</span> Nueva Partida Física de Stock
+        </h3>
+        <button onclick="document.getElementById('modal-nueva-partida').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/partidas/crear" class="space-y-4">
+        <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Ubicación de Guarda *</label>
+            <select name="storage_location_id" id="select-partida-ubicacion" required onchange="updateUbicacionInfo()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+              {% for u in ubicaciones %}
+              <option value="{{ u.id }}" data-disponible="{{ u.disponible_tn|default(-1) }}" data-requiere="{{ u.requires_capacity }}" data-estado="{{ u.estado_capacidad }}" {% if u.estado_capacidad == 'capacidad_pendiente' or (u.disponible_tn is not none and u.disponible_tn <= 0) %} disabled {% endif %}>
+                🏢 {{ u.nombre }} ({{ u.tipo }}) {% if u.estado_capacidad == 'capacidad_pendiente' %} [CAPACIDAD PENDIENTE] {% elif u.disponible_tn is not none %} [Disp: {{ u.disponible_tn | formato_ar }} Tn] {% else %} [Sin Límite] {% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <p id="partida-location-help" class="text-[11px] font-bold text-slate-600 mt-1">Seleccioná una ubicación apta con disponibilidad.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad Inicial *</label>
+            <div class="flex gap-2">
+              <input type="number" step="0.01" min="0.01" id="partida-cantidad" name="cantidad_valor" required placeholder="Ej: 118.4" oninput="updateKgPreview()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+              <select name="unidad_medida" id="partida-unidad" onchange="updateKgPreview()" class="bg-slate-100 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+                <option value="tn">Tn</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
+            <p id="partida-preview-kg" class="text-[11px] font-bold text-amber-800 mt-1">118,4 Tn = 118.400 kg</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Ingreso *</label>
+            <input type="date" name="fecha_ingreso" required value="{{ today_iso }}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campaña (Opcional)</label>
+            <select name="campania_id" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-medium rounded-xl p-2.5">
+              <option value="">-- Sin especificar --</option>
+              {% for camp in campanias %}
+              <option value="{{ camp.id }}">{{ camp.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-800 uppercase">¿Conocés el origen exacto (Campo/Lote)?</span>
+            <input type="checkbox" id="check-origen-conocido" name="origen_conocido" value="true" checked onchange="toggleOrigenFields()" class="w-4 h-4 text-amber-600 rounded">
+          </div>
+
+          <div id="section-origen-exacto" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">Campo Origen</label>
+              <select name="campo_id" class="w-full bg-white border border-slate-300 text-xs font-bold rounded-xl p-2">
+                <option value="">-- Seleccionar Campo --</option>
+                {% for c in campos %}
+                <option value="{{ c.id }}">{{ c.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">Lote Origen</label>
+              <select name="lote_id" class="w-full bg-white border border-slate-300 text-xs font-bold rounded-xl p-2">
+                <option value="">-- Seleccionar Lote --</option>
+                {% for l in lotes %}
+                <option value="{{ l.id }}">{{ l.nombre }} ({{ l.campo_nombre }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div id="section-origen-descripcion" class="hidden">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Descripción de Origen * (Carga Histórica)</label>
+            <input type="text" name="origen_descripcion" placeholder="Ej: Cosecha anterior acumulada de varios lotes" class="w-full bg-white border border-slate-300 text-xs font-medium rounded-xl p-2">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Humedad Inicial (%) (Opcional)</label>
+            <input type="number" step="0.1" min="5.0" max="35.0" inputmode="decimal" name="humedad_pct" placeholder="Ej: 13,5" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+            <span class="text-[10px] text-slate-500">Rango permitido: 5,0% a 35,0% (opcional)</span>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Medición</label>
+            <input type="date" name="measured_at" value="{{ today_iso }}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Notas de la partida..." class="w-full bg-slate-50 border border-slate-300 text-xs font-medium rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nueva-partida').classList.add('hidden')" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md">Guardar Partida</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRAR MEDICIÓN DE CALIDAD HISTÓRICA -->
+  <div id="modal-nueva-medicion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>💧</span> Registrar Medición de Calidad
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Partida: <strong id="modal-medicion-tracking" class="text-slate-800"></strong></p>
+        </div>
+        <button onclick="document.getElementById('modal-nueva-medicion').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs font-medium">
+        💡 La medición queda registrada en el historial de esta partida y no reemplaza registros anteriores.
+      </div>
+
+      <form id="form-nueva-medicion" method="POST" action="" class="space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Fecha de Medición *</label>
+            <input type="date" name="measured_at" id="medicion-measured-at" required value="{{ today_iso }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Humedad (%) (Opcional)</label>
+            <input type="number" step="0.1" min="5.0" max="35.0" inputmode="decimal" name="humedad_pct" placeholder="Ej: 13,5" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            <span class="text-[10px] text-slate-500">Rango: 5,0% a 35,0%</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Temp. (°C)</label>
+            <input type="number" step="0.1" min="-10" max="60" inputmode="decimal" name="temperatura_c" placeholder="Ej: 18.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Estado Calidad</label>
+            <select name="estado_calidad" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="apto">Apto</option>
+              <option value="a_revisar">A Revisar</option>
+              <option value="comprometido">Comprometido</option>
+              <option value="no_apto">No Apto</option>
+              <option value="desconocido">Desconocido</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Fuente</label>
+            <select name="fuente" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="propia">Propia</option>
+              <option value="acopio">Acopio</option>
+              <option value="laboratorio">Laboratorio</option>
+              <option value="estimada">Estimada</option>
+              <option value="no_informada">No informada</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Notas de la medición..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nueva-medicion').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-amber-600 text-white font-black shadow-md">Guardar Medición</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTORIAL DE MEDICIONES DE CALIDAD -->
+  <div id="modal-historial-mediciones" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>📊</span> Historial de Calidad
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Partida: <strong id="modal-historial-tracking" class="text-slate-800"></strong></p>
+        </div>
+        <button onclick="document.getElementById('modal-historial-mediciones').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <div id="modal-historial-body">
+        <!-- Renderizado dinámico desde la plantilla SSR separada -->
+      </div>
+
+      <div class="flex justify-end pt-3 border-t border-slate-100">
+        <button type="button" onclick="document.getElementById('modal-historial-mediciones').classList.add('hidden')" class="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA RESERVA POR COMPROMISO -->
+  <div id="modal-nueva-reserva" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>🔒</span> Reservar Stock para Compromiso
+        </h3>
+        <button onclick="document.getElementById('modal-nueva-reserva').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/reservas/crear" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Partida Física Origen *</label>
+          <select id="modal-reserva-partida" name="stock_partida_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            {% for p in partidas %}
+            <option value="{{ p.id }}">📦 {{ p.tracking_number }} (Disp: {{ p.saldo_disponible_tn | formato_ar }} Tn)</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Compromiso Comercial *</label>
+          <select name="compromiso_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            {% for c in compromisos %}
+            <option value="{{ c.id }}">📝 {{ c.concepto }} - {{ c.beneficiario }} ({{ c.toneladas_comprometidas | formato_ar }} Tn {{ c.cultivo }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Cantidad a Reservar *</label>
+            <input type="number" step="0.01" min="0.01" name="cantidad_valor" required placeholder="Ej: 30.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Unidad *</label>
+            <select name="unidad_medida" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="tn">Tn</option>
+              <option value="kg">kg</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Ej: Reserva prioritaria para contrato de entrega directa." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nueva-reserva').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 text-white font-black shadow-md">Confirmar Reserva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA ASIGNACIÓN A ENTREGA -->
+  <div id="modal-nueva-asignacion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>🚚</span> Asignar Partida a Entrega
+        </h3>
+        <button onclick="document.getElementById('modal-nueva-asignacion').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/asignaciones/crear" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Partida Física Origen *</label>
+          <select id="modal-asignacion-partida" name="stock_partida_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            {% for p in partidas %}
+            <option value="{{ p.id }}">📦 {{ p.tracking_number }} (Disp: {{ p.saldo_disponible_tn | formato_ar }} Tn)</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Entrega de Grano *</label>
+          <select name="grain_delivery_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            {% for d in deliveries %}
+            <option value="{{ d.id }}">🚚 {{ d.tracking_number }} - {{ d.destino_nombre }} ({{ d.toneladas_estimadas | formato_ar }} Tn)</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Origen de la Asignación</label>
+          <select name="stock_reservation_id" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            <option value="">-- Stock Libre (Sin Reserva previa) --</option>
+            {% for r in reservas %}
+            {% if r.estado in ['activa', 'parcialmente_asignada'] %}
+            <option value="{{ r.id }}">🔒 Reserva de {{ r.compromiso_concepto }} ({{ r.tracking_partida }})</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Cantidad a Asignar *</label>
+            <input type="number" step="0.01" min="0.01" name="cantidad_valor" required placeholder="Ej: 18.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Unidad *</label>
+            <select name="unidad_medida" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="tn">Tn</option>
+              <option value="kg">kg</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Notas de la asignación..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nueva-asignacion').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-black shadow-md">Confirmar Asignación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LIBERAR RESERVA -->
+  <div id="modal-liberar-reserva" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>🔓</span> Liberar Reserva de Stock
+        </h3>
+        <button onclick="document.getElementById('modal-liberar-reserva').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/reservas/liberar" class="space-y-3 text-xs">
+        <input type="hidden" id="liberar-reservation-id" name="reservation_id" value="">
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Motivo de Liberación * (Obligatorio)</label>
+          <input type="text" name="motivo_liberacion" required placeholder="Ej: Cancelación de compromiso / Re-negociación" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Detalle justificativo..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-liberar-reserva').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 text-white font-black">Confirmar Liberación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CANCELAR ASIGNACIÓN -->
+  <div id="modal-cancelar-asignacion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>❌</span> Cancelar Asignación a Entrega
+        </h3>
+        <button onclick="document.getElementById('modal-cancelar-asignacion').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/asignaciones/cancelar" class="space-y-3 text-xs">
+        <input type="hidden" id="cancelar-allocation-id" name="allocation_id" value="">
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Motivo de Cancelación * (Obligatorio)</label>
+          <input type="text" name="motivo_cancelacion" required placeholder="Ej: Cambio de camión / Reprogramación de viaje" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-cancelar-asignacion').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Volver</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-rose-600 text-white font-black shadow-md">Confirmar Cancelación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA UBICACIÓN -->
+  <div id="modal-nueva-ubicacion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>🏢</span> Nueva Ubicación de Guarda
+        </h3>
+        <button onclick="document.getElementById('modal-nueva-ubicacion').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/ubicaciones/crear" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Nombre Ubicación *</label>
+          <input type="text" name="nombre" required placeholder="Ej: Silobolsa N° 4 Lote Norte" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Tipo *</label>
+            <select name="tipo" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="silo_propio">🚜 Silo Propio (Capacidad *)</option>
+              <option value="silobolsa">🚜 Silobolsa (Capacidad *)</option>
+              <option value="acopio">🏢 Acopio Tercero</option>
+              <option value="tercero">🏢 Depósito Tercero</option>
+              <option value="planta">🏭 Planta</option>
+              <option value="directo_cosecha">🌾 Directo Cosecha</option>
+              <option value="otro">📦 Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Campo Asociado</label>
+            <select name="campo_id" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="">-- Sin Campo --</option>
+              {% for c in campos %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Capacidad Nominal (Tn)</label>
+            <input type="number" step="0.01" min="0.01" name="capacidad_nominal_tn" placeholder="Ej: 200.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            <span class="text-[10px] text-slate-500">Obligatoria para Silos y Silobolsas</span>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Identificador Físico</label>
+            <input type="text" name="identificador_fisico" placeholder="Ej: SB-04" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea name="observaciones" rows="2" placeholder="Notas de la ubicación..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nueva-ubicacion').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 text-white font-black">Crear Ubicación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR UBICACIÓN DE GUARDA -->
+  <div id="modal-editar-ubicacion" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>✏️</span> Editar Ubicación de Guarda
+        </h3>
+        <button onclick="document.getElementById('modal-editar-ubicacion').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form id="form-editar-ubicacion" method="POST" action="" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Nombre Ubicación *</label>
+          <input type="text" id="edit-loc-nombre" name="nombre" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Tipo *</label>
+            <select id="edit-loc-tipo" name="tipo" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="silo_propio">🚜 Silo Propio (Capacidad *)</option>
+              <option value="silobolsa">🚜 Silobolsa (Capacidad *)</option>
+              <option value="acopio">🏢 Acopio Tercero</option>
+              <option value="tercero">🏢 Depósito Tercero</option>
+              <option value="planta">🏭 Planta</option>
+              <option value="directo_cosecha">🌾 Directo Cosecha</option>
+              <option value="otro">📦 Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Campo Asociado</label>
+            <select id="edit-loc-campo-id" name="campo_id" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="">-- Sin Campo --</option>
+              {% for c in campos %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Capacidad Nominal (Tn)</label>
+            <input type="number" step="0.01" min="0.01" id="edit-loc-capacidad" name="capacidad_nominal_tn" placeholder="Ej: 200.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            <span class="text-[10px] text-slate-500">Obligatoria para Silos y Silobolsas</span>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Identificador Físico</label>
+            <input type="text" id="edit-loc-identificador" name="identificador_fisico" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Estado</label>
+            <select id="edit-loc-estado" name="estado" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="activo">Activo</option>
+              <option value="lleno">Lleno</option>
+              <option value="mantenimiento">Mantenimiento</option>
+              <option value="cerrado">Cerrado</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+          <textarea id="edit-loc-observaciones" name="observaciones" rows="2" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-editar-ubicacion').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black shadow-md">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AJUSTE INVENTARIO -->
+  <div id="modal-nuevo-ajuste" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+          <span>⚖️</span> Registrar Ajuste de Inventario
+        </h3>
+        <button onclick="document.getElementById('modal-nuevo-ajuste').classList.add('hidden')" class="text-slate-400 font-black text-lg">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/stock/movimientos/ajuste" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Partida a Ajustar *</label>
+          <select name="stock_partida_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+            {% for p in partidas %}
+            <option value="{{ p.id }}">{{ p.tracking_number }} - {{ p.cultivo | capitalize }} ({{ p.ubicacion_nombre }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Tipo de Ajuste *</label>
+            <select name="tipo_ajuste" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <option value="incremento">➕ Incremento (+)</option>
+              <option value="disminucion">➖ Disminución (-)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Cantidad *</label>
+            <div class="flex gap-1">
+              <input type="number" step="0.01" min="0.01" name="cantidad_valor" required placeholder="Ej: 5.0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+              <select name="unidad_medida" class="bg-slate-100 border border-slate-300 rounded-xl p-2 font-bold">
+                <option value="tn">Tn</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Motivo del Ajuste * (Obligatorio)</label>
+          <input type="text" name="motivo" required placeholder="Ej: Re-pesaje en balanza" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones * (Obligatorio)</label>
+          <textarea name="observaciones" required rows="2" placeholder="Detalle justificativo..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-nuevo-ajuste').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-amber-600 text-white font-black shadow-md">Confirmar Ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function updateKgPreview() {
+      const val = parseFloat(document.getElementById('partida-cantidad').value) || 0;
+      const unidad = document.getElementById('partida-unidad').value;
+      const prev = document.getElementById('partida-preview-kg');
+      if (unidad === 'tn') {
+        const kg = val * 1000;
+        prev.innerText = `${val.toLocaleString('es-AR')} Tn = ${kg.toLocaleString('es-AR')} kg`;
+      } else {
+        const tn = val / 1000;
+        prev.innerText = `${val.toLocaleString('es-AR')} kg = ${tn.toLocaleString('es-AR')} Tn`;
+      }
+      updateUbicacionInfo();
+    }
+
+    function updateUbicacionInfo() {
+      const sel = document.getElementById('select-partida-ubicacion');
+      const help = document.getElementById('partida-location-help');
+      if (!sel || !help) return;
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
+
+      const disp = parseFloat(opt.getAttribute('data-disponible'));
+      const req = opt.getAttribute('data-requiere') === 'True';
+      const st = opt.getAttribute('data-estado');
+
+      if (st === 'capacidad_pendiente') {
+        help.innerText = "⚠️ Esta ubicación de tipo silo/silobolsa tiene capacidad pendiente. Completá su capacidad antes de ingresar partidas.";
+        help.className = "text-[11px] font-bold text-rose-700 mt-1";
+      } else if (disp >= 0) {
+        help.innerText = `Capacidad física disponible: ${disp.toLocaleString('es-AR')} Tn`;
+        help.className = "text-[11px] font-bold text-emerald-700 mt-1";
+      } else {
+        help.innerText = "Ubicación sin límite rígido de capacidad.";
+        help.className = "text-[11px] font-bold text-slate-600 mt-1";
+      }
+    }
+
+    function toggleOrigenFields() {
+      const check = document.getElementById('check-origen-conocido').checked;
+      const secExacto = document.getElementById('section-origen-exacto');
+      const secDesc = document.getElementById('section-origen-descripcion');
+      if (check) {
+        secExacto.classList.remove('hidden');
+        secDesc.classList.add('hidden');
+      } else {
+        secExacto.classList.add('hidden');
+        secDesc.classList.remove('hidden');
+      }
+    }
+
+    function openModalReserva(partidaId) {
+      document.getElementById('modal-reserva-partida').value = partidaId;
+      document.getElementById('modal-nueva-reserva').classList.remove('hidden');
+    }
+
+    function openModalAsignacion(partidaId) {
+      document.getElementById('modal-asignacion-partida').value = partidaId;
+      document.getElementById('modal-nueva-asignacion').classList.remove('hidden');
+    }
+
+    function openModalLiberarReserva(reservaId) {
+      document.getElementById('liberar-reservation-id').value = reservaId;
+      document.getElementById('modal-liberar-reserva').classList.remove('hidden');
+    }
+
+    function openModalCancelarAsignacion(allocationId) {
+      document.getElementById('cancelar-allocation-id').value = allocationId;
+      document.getElementById('modal-cancelar-asignacion').classList.remove('hidden');
+    }
+
+    function openModalMedicion(partidaId, trackingNumber) {
+      document.getElementById('modal-medicion-tracking').innerText = trackingNumber;
+      document.getElementById('form-nueva-medicion').action = `/comercial/stock/partidas/${partidaId}/mediciones/crear`;
+      document.getElementById('modal-nueva-medicion').classList.remove('hidden');
+    }
+
+    function openModalHistorial(partidaId, trackingNumber) {
+      document.getElementById('modal-historial-tracking').innerText = trackingNumber;
+      const srcDiv = document.getElementById(`historial-partida-${partidaId}`);
+      const bodyDiv = document.getElementById('modal-historial-body');
+      if (srcDiv) {
+        bodyDiv.innerHTML = srcDiv.innerHTML;
+      } else {
+        bodyDiv.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Sin mediciones registradas.</p>`;
+      }
+      document.getElementById('modal-historial-mediciones').classList.remove('hidden');
+    }
+
+    function openModalEditarUbicacion(locId, nombre, tipo, campoId, identificador, capacidad, estado) {
+      document.getElementById('form-editar-ubicacion').action = `/comercial/stock/ubicaciones/${locId}/editar`;
+      document.getElementById('edit-loc-nombre').value = nombre;
+      document.getElementById('edit-loc-tipo').value = tipo;
+      document.getElementById('edit-loc-campo-id').value = campoId || '';
+      document.getElementById('edit-loc-identificador').value = identificador || '';
+      document.getElementById('edit-loc-capacidad').value = capacidad && capacidad !== 'None' ? capacidad : '';
+      document.getElementById('edit-loc-estado').value = estado || 'activo';
+      document.getElementById('modal-editar-ubicacion').classList.remove('hidden');
+    }
+
+    function switchStockTab(tabName) {
+      ['partidas', 'reservas', 'asignaciones', 'ubicaciones', 'movimientos', 'legacy'].forEach(t => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        const content = document.getElementById(`tab-content-${t}`);
+        if (t === tabName) {
+          btn.className = "px-4 py-2 rounded-xl text-xs font-black transition-all bg-amber-600 text-white shadow-xs";
+          content.classList.remove('hidden');
+        } else {
+          btn.className = "px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:bg-slate-100";
+          content.classList.add('hidden');
+        }
+      });
+    }
+
+    // Inicializar ayuda de ubicación al cargar
+    document.addEventListener("DOMContentLoaded", function() {
+      updateUbicacionInfo();
+    });
+  </script>
 
 </body>
 </html>

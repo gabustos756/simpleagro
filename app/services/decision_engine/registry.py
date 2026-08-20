@@ -139,4 +139,8 @@ def create_default_registry() -> RuleRegistry:
     registry.register(FleteEstimadoPorEntregaRule())
     registry.register(EntregaAsociadaACompromisoRule())
     registry.register(EntregaConDocumentacionPendienteRule())
+    from app.services.decision_engine.rules.stock import get_stock_rules
+    for r in get_stock_rules():
+        registry.register(r)
+
     return registry

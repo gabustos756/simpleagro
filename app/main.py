@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Dict
 import uuid
+from uuid import uuid4, UUID
 import os
 import time
 import logging
@@ -2184,10 +2185,11 @@ async def read_comercial_stock(
     request: Request,
     cultivo: Optional[str] = "soja",
     mensaje: Optional[str] = None,
+    error: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Vista operativa de gestión de Stock Físico (Silos Bolsa & Acopios).
+    Vista operativa de gestión de Stock Físico V1 (Partidas, Ubicaciones y Movimientos Auditables).
     """
     user = await get_current_user_from_session(request, db)
     if not user:
@@ -2200,44 +2202,277 @@ async def read_comercial_stock(
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+    campos_map = {str(c["id"]): c["nombre"] for c in campos}
+    lotes_map = {str(l["id"]): l["nombre"] for l in lotes}
 
     camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
     camp_uuid = camp_obj.id if camp_obj else None
     camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
 
+    # Todas las campañas del cliente para el select
+    from app.models import Campania
+    res_camps = await db.execute(select(Campania).where(Campania.cliente_id == cliente_id).order_by(Campania.fecha_inicio.desc()))
+    campanias_objs = res_camps.scalars().all()
+    campanias_list = [{"id": str(c.id), "nombre": c.nombre} for c in campanias_objs]
+    campanias_map = {str(c.id): c.nombre for c in campanias_objs}
+
     cultivo_sel = (cultivo or "soja").strip().lower()
 
-    stmt_stock = select(StockGrano).where(
+    # 1. Resumen Agregado de Stock Físico Registrado y Comerciales V1
+    from app.services.stock_service import (
+        fetch_aggregated_stock_v1_summary,
+        get_stock_partida_balance,
+        get_stock_partida_commercial_balance,
+        reserve_stock_for_commitment,
+        release_stock_reservation,
+        allocate_stock_to_delivery,
+        cancel_stock_delivery_allocation,
+    )
+    stock_summary = await fetch_aggregated_stock_v1_summary(db, cliente_id, cultivo_sel)
+
+    # 2. Producción Teórica Estimada (Separada Informativa)
+    from app.services.comercial import calcular_posicion_comercial
+    pos_comercial = await calcular_posicion_comercial(db, cliente_id, camp_uuid, cultivo_sel)
+    produccion_teorica_tn = pos_comercial.get("produccion_total_tn", Decimal("0.0"))
+
+    # 3. Partidas Físicas Reales con Saldos Comerciales V1 (StockPartida)
+    from app.models import (
+        StockPartida,
+        StorageLocation,
+        StockMovement,
+        StockQualityMeasurement,
+        StockReservation,
+        StockDeliveryAllocation,
+        CompromisoGrano,
+        GrainDelivery,
+        StockGrano,
+    )
+    from sqlalchemy.orm import selectinload
+
+    stmt_partidas = (
+        select(StockPartida)
+        .options(
+            selectinload(StockPartida.storage_location),
+            selectinload(StockPartida.quality_measurements),
+            selectinload(StockPartida.campania),
+        )
+        .where(
+            StockPartida.cliente_id == cliente_id,
+            func.lower(StockPartida.cultivo) == cultivo_sel,
+        )
+        .order_by(StockPartida.fecha_creacion.desc())
+    )
+    res_partidas = await db.execute(stmt_partidas)
+    partidas_objs = res_partidas.scalars().all()
+
+    partidas_list = []
+    for p in partidas_objs:
+        bal = await get_stock_partida_commercial_balance(db, cliente_id, p.id)
+        dias_store = (date.today() - p.fecha_ingreso).days if p.fecha_ingreso else 0
+
+        # Histórico de calidad y última humedad válida registrada
+        from app.services.stock_service import is_valid_humidity
+        hum_last = None
+        hum_date_last = None
+        st_calidad_last = None
+        q_history = []
+        has_invalid_legacy = False
+        if p.quality_measurements:
+            sorted_q = sorted(p.quality_measurements, key=lambda q: q.measured_at, reverse=True)
+            st_calidad_last = sorted_q[0].estado_calidad
+            for q in sorted_q:
+                is_invalid = False
+                if q.humedad_pct is not None:
+                    is_invalid = not is_valid_humidity(q.humedad_pct)
+                    if is_invalid:
+                        has_invalid_legacy = True
+                    elif hum_last is None:
+                        hum_last = float(q.humedad_pct)
+                        hum_date_last = q.measured_at.strftime("%d/%m/%Y") if q.measured_at else ""
+
+                q_history.append({
+                    "id": str(q.id),
+                    "measured_at": q.measured_at.strftime("%d/%m/%Y %H:%M") if q.measured_at else "",
+                    "humedad_pct": float(q.humedad_pct) if q.humedad_pct is not None else None,
+                    "temperatura_c": float(q.temperatura_c) if q.temperatura_c is not None else None,
+                    "estado_calidad": q.estado_calidad,
+                    "fuente": q.fuente,
+                    "observaciones": q.observaciones or "",
+                    "is_invalid_legacy": is_invalid,
+                })
+
+        partidas_list.append({
+            "id": str(p.id),
+            "tracking_number": p.tracking_number,
+            "cultivo": p.cultivo,
+            "campania_nombre": p.campania.nombre if p.campania else "Campaña General",
+            "origen_conocido": p.origen_conocido,
+            "campo_nombre": campos_map.get(str(p.campo_id), "General") if p.campo_id else "General",
+            "lote_nombre": lotes_map.get(str(p.lote_id), "") if p.lote_id else "",
+            "origen_descripcion": p.origen_descripcion or "",
+            "ubicacion_nombre": p.storage_location.nombre if p.storage_location else "Sin Ubicación",
+            "fecha_ingreso": str(p.fecha_ingreso) if p.fecha_ingreso else "",
+            "dias_almacenado": dias_store,
+            "humedad_ultima": hum_last,
+            "humedad_fecha_ultima": hum_date_last,
+            "estado_calidad_ultimo": st_calidad_last or "apto",
+            "has_invalid_legacy": has_invalid_legacy,
+            "quality_history": q_history,
+            "saldo_fisico_kg": float(bal["stock_fisico_kg"]),
+            "saldo_fisico_tn": float(bal["stock_fisico_tn"]),
+            "saldo_reservado_tn": float(bal["stock_reservado_tn"]),
+            "saldo_asignado_tn": float(bal["stock_asignado_tn"]),
+            "saldo_disponible_tn": float(bal["stock_disponible_tn"]),
+            "reservas_activas_count": bal["reservas_activas_count"],
+            "asignaciones_activas_count": bal["asignaciones_activas_count"],
+            "estado": p.estado,
+            "observaciones": p.observaciones or "",
+        })
+
+    # 4. Ubicaciones de Guarda (StorageLocation con Ocupación Física Real)
+    from app.services.stock_service import get_storage_location_occupancy
+    stmt_locs = select(StorageLocation).where(StorageLocation.cliente_id == cliente_id).order_by(StorageLocation.nombre.asc())
+    res_locs = await db.execute(stmt_locs)
+    locs_objs = res_locs.scalars().all()
+
+    ubicaciones_list = []
+    for u in locs_objs:
+        occ = await get_storage_location_occupancy(db, cliente_id, u.id)
+        ubicaciones_list.append({
+            "id": str(u.id),
+            "nombre": u.nombre,
+            "tipo": u.tipo,
+            "campo_id": str(u.campo_id) if u.campo_id else "",
+            "campo_nombre": campos_map.get(str(u.campo_id), "") if u.campo_id else "",
+            "identificador_fisico": u.identificador_fisico or "",
+            "capacidad_nominal_tn": float(occ["capacidad_nominal_tn"]) if occ["capacidad_nominal_tn"] is not None else None,
+            "stock_actual_tn": float(occ["occupied_tn"]),
+            "disponible_tn": float(occ["available_capacity_tn"]) if occ["available_capacity_tn"] is not None else None,
+            "ocupacion_pct": float(occ["occupancy_pct"]) if occ["occupancy_pct"] is not None else None,
+            "supera_capacidad": occ["estado_capacidad"] == "sobrecapacidad",
+            "estado_capacidad": occ["estado_capacidad"],
+            "requires_capacity": occ["requires_capacity"],
+            "estado": u.estado,
+            "observaciones": u.observaciones or "",
+        })
+
+    # 5. Movimientos Auditables (StockMovement)
+    stmt_movs = (
+        select(StockMovement)
+        .options(selectinload(StockMovement.stock_partida))
+        .where(StockMovement.cliente_id == cliente_id)
+        .order_by(StockMovement.fecha_movimiento.desc())
+        .limit(50)
+    )
+    res_movs = await db.execute(stmt_movs)
+    movs_objs = res_movs.scalars().all()
+
+    movimientos_list = []
+    for m in movs_objs:
+        movimientos_list.append({
+            "id": str(m.id),
+            "fecha_movimiento": m.fecha_movimiento.strftime("%Y-%m-%d %H:%M") if m.fecha_movimiento else "",
+            "tracking_partida": m.stock_partida.tracking_number if m.stock_partida else "N/D",
+            "tipo": m.tipo,
+            "cantidad_kg": float(m.cantidad_kg),
+            "motivo": m.motivo or "",
+            "observaciones": m.observaciones or "",
+        })
+
+    # 6. Reservas de Stock (StockReservation)
+    stmt_reservas = (
+        select(StockReservation)
+        .options(selectinload(StockReservation.stock_partida), selectinload(StockReservation.compromiso))
+        .where(StockReservation.cliente_id == cliente_id)
+        .order_by(StockReservation.fecha_reserva.desc())
+    )
+    res_res = await db.execute(stmt_reservas)
+    reservas_objs = res_res.scalars().all()
+
+    reservas_list = []
+    for r in reservas_objs:
+        reservas_list.append({
+            "id": str(r.id),
+            "tracking_partida": r.stock_partida.tracking_number if r.stock_partida else "N/D",
+            "partida_id": str(r.stock_partida_id),
+            "compromiso_concepto": r.compromiso.concepto if r.compromiso else "N/D",
+            "compromiso_beneficiario": r.compromiso.beneficiario if r.compromiso else "",
+            "cantidad_reserva_tn": float(r.cantidad_reserva_kg / Decimal("1000.0")),
+            "estado": r.estado,
+            "fecha_reserva": r.fecha_reserva.strftime("%Y-%m-%d %H:%M") if r.fecha_reserva else "",
+            "observaciones": r.observaciones or "",
+        })
+
+    # 7. Asignaciones a Entregas (StockDeliveryAllocation)
+    stmt_asigs = (
+        select(StockDeliveryAllocation)
+        .options(selectinload(StockDeliveryAllocation.stock_partida), selectinload(StockDeliveryAllocation.delivery))
+        .where(StockDeliveryAllocation.cliente_id == cliente_id)
+        .order_by(StockDeliveryAllocation.fecha_asignacion.desc())
+    )
+    res_asigs = await db.execute(stmt_asigs)
+    asigs_objs = res_asigs.scalars().all()
+
+    asignaciones_list = []
+    for a in asigs_objs:
+        asignaciones_list.append({
+            "id": str(a.id),
+            "tracking_partida": a.stock_partida.tracking_number if a.stock_partida else "N/D",
+            "tracking_entrega": a.delivery.tracking_number if a.delivery else "N/D",
+            "destino_entrega": (a.delivery.acopio_receptor or a.delivery.destination_final_reference or "") if a.delivery else "",
+            "cantidad_tn": float(a.cantidad_kg / Decimal("1000.0")),
+            "origen_asignacion": a.origen_asignacion,
+            "estado": a.estado,
+            "fecha_asignacion": a.fecha_asignacion.strftime("%Y-%m-%d %H:%M") if a.fecha_asignacion else "",
+            "observaciones": a.observaciones or "",
+        })
+
+    # 8. Compromisos y Entregas del Cliente para selects de modales
+    stmt_comp = select(CompromisoGrano).where(CompromisoGrano.cliente_id == cliente_id, CompromisoGrano.cumplido == False)
+    res_comp = await db.execute(stmt_comp)
+    compromisos_objs = res_comp.scalars().all()
+    compromisos_list = [
+        {
+            "id": str(c.id),
+            "concepto": c.concepto,
+            "beneficiario": c.beneficiario,
+            "cultivo": c.cultivo,
+            "toneladas_comprometidas": float(c.toneladas_comprometidas),
+        }
+        for c in compromisos_objs
+    ]
+
+    stmt_del = select(GrainDelivery).where(GrainDelivery.cliente_id == cliente_id).order_by(GrainDelivery.fecha_creacion.desc())
+    res_del = await db.execute(stmt_del)
+    deliveries_objs = res_del.scalars().all()
+    deliveries_list = [
+        {
+            "id": str(d.id),
+            "tracking_number": d.tracking_number,
+            "destino_nombre": (d.acopio_receptor or d.destination_final_reference or "Destino N/D"),
+            "cultivo": d.cultivo,
+            "toneladas_estimadas": float(d.toneladas_planificadas) if d.toneladas_planificadas else 0.0,
+        }
+        for d in deliveries_objs
+    ]
+
+    # 9. Registros Legacy (StockGrano)
+    stmt_legacy = select(StockGrano).where(
         StockGrano.cliente_id == cliente_id,
         func.lower(StockGrano.cultivo) == cultivo_sel,
     )
-    if camp_uuid:
-        stmt_stock = stmt_stock.where(StockGrano.campania_id == camp_uuid)
-
-    res_stock = await db.execute(stmt_stock)
-    stocks_objs = res_stock.scalars().all()
-
-    campos_map = {str(c["id"]): c["nombre"] for c in campos}
-
-    stocks_list = []
-    if stocks_objs:
-        for st in stocks_objs:
-            ub_val = st.ubicacion_tipo.value if hasattr(st.ubicacion_tipo, "value") else str(st.ubicacion_tipo)
-            stocks_list.append({
-                "id": str(st.id),
-                "campo_id": str(st.campo_id),
-                "campo_nombre": campos_map.get(str(st.campo_id), "Campo General"),
-                "cultivo": st.cultivo,
-                "ubicacion_tipo": ub_val,
-                "identificador": st.identificador,
-                "toneladas_almacenadas": float(st.toneladas_almacenadas or 0.0),
-                "fecha_ingreso": str(st.fecha_ingreso) if st.fecha_ingreso else "",
-                "observaciones": st.observaciones or "",
-            })
-
-    tn_silo_bolsa = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] == "silo_bolsa")
-    tn_acopio = sum(s["toneladas_almacenadas"] for s in stocks_list if s["ubicacion_tipo"] != "silo_bolsa")
-    tn_total = tn_silo_bolsa + tn_acopio
+    res_legacy = await db.execute(stmt_legacy)
+    legacy_objs = res_legacy.scalars().all()
+    stocks_legacy = [
+        {
+            "id": str(st.id),
+            "campo_nombre": campos_map.get(str(st.campo_id), "General"),
+            "identificador": st.identificador,
+            "toneladas_almacenadas": float(st.toneladas_almacenadas or 0.0),
+        }
+        for st in legacy_objs
+    ]
 
     return templates.TemplateResponse(
         request=request,
@@ -2246,19 +2481,658 @@ async def read_comercial_stock(
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
+            "lotes": lotes,
+            "campanias": campanias_list,
             "campania_activa": camp_nombre,
             "cultivo_seleccionado": cultivo_sel,
-            "stocks": stocks_list,
-            "tn_silo_bolsa": round(tn_silo_bolsa, 2),
-            "tn_acopio": round(tn_acopio, 2),
-            "tn_total": round(tn_total, 2),
+            "stock_summary": stock_summary,
+            "produccion_teorica_tn": produccion_teorica_tn,
+            "partidas": partidas_list,
+            "ubicaciones": ubicaciones_list,
+            "movimientos": movimientos_list,
+            "reservas": reservas_list,
+            "asignaciones": asignaciones_list,
+            "compromisos": compromisos_list,
+            "deliveries": deliveries_list,
+            "stocks_legacy": stocks_legacy,
+            "today_iso": date.today().isoformat(),
             "mensaje": mensaje,
+            "error": error,
         },
     )
 
 
+@app.post("/comercial/stock/reservas/crear")
+async def create_stock_reservation_v1(
+    request: Request,
+    stock_partida_id: str = Form(...),
+    compromiso_id: str = Form(...),
+    cantidad_valor: str = Form(...),
+    unidad_medida: str = Form("tn"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de Reserva de Stock Físico para un Compromiso Comercial (Stock 1B).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    cant_dec = parse_decimal_ar(cantidad_valor)
+    if not cant_dec or cant_dec <= Decimal("0.0"):
+        return RedirectResponse("/comercial/stock?error=La+cantidad+a+reservar+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.services.stock_service import reserve_stock_for_commitment
+    try:
+        reserva = await reserve_stock_for_commitment(
+            db=db,
+            cliente_id=cliente_id,
+            stock_partida_id=get_uuid(stock_partida_id),
+            compromiso_id=get_uuid(compromiso_id),
+            cantidad_valor=cant_dec,
+            unidad_medida=unidad_medida,
+            observaciones=observaciones,
+            user_id=get_uuid(user.get("id")),
+        )
+        msg = f"Reserva de {cant_dec} {unidad_medida.upper()} creada exitosamente."
+        return RedirectResponse(f"/comercial/stock?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/reservas/liberar")
+async def release_stock_reservation_v1(
+    request: Request,
+    reservation_id: str = Form(...),
+    motivo_liberacion: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Liberación de Reserva de Stock (Stock 1B).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    from app.services.stock_service import release_stock_reservation
+    try:
+        await release_stock_reservation(
+            db=db,
+            cliente_id=cliente_id,
+            reservation_id=get_uuid(reservation_id),
+            motivo_liberacion=motivo_liberacion,
+            observaciones=observaciones,
+            user_id=get_uuid(user.get("id")),
+        )
+        return RedirectResponse("/comercial/stock?mensaje=Reserva+liberada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/asignaciones/crear")
+async def create_stock_allocation_v1(
+    request: Request,
+    stock_partida_id: str = Form(...),
+    grain_delivery_id: str = Form(...),
+    cantidad_valor: str = Form(...),
+    unidad_medida: str = Form("tn"),
+    stock_reservation_id: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Asignación Manual de Partida a Entrega de Grano (Stock 1B).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    cant_dec = parse_decimal_ar(cantidad_valor)
+    if not cant_dec or cant_dec <= Decimal("0.0"):
+        return RedirectResponse("/comercial/stock?error=La+cantidad+a+asignar+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.services.stock_service import allocate_stock_to_delivery
+    try:
+        res_uuid = get_uuid(stock_reservation_id) if stock_reservation_id and stock_reservation_id.strip() else None
+        asig = await allocate_stock_to_delivery(
+            db=db,
+            cliente_id=cliente_id,
+            stock_partida_id=get_uuid(stock_partida_id),
+            grain_delivery_id=get_uuid(grain_delivery_id),
+            cantidad_valor=cant_dec,
+            unidad_medida=unidad_medida,
+            stock_reservation_id=res_uuid,
+            observaciones=observaciones,
+            user_id=get_uuid(user.get("id")),
+        )
+        msg = f"Asignación de {cant_dec} {unidad_medida.upper()} a entrega registrada exitosamente."
+        return RedirectResponse(f"/comercial/stock?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/asignaciones/cancelar")
+async def cancel_stock_allocation_v1(
+    request: Request,
+    allocation_id: str = Form(...),
+    motivo_cancelacion: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cancelación de Asignación a Entrega (Stock 1B).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    from app.services.stock_service import cancel_stock_delivery_allocation
+    try:
+        await cancel_stock_delivery_allocation(
+            db=db,
+            cliente_id=cliente_id,
+            allocation_id=get_uuid(allocation_id),
+            motivo_cancelacion=motivo_cancelacion,
+            user_id=get_uuid(user.get("id")),
+        )
+        return RedirectResponse("/comercial/stock?mensaje=Asignación+cancelada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/partidas/crear")
+async def create_stock_partida_v1(
+    request: Request,
+    cultivo: str = Form(...),
+    storage_location_id: str = Form(...),
+    cantidad_valor: str = Form(...),
+    unidad_medida: str = Form("tn"),
+    fecha_ingreso: str = Form(...),
+    campania_id: Optional[str] = Form(None),
+    campo_id: Optional[str] = Form(None),
+    lote_id: Optional[str] = Form(None),
+    origen_conocido: Optional[str] = Form("false"),
+    origen_descripcion: Optional[str] = Form(None),
+    fecha_cosecha: Optional[str] = Form(None),
+    humedad_pct: Optional[str] = Form(None),
+    measured_at: Optional[str] = Form(None),
+    estado_calidad: Optional[str] = Form("apto"),
+    fuente_medicion: Optional[str] = Form("propia"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de Partida Física de Stock (StockPartida) con Movimiento de Ingreso Inicial atómico.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    loc_uuid = get_uuid(storage_location_id)
+
+    # Validar multitenancy de la ubicación
+    from app.models import (
+        StorageLocation,
+        StockPartida,
+        StockMovement,
+        StockQualityMeasurement,
+    )
+    stmt_loc = select(StorageLocation).where(
+        StorageLocation.id == loc_uuid,
+        StorageLocation.cliente_id == cliente_id,
+    )
+    res_loc = await db.execute(stmt_loc)
+    loc_obj = res_loc.scalars().first()
+    if not loc_obj:
+        return RedirectResponse("/comercial/stock?error=Ubicación+de+guarda+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Normalizar cantidad a kg en Decimal
+    cant_dec = parse_decimal_ar(cantidad_valor)
+    if not cant_dec or cant_dec <= Decimal("0.0"):
+        return RedirectResponse("/comercial/stock?error=La+cantidad+inicial+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+    if (unidad_medida or "").strip().lower() == "tn":
+        cantidad_kg = cant_dec * Decimal("1000.0")
+    else:
+        cantidad_kg = cant_dec
+
+    # Validar ocupación física y capacidad nominal de la ubicación de guarda
+    from app.services.stock_service import get_storage_location_occupancy
+    occ = await get_storage_location_occupancy(db, cliente_id, loc_obj.id)
+
+    if occ["requires_capacity"] and occ["estado_capacidad"] == "capacidad_pendiente":
+        err_msg = f"La ubicación '{loc_obj.nombre}' requiere definir su capacidad nominal antes de recibir nuevos ingresos de stock."
+        return RedirectResponse(f"/comercial/stock?error={err_msg.replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    if occ["capacity_kg"] is not None:
+        if cantidad_kg > occ["available_capacity_kg"]:
+            cap_tn_val = (occ["capacity_kg"] / Decimal("1000.0")).quantize(Decimal("0.01"))
+            ocu_tn_val = (occ["occupied_kg"] / Decimal("1000.0")).quantize(Decimal("0.01"))
+            disp_tn_val = max(Decimal("0.0"), (occ["available_capacity_kg"] / Decimal("1000.0"))).quantize(Decimal("0.01"))
+            req_tn_val = (cantidad_kg / Decimal("1000.0")).quantize(Decimal("0.01"))
+
+            cap_str = f"{cap_tn_val}".replace(".", ",")
+            ocu_str = f"{ocu_tn_val}".replace(".", ",")
+            disp_str = f"{disp_tn_val}".replace(".", ",")
+            req_str = f"{req_tn_val}".replace(".", ",")
+
+            err_msg = (
+                f"La ubicación ‘{loc_obj.nombre}’ tiene capacidad de {cap_str} Tn, "
+                f"posee {ocu_str} Tn ocupadas y sólo dispone de {disp_str} Tn. "
+                f"No es posible cargar {req_str} Tn."
+            )
+            return RedirectResponse(f"/comercial/stock?error={err_msg.replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Validar fechas
+    try:
+        f_ingreso = datetime.strptime(fecha_ingreso.strip(), "%Y-%m-%d").date()
+    except Exception:
+        f_ingreso = date.today()
+
+    f_cosecha = None
+    if fecha_cosecha and fecha_cosecha.strip():
+        try:
+            f_cosecha = datetime.strptime(fecha_cosecha.strip(), "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+    # Validar origen exacto vs descripción
+    is_origen_conocido = (origen_conocido or "").strip().lower() in ["true", "on", "1", "yes"]
+    origen_desc = origen_descripcion.strip() if origen_descripcion and origen_descripcion.strip() else None
+
+    if not is_origen_conocido and not origen_desc:
+        return RedirectResponse("/comercial/stock?error=Debe+especificar+la+descripción+del+origen+si+no+se+conoce+el+campo/lote+exacto", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Validar FKs de campo, lote y campaña
+    c_uuid = get_uuid(campo_id) if is_origen_conocido and campo_id and campo_id.strip() else None
+    l_uuid = get_uuid(lote_id) if is_origen_conocido and lote_id and lote_id.strip() else None
+    camp_uuid = get_uuid(campania_id) if campania_id and campania_id.strip() else None
+
+    if c_uuid:
+        from app.models import Campo
+        res_c = await db.execute(select(Campo).where(Campo.id == c_uuid, Campo.cliente_id == cliente_id))
+        if not res_c.scalars().first():
+            return RedirectResponse("/comercial/stock?error=Campo+no+autorizado", status_code=status.HTTP_303_SEE_OTHER)
+
+    if l_uuid:
+        from app.models import Lote
+        res_l = await db.execute(select(Lote).where(Lote.id == l_uuid, Lote.cliente_id == cliente_id))
+        if not res_l.scalars().first():
+            return RedirectResponse("/comercial/stock?error=Lote+no+autorizado", status_code=status.HTTP_303_SEE_OTHER)
+
+    if camp_uuid:
+        from app.models import Campania
+        res_camp = await db.execute(select(Campania).where(Campania.id == camp_uuid, Campania.cliente_id == cliente_id))
+        if not res_camp.scalars().first():
+            return RedirectResponse("/comercial/stock?error=Campaña+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Generar tracking number legible e inmutable (STK-YYYYMMDD-XXXX)
+    date_str = datetime.now().strftime("%Y%m%d")
+    unique_suffix = uuid.uuid4().hex[:4].upper()
+    tracking_number = f"STK-{date_str}-{unique_suffix}"
+
+    # 1. Crear Partida
+    partida = StockPartida(
+        cliente_id=cliente_id,
+        tracking_number=tracking_number,
+        cultivo=(cultivo or "soja").strip().lower(),
+        storage_location_id=loc_obj.id,
+        fecha_ingreso=f_ingreso,
+        fecha_cosecha=f_cosecha,
+        origen_conocido=is_origen_conocido,
+        origen_descripcion=origen_desc,
+        campo_id=c_uuid,
+        lote_id=l_uuid,
+        campania_id=camp_uuid,
+        cantidad_inicial_kg=cantidad_kg,
+        estado="activa",
+        observaciones=observaciones.strip() if observaciones else None,
+        created_by_user_id=get_uuid(user.get("id")),
+    )
+    db.add(partida)
+    await db.flush()
+
+    # 2. Crear Movimiento Inicial Atómico
+    mov_inicial = StockMovement(
+        cliente_id=cliente_id,
+        stock_partida_id=partida.id,
+        tipo="ingreso_inicial",
+        cantidad_kg=cantidad_kg,
+        motivo="Ingreso Inicial de Partida",
+        observaciones=f"Carga inicial de {cant_dec} {unidad_medida.upper()} en {loc_obj.nombre}",
+        created_by_user_id=get_uuid(user.get("id")),
+    )
+    db.add(mov_inicial)
+
+    # 3. Validar y crear Medición de Calidad Inicial si corresponde
+    from app.services.stock_service import validate_humedad_pct, add_quality_measurement_to_partida
+    try:
+        hum_dec = validate_humedad_pct(humedad_pct)
+    except ValueError as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+    if hum_dec is not None or (estado_calidad and estado_calidad != "apto"):
+        m_at = datetime.now()
+        if measured_at and measured_at.strip():
+            try:
+                m_at = datetime.strptime(measured_at.strip(), "%Y-%m-%d")
+            except Exception:
+                pass
+
+        await add_quality_measurement_to_partida(
+            db=db,
+            cliente_id=cliente_id,
+            stock_partida_id=partida.id,
+            measured_at=m_at,
+            humedad_pct_val=hum_dec,
+            estado_calidad=estado_calidad or "apto",
+            fuente=fuente_medicion or "propia",
+            observaciones="Medición inicial registrada al cargar la partida",
+            user_id=get_uuid(user.get("id")),
+        )
+
+    await db.commit()
+
+    msg = f"Partida '{tracking_number}' registrada exitosamente ({(cantidad_kg/Decimal('1000.0')):.2f} Tn en {loc_obj.nombre})."
+    return RedirectResponse(
+        f"/comercial/stock?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/stock/partidas/{partida_id}/mediciones/crear")
+async def create_partida_quality_measurement_v1(
+    request: Request,
+    partida_id: str,
+    measured_at: Optional[str] = Form(None),
+    humedad_pct: Optional[str] = Form(None),
+    temperatura_c: Optional[str] = Form(None),
+    estado_calidad: Optional[str] = Form("apto"),
+    fuente: Optional[str] = Form("propia"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de medición histórica de calidad sobre una partida física de stock.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    m_at = None
+    if measured_at and measured_at.strip():
+        try:
+            m_at = datetime.fromisoformat(measured_at.strip())
+        except Exception:
+            try:
+                m_at = datetime.strptime(measured_at.strip(), "%Y-%m-%d")
+            except Exception:
+                m_at = datetime.now()
+
+    from app.services.stock_service import add_quality_measurement_to_partida
+    try:
+        await add_quality_measurement_to_partida(
+            db=db,
+            cliente_id=cliente_id,
+            stock_partida_id=get_uuid(partida_id),
+            measured_at=m_at,
+            humedad_pct_val=humedad_pct,
+            temperatura_c_val=temperatura_c,
+            estado_calidad=estado_calidad or "apto",
+            fuente=fuente or "propia",
+            observaciones=observaciones,
+            user_id=get_uuid(user.get("id")),
+        )
+        msg = "Medición de calidad registrada exitosamente en el historial de la partida."
+        return RedirectResponse(f"/comercial/stock?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        err_msg = str(e).replace(" ", "+")
+        return RedirectResponse(f"/comercial/stock?error={err_msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/ubicaciones/crear")
+async def create_storage_location_v1(
+    request: Request,
+    nombre: str = Form(...),
+    tipo: str = Form("silo_propio"),
+    campo_id: Optional[str] = Form(None),
+    ubicacion_referencia: Optional[str] = Form(None),
+    identificador_fisico: Optional[str] = Form(None),
+    capacidad_nominal_tn: Optional[str] = Form(None),
+    estado: Optional[str] = Form("activo"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de Ubicación de Guarda / Depósito (StorageLocation).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    if not nombre or not nombre.strip():
+        return RedirectResponse("/comercial/stock?error=El+nombre+de+la+ubicación+es+requerido", status_code=status.HTTP_303_SEE_OTHER)
+
+    c_uuid = get_uuid(campo_id) if campo_id and campo_id.strip() else None
+    if c_uuid:
+        from app.models import Campo
+        res_c = await db.execute(select(Campo).where(Campo.id == c_uuid, Campo.cliente_id == cliente_id))
+        if not res_c.scalars().first():
+            return RedirectResponse("/comercial/stock?error=Campo+asociado+no+autorizado", status_code=status.HTTP_303_SEE_OTHER)
+
+    cap_dec = parse_decimal_ar(capacidad_nominal_tn)
+    tipo_norm = tipo.strip().lower()
+
+    if tipo_norm in ["silo_propio", "silobolsa"]:
+        if cap_dec is None or cap_dec <= Decimal("0.0"):
+            return RedirectResponse(
+                "/comercial/stock?error=La+capacidad+nominal+en+Tn+es+obligatoria+y+debe+ser+mayor+a+0+para+Silos+y+Silobolsas",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    from app.models import StorageLocation
+    # Verificar unique constraint por (cliente_id, tipo, nombre)
+    stmt_dup = select(StorageLocation).where(
+        StorageLocation.cliente_id == cliente_id,
+        StorageLocation.tipo == tipo_norm,
+        func.lower(StorageLocation.nombre) == nombre.strip().lower(),
+    )
+    res_dup = await db.execute(stmt_dup)
+    if res_dup.scalars().first():
+        return RedirectResponse(
+            f"/comercial/stock?error=Ya+existe+una+ubicación+con+el+nombre+'{nombre.strip()}'",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    nueva_loc = StorageLocation(
+        cliente_id=cliente_id,
+        nombre=nombre.strip(),
+        tipo=tipo_norm,
+        campo_id=c_uuid,
+        ubicacion_referencia=ubicacion_referencia.strip() if ubicacion_referencia else None,
+        identificador_fisico=identificador_fisico.strip() if identificador_fisico else None,
+        capacidad_nominal_tn=cap_dec,
+        estado=estado if estado in ["activo", "lleno", "vacio", "mantenimiento", "cerrado"] else "activo",
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+
+    db.add(nueva_loc)
+    await db.commit()
+
+    msg = f"Ubicación '{nombre.strip()}' creada exitosamente."
+    return RedirectResponse(f"/comercial/stock?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/ubicaciones/{location_id}/editar")
+async def update_storage_location_v1(
+    request: Request,
+    location_id: str,
+    nombre: str = Form(...),
+    tipo: str = Form(...),
+    campo_id: Optional[str] = Form(None),
+    identificador_fisico: Optional[str] = Form(None),
+    capacidad_nominal_tn: Optional[str] = Form(None),
+    estado: Optional[str] = Form("activo"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edición de Ubicación de Guarda con validación de piso por ocupación física actual.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    loc_uuid = get_uuid(location_id)
+
+    from app.models import StorageLocation
+    stmt_loc = select(StorageLocation).where(StorageLocation.id == loc_uuid, StorageLocation.cliente_id == cliente_id)
+    res_loc = await db.execute(stmt_loc)
+    loc_obj = res_loc.scalars().first()
+    if not loc_obj:
+        return RedirectResponse("/comercial/stock?error=Ubicación+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    cap_dec = parse_decimal_ar(capacidad_nominal_tn)
+    tipo_norm = tipo.strip().lower()
+
+    if tipo_norm in ["silo_propio", "silobolsa"]:
+        if cap_dec is None or cap_dec <= Decimal("0.0"):
+            return RedirectResponse(
+                "/comercial/stock?error=La+capacidad+nominal+en+Tn+es+obligatoria+y+debe+ser+mayor+a+0+para+Silos+y+Silobolsas",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    # Validar que la nueva capacidad no sea menor que la ocupación física actual
+    from app.services.stock_service import get_storage_location_occupancy
+    occ = await get_storage_location_occupancy(db, cliente_id, loc_obj.id)
+    ocupado_actual_tn = occ["occupied_tn"]
+
+    if cap_dec is not None and (cap_dec * Decimal("1000.0")) < occ["occupied_kg"]:
+        err_msg = f"No es posible reducir la capacidad a {cap_dec} Tn porque la ubicación tiene actualmente {ocupado_actual_tn} Tn ocupadas."
+        return RedirectResponse(f"/comercial/stock?error={err_msg.replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    loc_obj.nombre = nombre.strip()
+    loc_obj.tipo = tipo_norm
+    loc_obj.campo_id = get_uuid(campo_id) if campo_id and campo_id.strip() else None
+    loc_obj.identificador_fisico = identificador_fisico.strip() if identificador_fisico and identificador_fisico.strip() else None
+    loc_obj.capacidad_nominal_tn = cap_dec
+    loc_obj.estado = estado.strip().lower() if estado else "activo"
+    loc_obj.observaciones = observaciones.strip() if observaciones and observaciones.strip() else None
+
+    await db.commit()
+    return RedirectResponse("/comercial/stock?mensaje=Ubicación+actualizada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/stock/movimientos/ajuste")
+async def create_stock_adjustment_v1(
+    request: Request,
+    stock_partida_id: str = Form(...),
+    tipo_ajuste: str = Form(...),
+    cantidad_valor: str = Form(...),
+    unidad_medida: str = Form("tn"),
+    motivo: str = Form(...),
+    observaciones: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Registro controlado de Ajuste de Inventario sobre una partida existente.
+    Garantiza que el saldo físico resultante no quede negativo.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    p_uuid = get_uuid(stock_partida_id)
+
+    from app.models import StockPartida, StockMovement
+    from app.services.stock_service import get_stock_partida_balance
+
+    stmt_p = select(StockPartida).where(
+        StockPartida.id == p_uuid,
+        StockPartida.cliente_id == cliente_id,
+    )
+    res_p = await db.execute(stmt_p)
+    partida = res_p.scalars().first()
+    if not partida:
+        return RedirectResponse("/comercial/stock?error=Partida+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    if not motivo or not motivo.strip() or not observaciones or not observaciones.strip():
+        return RedirectResponse("/comercial/stock?error=El+motivo+y+las+observaciones+son+obligatorios+para+ajustes+de+inventario", status_code=status.HTTP_303_SEE_OTHER)
+
+    cant_dec = parse_decimal_ar(cantidad_valor)
+    if not cant_dec or cant_dec <= Decimal("0.0"):
+        return RedirectResponse("/comercial/stock?error=La+cantidad+del+ajuste+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+    if (unidad_medida or "").strip().lower() == "tn":
+        cantidad_kg = cant_dec * Decimal("1000.0")
+    else:
+        cantidad_kg = cant_dec
+
+    is_incremento = (tipo_ajuste or "").strip().lower() == "incremento"
+    delta_kg = cantidad_kg if is_incremento else -cantidad_kg
+
+    # Obtener saldo actual
+    bal_actual = await get_stock_partida_balance(db, cliente_id, partida.id)
+    saldo_actual_kg = bal_actual["saldo_fisico_kg"]
+    saldo_propuesto_kg = saldo_actual_kg + delta_kg
+
+    if saldo_propuesto_kg < Decimal("0.0"):
+        return RedirectResponse(
+            f"/comercial/stock?error=El+ajuste+dejaría+el+saldo+físico+en+negativo+(Saldo+actual:+{bal_actual['saldo_fisico_tn']:.2f}+Tn)",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    # Crear nuevo movimiento inmutable
+    mov_ajuste = StockMovement(
+        cliente_id=cliente_id,
+        stock_partida_id=partida.id,
+        tipo="ajuste_inventario",
+        cantidad_kg=delta_kg,
+        motivo=motivo.strip(),
+        observaciones=observaciones.strip(),
+        created_by_user_id=get_uuid(user.get("id")),
+    )
+    db.add(mov_ajuste)
+
+    # Si el nuevo saldo pasa a 0, actualizar estado a agotada
+    if saldo_propuesto_kg == Decimal("0.0"):
+        partida.estado = "agotada"
+    elif partida.estado == "agotada" and saldo_propuesto_kg > Decimal("0.0"):
+        partida.estado = "activa"
+
+    await db.commit()
+
+    tipo_lbl = "Incremento" if is_incremento else "Disminución"
+    msg = f"Ajuste de inventario registrado ({tipo_lbl} de {cant_dec} {unidad_medida.upper()} en partida {partida.tracking_number}). Saldo actual: {(saldo_propuesto_kg/Decimal('1000.0')):.2f} Tn."
+    return RedirectResponse(
+        f"/comercial/stock?cultivo={partida.cultivo}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @app.post("/comercial/stock/crear")
-async def create_comercial_stock(
+async def create_comercial_stock_legacy(
     request: Request,
     campo_id: str = Form(...),
     cultivo: str = Form(...),
@@ -2270,15 +3144,11 @@ async def create_comercial_stock(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Alta mínima funcional de un registro de Stock Físico (Silo Bolsa o Acopio).
+    Alta de Stock Legacy (StockGrano) para compatibilidad hacia atrás.
     """
     user = await get_current_user_from_session(request, db)
     if not user:
         return RedirectResponse("/login?next=/comercial/stock", status_code=status.HTTP_303_SEE_OTHER)
-
-    rol_user = user.get("rol")
-    if rol_user == RolUsuario.OPERARIO_CAMPO:
-        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
 
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
     camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
@@ -2290,6 +3160,7 @@ async def create_comercial_stock(
     except Exception:
         f_ingreso = date.today()
 
+    from app.models import StockGrano, UbicacionStockEnum
     try:
         ub_enum = UbicacionStockEnum(ubicacion_tipo)
     except Exception:
@@ -2310,7 +3181,7 @@ async def create_comercial_stock(
     db.add(nuevo_stock)
     await db.commit()
 
-    msg = f"Stock '{identificador.strip()}' registrado exitosamente ({toneladas_almacenadas} Tn)."
+    msg = f"Registro legacy '{identificador.strip()}' guardado ({toneladas_almacenadas} Tn)."
     return RedirectResponse(
         f"/comercial/stock?cultivo={cultivo.strip().lower()}&mensaje={msg}",
         status_code=status.HTTP_303_SEE_OTHER,
@@ -3582,8 +4453,22 @@ async def create_comercial_entrega(
     ton_dec = parse_decimal_ar(toneladas_planificadas)
 
     date_str = datetime.now().strftime("%Y%m%d")
-    unique_suffix = uuid4().hex[:4].upper()
+    unique_suffix = uuid.uuid4().hex[:4].upper()
     tracking_number = f"ENT-{date_str}-{unique_suffix}"
+
+    comp_uuid = get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None
+    if comp_uuid:
+        from app.models import CompromisoGrano
+        res_c = await db.execute(select(CompromisoGrano).where(CompromisoGrano.id == comp_uuid, CompromisoGrano.cliente_id == cliente_id))
+        if not res_c.scalars().first():
+            return RedirectResponse("/comercial/entregas?error=Compromiso+no+encontrado+o+no+autorizado", status_code=status.HTTP_303_SEE_OTHER)
+
+    quote_uuid = get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None
+    if quote_uuid:
+        from app.models import FreightQuote
+        res_q = await db.execute(select(FreightQuote).where(FreightQuote.id == quote_uuid, FreightQuote.cliente_id == cliente_id))
+        if not res_q.scalars().first():
+            return RedirectResponse("/comercial/entregas?error=Cotización+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
 
     from app.models import GrainDelivery
     delivery = GrainDelivery(
@@ -3597,8 +4482,8 @@ async def create_comercial_entrega(
         cultivo=(cultivo or "soja").strip().lower(),
         estado=estado if estado in VALID_DELIVERY_TRANSITIONS else "planificada",
         documentacion_status="sin_documentacion",
-        compromiso_id=get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None,
-        freight_quote_id=get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None,
+        compromiso_id=comp_uuid,
+        freight_quote_id=quote_uuid,
         campo_id=get_uuid(campo_id) if campo_id and campo_id.strip() else None,
         lote_id=get_uuid(lote_id) if lote_id and lote_id.strip() else None,
         observaciones=observaciones.strip() if observaciones else None,
@@ -3645,6 +4530,20 @@ async def edit_comercial_entrega(
     if not delivery:
         return RedirectResponse("/comercial/entregas?error=Entrega+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
 
+    comp_uuid = get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None
+    if comp_uuid:
+        from app.models import CompromisoGrano
+        res_c = await db.execute(select(CompromisoGrano).where(CompromisoGrano.id == comp_uuid, CompromisoGrano.cliente_id == cliente_id))
+        if not res_c.scalars().first():
+            return RedirectResponse("/comercial/entregas?error=Compromiso+no+encontrado+o+no+autorizado", status_code=status.HTTP_303_SEE_OTHER)
+
+    quote_uuid = get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None
+    if quote_uuid:
+        from app.models import FreightQuote
+        res_q = await db.execute(select(FreightQuote).where(FreightQuote.id == quote_uuid, FreightQuote.cliente_id == cliente_id))
+        if not res_q.scalars().first():
+            return RedirectResponse("/comercial/entregas?error=Cotización+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
     if estado != delivery.estado:
         allowed = VALID_DELIVERY_TRANSITIONS.get(delivery.estado, set())
         if estado not in allowed:
@@ -3665,8 +4564,8 @@ async def edit_comercial_entrega(
     delivery.transportista_nombre = (transportista_nombre or "Marcelo Martina").strip()
     delivery.toneladas_planificadas = parse_decimal_ar(toneladas_planificadas)
     delivery.cultivo = (cultivo or "soja").strip().lower()
-    delivery.compromiso_id = get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None
-    delivery.freight_quote_id = get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None
+    delivery.compromiso_id = comp_uuid
+    delivery.freight_quote_id = quote_uuid
     delivery.observaciones = observaciones.strip() if observaciones else None
 
     await db.commit()
@@ -3803,6 +4702,46 @@ async def create_comercial_waybill(
 
     msg = f"Carta de porte registrada para la entrega '{delivery.tracking_number}'."
     return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/cartas/{waybill_id}/eliminar")
+async def delete_comercial_waybill(
+    request: Request,
+    waybill_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Elimina una carta de porte respetando multitenancy y recalcula los totales de la entrega.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    w_uuid = get_uuid(waybill_id)
+
+    from app.models import GrainWaybill, GrainDelivery
+    from sqlalchemy.orm import selectinload
+    stmt = select(GrainWaybill).where(GrainWaybill.id == w_uuid, GrainWaybill.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    waybill = res.scalars().first()
+
+    if not waybill:
+        return RedirectResponse("/comercial/entregas?error=Carta+de+porte+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    delivery_id = waybill.entrega_id
+    await db.delete(waybill)
+    await db.flush()
+
+    stmt_del = select(GrainDelivery).options(selectinload(GrainDelivery.waybills)).where(GrainDelivery.id == delivery_id)
+    res_del = await db.execute(stmt_del)
+    delivery = res_del.scalars().first()
+    if delivery:
+        recalculate_delivery_totals(delivery)
+
+    await db.commit()
+
+    return RedirectResponse("/comercial/entregas?mensaje=Carta+de+porte+eliminada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
 
 
 
