@@ -1,7 +1,11 @@
 import os
 from typing import AsyncGenerator
+from dotenv import load_dotenv
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, create_async_engine, async_sessionmaker
+
+# Cargar variables de entorno desde archivo .env si existe
+load_dotenv()
 
 
 class Base(AsyncAttrs, DeclarativeBase):

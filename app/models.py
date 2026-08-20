@@ -533,3 +533,43 @@ class PrecioMercadoCache(Base):
     )
 
 
+class WeatherSnapshot(Base):
+    """
+    Tabla de persistencia histórica de snapshots meteorológicos normalizados.
+    Registra datos observados y pronosticados de proveedores (Google Weather, Open-Meteo).
+    """
+    __tablename__ = "weather_snapshots"
+    __table_args__ = (
+        Index("ix_weather_snapshots_campo_retrieved", "campo_id", "retrieved_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="SET NULL"), nullable=True
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    timezone: Mapped[str] = mapped_column(String(100), default="America/Argentina/Cordoba", nullable=False)
+    observed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    forecast_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    schema_version: Mapped[str] = mapped_column(String(20), default="v2.0", nullable=False)
+    normalized_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    raw_payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    data_quality: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+

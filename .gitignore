@@ -1,0 +1,25 @@
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Variables de entorno y llaves secretas (NUNCA SUBIR A GIT)
+.env
+.env.local
+.env.*.local
+
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE & Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Archivos de base de datos local / logs
+*.sqlite3
+*.log

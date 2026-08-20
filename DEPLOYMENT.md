@@ -45,6 +45,7 @@ pip install -r requirements.txt
 
 ### 5. Reiniciar el servicio de la aplicación
 ```bash
+uvicorn app.main:app --reload --port 8000
 sudo systemctl restart eduagro
 ```
 

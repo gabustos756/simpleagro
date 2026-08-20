@@ -6,6 +6,11 @@ import uuid
 import os
 import time
 import logging
+import asyncio
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env
+load_dotenv()
 
 from fastapi import FastAPI, Request, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
@@ -1136,13 +1141,16 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
     campo_obj = next((c for c in campos if c["id"] == lote.get("campo_id")), None)
 
     # 1. Obtener clima geolocalizado del campo del lote
-    from app.services.clima import obtener_clima_para_campo
-    weather_info = obtener_clima_para_campo(
+    from app.services.clima import obtener_clima_para_campo_async
+    weather_info = await obtener_clima_para_campo_async(
         lat=campo_obj.get("latitud") if campo_obj else None,
         lon=campo_obj.get("longitud") if campo_obj else None,
         localidad=campo_obj.get("localidad_referencia", "Laguna Larga, Córdoba") if campo_obj else "Laguna Larga, Córdoba",
         campo_nombre=lote.get("campo_nombre"),
         lote_nombre=lote.get("nombre"),
+        campo_id=lote.get("campo_id"),
+        lote_id=lote.get("id"),
+        db=db,
     )
 
     # 2. Obtener cotización spot y futuros para el cultivo actual del lote (con soporte para Barbecho/Sin Cultivo)
@@ -1694,18 +1702,22 @@ async def clima_resumen_campos(request: Request, db: AsyncSession = Depends(get_
     if not user:
         return RedirectResponse("/login?next=/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    from app.services.clima import obtener_clima_para_campo
+    from app.services.clima import obtener_clima_para_campo_async
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
-    campos_clima = []
-    for c in campos:
-        weather_info = obtener_clima_para_campo(
+
+    async def _fetch_single_clima(c):
+        w_info = await obtener_clima_para_campo_async(
             lat=c.get("latitud"),
             lon=c.get("longitud"),
             localidad=c.get("localidad_referencia", "Laguna Larga, Córdoba"),
             campo_nombre=c.get("nombre"),
+            campo_id=c.get("id"),
+            db=db,
         )
-        campos_clima.append({"campo": c, "weather": weather_info})
+        return {"campo": c, "weather": w_info}
+
+    campos_clima = list(await asyncio.gather(*[_fetch_single_clima(c) for c in campos]))
 
     return templates.TemplateResponse(
         request=request,
@@ -1720,18 +1732,20 @@ async def clima_semanal_campo(request: Request, campo_id: str, db: AsyncSession 
     if not user:
         return RedirectResponse(f"/login?next=/clima/campos/{campo_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-    from app.services.clima import obtener_clima_para_campo
+    from app.services.clima import obtener_clima_para_campo_async
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
     campo = next((c for c in campos if c["id"] == campo_id), None)
     if not campo:
         return RedirectResponse("/clima/campos", status_code=status.HTTP_303_SEE_OTHER)
 
-    weather_info = obtener_clima_para_campo(
+    weather_info = await obtener_clima_para_campo_async(
         lat=campo.get("latitud"),
         lon=campo.get("longitud"),
         localidad=campo.get("localidad_referencia", "Laguna Larga, Córdoba"),
         campo_nombre=campo.get("nombre"),
+        campo_id=campo.get("id"),
+        db=db,
     )
 
     return templates.TemplateResponse(
@@ -2010,7 +2024,7 @@ async def comercial_decision_evaluar_api(
         return JSONResponse({"error": "No autenticado"}, status_code=status.HTTP_401_UNAUTHORIZED)
 
     from app.services.mercado import obtener_snapshot_precios_mercado, obtener_comparativa_futuros_mercado
-    from app.services.clima import obtener_clima_para_campo
+    from app.services.clima import obtener_clima_para_campo_async
     from app.services.decision_motor import evaluar_motor_decisiones
 
     snapshot = await obtener_snapshot_precios_mercado(db, cultivos=[cultivo])
@@ -2022,7 +2036,7 @@ async def comercial_decision_evaluar_api(
     p_futuro_usd = fut_item.get("precio_futuro_usd", 195.0)
     spread_usd = fut_item.get("spread_usd", 7.0)
 
-    clima = obtener_clima_para_campo()
+    clima = await obtener_clima_para_campo_async(db=db)
 
     contexto = {
         "cultivo": cultivo,
@@ -2124,9 +2138,9 @@ async def read_comercial_resumen(
     }
 
     # Evaluador del Motor de Decisión 1.0 (Clima + Mercado + Operativo)
-    from app.services.clima import obtener_clima_para_campo
+    from app.services.clima import obtener_clima_para_campo_async
     from app.services.decision_motor import evaluar_motor_decisiones
-    clima_info = obtener_clima_para_campo()
+    clima_info = await obtener_clima_para_campo_async(db=db)
     fut_item = next((f for f in futuros_mercado if f["cultivo"].lower() == cultivo_sel.lower()), {})
     humedad_ini = 17.5 if cultivo_sel == "maiz" else 14.5
     contexto_decision_ini = {
