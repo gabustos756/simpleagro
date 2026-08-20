@@ -86,3 +86,80 @@ class TipoCompromisoEnum(str, enum.Enum):
     CANJE_INSUMOS = "canje_insumos"
     OTRO = "otro"
 
+
+class EstadoCaminoEnum(str, enum.Enum):
+    GOOD = "good"
+    CONDITIONED = "conditioned"
+    POOR = "poor"
+    IMPASSABLE = "impassable"
+    UNKNOWN = "unknown"
+
+
+class EstadoRecepcionEnum(str, enum.Enum):
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    UNKNOWN = "unknown"
+
+
+class FuenteCotizacionFleteEnum(str, enum.Enum):
+    MANUAL = "manual"
+    TRANSPORTER_QUOTE = "transporter_quote"
+    ESTIMATED = "estimated"
+    EXTERNAL = "external"
+
+
+class ConfianzaCotizacionEnum(str, enum.Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class CultivoCotizacionEnum(str, enum.Enum):
+    MAIZ = "maiz"
+    SOJA = "soja"
+    TRIGO = "trigo"
+    SORGO = "sorgo"
+    NO_ESPECIFICADO = "no_especificado"
+
+
+class CondicionPrecioEnum(str, enum.Enum):
+    DISPONIBLE_SPOT = "disponible_spot"
+    A_FIJAR = "a_fijar"
+    CONTRATO = "contrato"
+    FUTURO = "futuro"
+    A_CONFIRMAR = "a_confirmar"
+
+
+class EstadoEntregaEnum(str, enum.Enum):
+    PLANIFICADA = "planificada"
+    EN_TRANSITO = "en_transito"
+    RECIBIDA = "recibida"
+    LIQUIDADA = "liquidada"
+    OBSERVADA = "observada"
+    CANCELADA = "cancelada"
+
+
+class EstadoDocumentacionEnum(str, enum.Enum):
+    SIN_DOCUMENTACION = "sin_documentacion"
+    CARTA_PENDIENTE = "carta_pendiente"
+    PARCIAL = "parcial"
+    COMPLETA = "completa"
+    OBSERVADA = "observada"
+
+
+class EstadoWaybillEnum(str, enum.Enum):
+    PLANIFICADA = "planificada"
+    CARGADA = "cargada"
+    EN_TRANSITO = "en_transito"
+    RECIBIDA = "recibida"
+    OBSERVADA = "observada"
+    ANULADA = "anulada"
+
+
+class TipoCamionEnum(str, enum.Enum):
+    NORMAL = "normal"
+    VULCANO = "vulcano"
+    OTRO = "otro"
+
+
+

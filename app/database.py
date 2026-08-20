@@ -50,7 +50,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """Inicializa la estructura de tablas en la base de datos PostgreSQL."""
     import app.models  # Importa los modelos para registrarlos en Base.metadata
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS cultivo VARCHAR(50);"))
+            await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS condicion_precio VARCHAR(50);"))
+            await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS distancia_estimada_km NUMERIC(8, 2);"))
+            await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS detalle_cupo_turno VARCHAR(300);"))
+        except Exception:
+            pass
 
 

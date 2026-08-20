@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Entregas y Cartas de Porte</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased">
+
+  {% set active_page = 'comercial' %}
+  {% include 'components/header.html' %}
+
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    {# Alertas y Mensajes Flash #}
+    {% if mensaje_exito %}
+    <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 flex items-center justify-between shadow-xs">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">✅</span>
+        <p class="text-sm font-bold">{{ mensaje_exito }}</p>
+      </div>
+      <a href="/comercial/entregas" class="text-xs font-black text-emerald-700 hover:text-emerald-900 underline">Descartar</a>
+    </div>
+    {% endif %}
+
+    {% if mensaje_error %}
+    <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 flex items-center justify-between shadow-xs">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">⚠️</span>
+        <p class="text-sm font-bold">{{ mensaje_error }}</p>
+      </div>
+      <a href="/comercial/entregas" class="text-xs font-black text-rose-700 hover:text-rose-900 underline">Descartar</a>
+    </div>
+    {% endif %}
+
+    {# Encabezado Principal & Tabs #}
+    <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 text-xs font-extrabold text-amber-700 uppercase tracking-wider mb-1">
+          <span>🚚 Módulo Comercial</span>
+          <span>•</span>
+          <span>Campaña {{ campania_activa }}</span>
+        </div>
+        <h1 class="text-2xl font-black text-slate-900">Entregas y Cartas de Porte</h1>
+        <p class="text-xs text-slate-500 mt-1">Planificación, seguimiento operativo y trazabilidad de pesaje desde origen hasta acopio/destino final.</p>
+      </div>
+
+      {# Navegación de Tabs #}
+      <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+        <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          📊 Acopios & Resumen
+        </a>
+        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          🚜 Stock Físico
+        </a>
+        <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          📝 Compromisos
+        </a>
+        <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          🚚 Fletes y destinos
+        </a>
+        <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all bg-white text-amber-700 shadow-xs border border-slate-200">
+          🚚 Entregas
+        </a>
+      </div>
+    </div>
+
+    {# Barra de Acción Primaria #}
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900 text-white p-4 rounded-3xl shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
+          📦
+        </div>
+        <div>
+          <h2 class="text-sm font-extrabold">Gestión Operativa de Entregas</h2>
+          <p class="text-xs text-slate-300">Registrá viajes planificados, transportistas y cartas de porte para controlar mermas y fletes.</p>
+        </div>
+      </div>
+      <button onclick="abrirModalNuevaEntrega()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all">
+        <span>+ Nueva Entrega</span>
+      </button>
+    </div>
+
+    {# Insights / Evaluación del Motor de Decisiones #}
+    {% if delivery_insights %}
+    <div class="space-y-3">
+      <h3 class="text-sm font-extrabold text-slate-800">Alertas y Sugerencias de Trazabilidad ({{ delivery_insights|length }})</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for ins in delivery_insights %}
+        <div class="p-3.5 rounded-2xl border shadow-xs transition-all text-xs {% if ins.nivel == 'danger' %}bg-rose-50 border-rose-200 text-rose-950{% elif ins.nivel == 'warning' %}bg-amber-50 border-amber-200 text-amber-950{% elif ins.nivel == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-950{% else %}bg-slate-50 border-slate-200 text-slate-900{% endif %}">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-extrabold uppercase text-[10px] tracking-wider">{{ ins.titulo }}</span>
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-white/80 border">{{ ins.nivel }}</span>
+          </div>
+          <p class="font-medium text-slate-700 leading-snug mb-1.5">{{ ins.mensaje }}</p>
+          {% if ins.accion_recomendada %}
+          <div class="text-[10px] font-bold text-amber-800 flex items-center gap-1">
+            <span>💡 Acción:</span>
+            <span>{{ ins.accion_recomendada }}</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ESTADO VACÍO #}
+    {% if not deliveries %}
+    <div class="bg-white rounded-3xl p-10 border-2 border-dashed border-slate-200 text-center space-y-4">
+      <div class="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center text-3xl mx-auto shadow-xs">
+        📦
+      </div>
+      <h3 class="text-lg font-black text-slate-900">No hay entregas registradas</h3>
+      <p class="text-sm text-slate-600 max-w-md mx-auto">Creá tu primera entrega planificada para asociarle cartas de porte, registrar pesajes y controlar diferencias.</p>
+
+      <div class="pt-2">
+        <button onclick="abrirModalNuevaEntrega()" class="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm rounded-2xl shadow-sm inline-flex items-center gap-2 transition-all">
+          <span>+ Registrar primera entrega</span>
+        </button>
+      </div>
+    </div>
+
+    {% else %}
+
+    {# Listado de Entregas #}
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+      <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Entregas Comercial/Logística ({{ deliveries|length }})</h3>
+        <span class="text-xs text-slate-500">Hacé clic en una entrega para ver sus cartas de porte</span>
+      </div>
+
+      {# Vista Desktop Tabla #}
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
+              <th class="p-3.5">Seguimiento</th>
+              <th class="p-3.5">Fecha</th>
+              <th class="p-3.5">Acopio / Destino Final</th>
+              <th class="p-3.5">Vinculación</th>
+              <th class="p-3.5 text-right">Tn Plan. / Pesos</th>
+              <th class="p-3.5">Transporte</th>
+              <th class="p-3.5 text-center">Estado</th>
+              <th class="p-3.5 text-center">Documentación</th>
+              <th class="p-3.5 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-slate-800 font-medium">
+            {% for d in deliveries %}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="p-3.5 font-bold">
+                <div class="font-black text-amber-900 font-mono text-sm">{{ d.tracking_number }}</div>
+                <div class="text-[10px] text-slate-500 font-normal uppercase">{{ d.cultivo or 'Sin cultivo' }}</div>
+              </td>
+              <td class="p-3.5">
+                <div class="font-bold">{{ d.fecha_planificada_fmt }}</div>
+                <div class="text-[10px] text-slate-400">Planificada</div>
+              </td>
+              <td class="p-3.5">
+                <div class="font-extrabold text-slate-900">{{ d.acopio_receptor or 'Acopio no especificado' }}</div>
+                <div class="text-[11px] text-slate-500 font-normal">Destino final: {{ d.destination_final_reference or 'Rosario' }}</div>
+              </td>
+              <td class="p-3.5 text-[11px]">
+                {% if d.compromiso_rel %}
+                  <div class="font-bold text-indigo-700">📝 Compromiso</div>
+                {% endif %}
+                {% if d.freight_quote_rel %}
+                  <div class="font-bold text-amber-700">🚚 Flete Cotizado</div>
+                {% endif %}
+                {% if not d.compromiso_rel and not d.freight_quote_rel %}
+                  <span class="text-slate-400">-</span>
+                {% endif %}
+              </td>
+              <td class="p-3.5 text-right font-mono">
+                <div class="font-bold text-slate-900">
+                  {% if d.toneladas_planificadas is not none %}{{ d.toneladas_planificadas_fmt }} Tn{% else %}-{% endif %}
+                </div>
+                <div class="text-[10px] text-slate-500">
+                  {% if d.kg_neto_origen_total is not none %}Neto: {{ d.kg_neto_origen_total_fmt }} kg{% else %}Sin pesaje origen{% endif %}
+                </div>
+                {% if d.diferencia_total_kg is not none %}
+                  <div class="text-[10px] font-bold {% if d.diferencia_total_kg < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                    Diff: {{ d.diferencia_total_kg_fmt }} kg ({% if d.diferencia_total_pct is not none %}{{ d.diferencia_total_pct_fmt }}%{% endif %})
+                  </div>
+                {% endif %}
+              </td>
+              <td class="p-3.5 font-bold text-slate-700">
+                {{ d.transportista_nombre or 'Marcelo Martina' }}
+              </td>
+              <td class="p-3.5 text-center">
+                {% if d.estado == 'planificada' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 text-[11px] font-extrabold">📅 Planificada</span>
+                {% elif d.estado == 'en_transito' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-900 text-[11px] font-extrabold">🚚 En tránsito</span>
+                {% elif d.estado == 'recibida' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-900 text-[11px] font-extrabold">🟢 Recibida</span>
+                {% elif d.estado == 'liquidada' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 text-[11px] font-extrabold">💼 Liquidada</span>
+                {% elif d.estado == 'observada' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-rose-100 text-rose-900 text-[11px] font-extrabold">⚠️ Observada</span>
+                {% else %}
+                  <span class="px-2.5 py-1 rounded-xl bg-slate-200 text-slate-700 text-[11px] font-extrabold">❌ Cancelada</span>
+                {% endif %}
+              </td>
+              <td class="p-3.5 text-center">
+                {% if d.documentacion_status == 'completa' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 text-[11px] font-extrabold flex items-center justify-center gap-1">📄 Completa</span>
+                {% elif d.documentacion_status in ['carta_pendiente', 'sin_documentacion'] %}
+                  <div class="space-y-1">
+                    <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-900 text-[11px] font-extrabold flex items-center justify-center gap-1">📄 Carta pendiente</span>
+                    <button type="button" onclick="abrirModalNuevaCarta('{{ d.id }}')" class="text-[10px] font-black text-amber-700 hover:text-amber-900 underline block mx-auto">
+                      + Agregar carta
+                    </button>
+                  </div>
+                {% elif d.documentacion_status == 'parcial' %}
+                  <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-800 text-[11px] font-extrabold">📄 Parcial</span>
+                {% else %}
+                  <span class="px-2.5 py-1 rounded-xl bg-rose-100 text-rose-800 text-[11px] font-extrabold">⚠️ Observada</span>
+                {% endif %}
+              </td>
+              <td class="p-3.5 text-center">
+                <div class="flex items-center justify-center gap-1.5">
+                  <button type="button" onclick="verDetalleEntrega('{{ d.id }}')" class="p-1.5 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors" title="Ver detalle">
+                    👁️
+                  </button>
+                  <button type="button" onclick="abrirModalEditarEntrega('{{ d.id }}', '{{ d.tracking_number }}', '{{ d.campo_id or '' }}', '{{ d.lote_id or '' }}', '{{ d.compromiso_id or '' }}', '{{ d.freight_quote_id or '' }}', '{{ d.acopio_receptor or '' }}', '{{ d.destination_final_reference or '' }}', '{{ d.cultivo or '' }}', '{{ d.transportista_nombre or '' }}', '{{ d.fecha_planificada_str }}', '{{ d.toneladas_planificadas_raw }}', '{{ d.estado }}', '{{ d.observaciones or '' }}')" class="p-1.5 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors" title="Editar">
+                    ✏️
+                  </button>
+                  <form method="POST" action="/comercial/entregas/{{ d.id }}/eliminar" class="inline" onsubmit="return confirm('¿Confirmás eliminar la entrega {{ d.tracking_number }}?')">
+                    <button type="submit" class="p-1.5 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold transition-colors" title="Eliminar">
+                      🗑️
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+
+            {# Banner de Documentación Pendiente si está recibida/liquidada y no tiene CPE #}
+            {% if d.estado in ['recibida', 'liquidada'] and d.documentacion_status in ['sin_documentacion', 'carta_pendiente'] %}
+            <tr class="bg-amber-50 border-y border-amber-200">
+              <td colspan="9" class="p-2.5 text-xs text-amber-900 font-bold px-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span>⚠️ Documentación pendiente:</span>
+                    <span class="font-normal">Registrá el número de carta de porte para completar la trazabilidad de la entrega <strong>{{ d.tracking_number }}</strong>.</span>
+                  </div>
+                  <button type="button" onclick="abrirModalNuevaCarta('{{ d.id }}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-lg text-xs">
+                    + Registrar número CPE
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# Vista Mobile Cards #}
+      <div class="lg:hidden divide-y divide-slate-100">
+        {% for d in deliveries %}
+        <div class="p-4 space-y-3">
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-xs font-black text-amber-900 font-mono">{{ d.tracking_number }}</span>
+              <h4 class="font-extrabold text-slate-900 text-sm">{{ d.acopio_receptor or 'Acopio no especificado' }}</h4>
+            </div>
+            {% if d.estado == 'recibida' %}
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-900 text-[10px] font-black">Recibida</span>
+            {% elif d.estado == 'en_transito' %}
+              <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 text-[10px] font-black">En tránsito</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 text-[10px] font-black">{{ d.estado|capitalize }}</span>
+            {% endif %}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-2xl">
+            <div><span class="text-slate-500">Planificado:</span> <strong>{% if d.toneladas_planificadas is not none %}{{ d.toneladas_planificadas_fmt }} Tn{% else %}-{% endif %}</strong></div>
+            <div><span class="text-slate-500">Transporte:</span> <strong>{{ d.transportista_nombre or 'Marcelo Martina' }}</strong></div>
+            <div class="col-span-2 text-[11px] text-slate-600">
+              {% if d.kg_neto_origen_total is not none %}Neto Origen: {{ d.kg_neto_origen_total_fmt }} kg{% else %}Sin pesaje origen{% endif %}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1 text-xs">
+            <button type="button" onclick="abrirModalNuevaCarta('{{ d.id }}')" class="px-3 py-1.5 bg-amber-50 text-amber-900 font-extrabold rounded-xl border border-amber-200">
+              + Carta de Porte
+            </button>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="verDetalleEntrega('{{ d.id }}')" class="px-2.5 py-1 bg-slate-200 text-slate-800 font-bold rounded-lg">
+                Detalle
+              </button>
+              <button type="button" onclick="abrirModalEditarEntrega('{{ d.id }}', '{{ d.tracking_number }}', '{{ d.campo_id or '' }}', '{{ d.lote_id or '' }}', '{{ d.compromiso_id or '' }}', '{{ d.freight_quote_id or '' }}', '{{ d.acopio_receptor or '' }}', '{{ d.destination_final_reference or '' }}', '{{ d.cultivo or '' }}', '{{ d.transportista_nombre or '' }}', '{{ d.fecha_planificada_str }}', '{{ d.toneladas_planificadas_raw }}', '{{ d.estado }}', '{{ d.observaciones or '' }}')" class="px-2.5 py-1 bg-slate-200 text-slate-800 font-bold rounded-lg">
+                Editar
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </main>
+
+  {# MODAL ALTA / EDICIÓN DE ENTREGA #}
+  <div id="modal-entrega" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <h3 id="modal-entrega-titulo" class="text-lg font-black text-slate-900">Registrar Entrega de Grano</h3>
+          <p class="text-xs text-slate-500">Completá los datos de planificación logístico-comercial.</p>
+        </div>
+        <button type="button" onclick="cerrarModalEntrega()" class="text-slate-400 hover:text-slate-600 font-black text-xl p-1">✕</button>
+      </div>
+
+      <form id="form-entrega" method="POST" action="/comercial/entregas/crear" class="space-y-4">
+        <input type="hidden" id="entrega_id" name="entrega_id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="fecha_planificada" class="block text-xs font-extrabold text-slate-700 mb-1">Fecha Planificada *</label>
+            <input type="date" id="fecha_planificada" name="fecha_planificada" required class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="cultivo_entrega" class="block text-xs font-extrabold text-slate-700 mb-1">Cultivo</label>
+            <select id="cultivo_entrega" name="cultivo" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="soja" selected>🫛 Soja</option>
+              <option value="maiz">🌽 Maíz</option>
+              <option value="trigo">🌾 Trigo</option>
+              <option value="sorgo">🥣 Sorgo</option>
+            </select>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label for="acopio_receptor" class="block text-xs font-extrabold text-slate-700 mb-1">Acopio Receptor / Destino Operativo *</label>
+            <input type="text" id="acopio_receptor" name="acopio_receptor" required placeholder="Ej: Acopio AFA Maciel / Planta Bunge" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="destination_final_reference" class="block text-xs font-extrabold text-slate-700 mb-1">Destino Final de Referencia</label>
+            <input type="text" id="destination_final_reference" name="destination_final_reference" value="Rosario" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="transportista_nombre" class="block text-xs font-extrabold text-slate-700 mb-1">Transportista</label>
+            <input type="text" id="transportista_nombre" name="transportista_nombre" value="Marcelo Martina" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="toneladas_planificadas" class="block text-xs font-extrabold text-slate-700 mb-1">Toneladas Planificadas</label>
+            <input type="text" id="toneladas_planificadas" name="toneladas_planificadas" inputmode="decimal" placeholder="Ej: 35.00" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="estado_entrega" class="block text-xs font-extrabold text-slate-700 mb-1">Estado de Entrega</label>
+            <select id="estado_entrega" name="estado" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="planificada" selected>📅 Planificada</option>
+              <option value="en_transito">🚚 En tránsito</option>
+              <option value="recibida">🟢 Recibida</option>
+              <option value="liquidada">💼 Liquidada</option>
+              <option value="observada">⚠️ Observada</option>
+              <option value="cancelada">❌ Cancelada</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="compromiso_id" class="block text-xs font-extrabold text-slate-700 mb-1">Compromiso Comercial [Opcional]</label>
+            <select id="compromiso_id" name="compromiso_id" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="">Sin vinculo a compromiso</option>
+              {% for c in compromisos %}
+              <option value="{{ c.id }}">{{ c.descripcion or c.tipo }} ({{ c.toneladas }} Tn)</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label for="freight_quote_id" class="block text-xs font-extrabold text-slate-700 mb-1">Cotización de Flete [Opcional]</label>
+            <select id="freight_quote_id" name="freight_quote_id" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="">Sin cotización vinculada</option>
+              {% for q in quotes %}
+              <option value="{{ q.id }}">{{ q.destination_name }} (US$ {{ q.freight_usd_formatted }}/Tn)</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="observaciones_entrega" class="block text-xs font-extrabold text-slate-700 mb-1">Observaciones / Notas</label>
+          <textarea id="observaciones_entrega" name="observaciones" rows="2" placeholder="Indicaciones de carga, horarios, etc." class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalEntrega()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button type="submit" class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs">
+            Guardar Entrega
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# MODAL ALTA / EDICIÓN DE CARTA DE PORTE #}
+  <div id="modal-carta" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <h3 id="modal-carta-titulo" class="text-lg font-black text-slate-900">Registrar Carta de Porte</h3>
+          <p class="text-xs text-slate-500">Podés registrar el viaje ahora y completar el número de carta de porte cuando esté disponible.</p>
+        </div>
+        <button type="button" onclick="cerrarModalCarta()" class="text-slate-400 hover:text-slate-600 font-black text-xl p-1">✕</button>
+      </div>
+
+      <form id="form-carta" method="POST" action="" class="space-y-4">
+        <input type="hidden" id="carta_waybill_id" name="waybill_id" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="numero_carta_porte" class="block text-xs font-extrabold text-slate-700 mb-1">Número de Carta de Porte [Opcional]</label>
+            <input type="text" id="numero_carta_porte" name="numero_carta_porte" placeholder="Ej: 0001-12345678" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3 font-mono">
+            <span class="text-[10px] text-slate-400">Completar al emitir documento oficial.</span>
+          </div>
+
+          <div>
+            <label for="tipo_camion" class="block text-xs font-extrabold text-slate-700 mb-1">Tipo de Camión</label>
+            <select id="tipo_camion" name="tipo_camion" onchange="alCambiarTipoCamion(this)" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="normal" selected>🚛 Normal (Sugerido: 35.000 kg)</option>
+              <option value="vulcano">🚛 Vulcano (Sugerido: 45.000 kg)</option>
+              <option value="otro">🚚 Otro</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="capacidad_referencia_kg" class="block text-xs font-extrabold text-slate-700 mb-1">Capacidad de Referencia (kg)</label>
+            <input type="text" id="capacidad_referencia_kg" name="capacidad_referencia_kg" value="35000" inputmode="decimal" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+            <span class="text-[10px] text-slate-400">Referencia operativa editable, no sustituye peso real.</span>
+          </div>
+
+          <div>
+            <label for="estado_carta" class="block text-xs font-extrabold text-slate-700 mb-1">Estado de Viaje</label>
+            <select id="estado_carta" name="estado" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <option value="planificada" selected>📅 Planificada</option>
+              <option value="cargada">📦 Cargada</option>
+              <option value="en_transito">🚚 En tránsito</option>
+              <option value="recibida">🟢 Recibida en destino</option>
+              <option value="observada">⚠️ Observada</option>
+              <option value="anulada">❌ Anulada</option>
+            </select>
+          </div>
+
+          {# PESAJE ORIGEN #}
+          <div class="sm:col-span-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
+            <h4 class="text-xs font-extrabold text-slate-800 uppercase">⚖️ Pesaje en Origen</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label for="tara_kg" class="block text-[11px] font-bold text-slate-700 mb-1">Tara Origen (kg)</label>
+                <input type="text" id="tara_kg" name="tara_kg" inputmode="decimal" placeholder="Ej: 14200" oninput="recalcularVistaPreviaPesos()" class="w-full text-xs font-bold rounded-xl border-slate-300 py-1.5 px-2.5">
+              </div>
+              <div>
+                <label for="peso_bruto_origen_kg" class="block text-[11px] font-bold text-slate-700 mb-1">Peso Bruto Origen (kg)</label>
+                <input type="text" id="peso_bruto_origen_kg" name="peso_bruto_origen_kg" inputmode="decimal" placeholder="Ej: 48500" oninput="recalcularVistaPreviaPesos()" class="w-full text-xs font-bold rounded-xl border-slate-300 py-1.5 px-2.5">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-500 mb-1">Neto Origen (calculado)</label>
+                <div id="preview_neto_origen" class="w-full text-xs font-extrabold text-amber-900 bg-white py-1.5 px-2.5 rounded-xl border border-slate-200 font-mono">
+                  -
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {# PESAJE DESTINO #}
+          <div class="sm:col-span-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
+            <h4 class="text-xs font-extrabold text-slate-800 uppercase">🏭 Pesaje en Destino / Recibido</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="peso_recibido_destino_kg" class="block text-[11px] font-bold text-slate-700 mb-1">Peso Recibido Destino (kg)</label>
+                <input type="text" id="peso_recibido_destino_kg" name="peso_recibido_destino_kg" inputmode="decimal" placeholder="Ej: 34100" oninput="recalcularVistaPreviaPesos()" class="w-full text-xs font-bold rounded-xl border-slate-300 py-1.5 px-2.5">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-500 mb-1">Diferencia (Destino - Origen)</label>
+                <div id="preview_diferencia_kg" class="w-full text-xs font-extrabold text-slate-900 bg-white py-1.5 px-2.5 rounded-xl border border-slate-200 font-mono">
+                  -
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label for="referencia_ticket_origen" class="block text-xs font-extrabold text-slate-700 mb-1">Ref. Ticket Origen</label>
+            <input type="text" id="referencia_ticket_origen" name="referencia_ticket_origen" placeholder="Ej: T-8821" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+
+          <div>
+            <label for="referencia_ticket_destino" class="block text-xs font-extrabold text-slate-700 mb-1">Ref. Ticket Destino</label>
+            <input type="text" id="referencia_ticket_destino" name="referencia_ticket_destino" placeholder="Ej: REC-9941" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+          </div>
+        </div>
+
+        <div>
+          <label for="observaciones_carta" class="block text-xs font-extrabold text-slate-700 mb-1">Observaciones / Notas de Transporte</label>
+          <textarea id="observaciones_carta" name="observaciones" rows="2" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalCarta()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button type="submit" class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs">
+            Guardar Carta de Porte
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# MODAL DETALLE EXPANDIBLE DE ENTREGA #}
+  <div id="modal-detalle-entrega" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-3xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <h3 id="detalle-tracking-title" class="text-lg font-black text-slate-900">Detalle de Entrega</h3>
+          <p class="text-xs text-slate-500">Trazabilidad operativa y cartas de porte asociadas.</p>
+        </div>
+        <button type="button" onclick="document.getElementById('modal-detalle-entrega').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-black text-xl p-1">✕</button>
+      </div>
+
+      <div id="detalle-content" class="space-y-4 text-xs">
+        {# Renderizado dinámico vía JS #}
+      </div>
+
+      <div class="flex items-center justify-end pt-4 border-t border-slate-100">
+        <button type="button" onclick="document.getElementById('modal-detalle-entrega').classList.add('hidden')" class="px-5 py-2 bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DELIVERIES_DATA = {{ deliveries_json | safe }};
+
+    function abrirModalNuevaEntrega() {
+      document.getElementById('modal-entrega-titulo').innerText = 'Registrar Entrega de Grano';
+      document.getElementById('form-entrega').action = '/comercial/entregas/crear';
+      document.getElementById('entrega_id').value = '';
+      document.getElementById('fecha_planificada').value = new Date().toISOString().split('T')[0];
+      document.getElementById('acopio_receptor').value = '';
+      document.getElementById('destination_final_reference').value = 'Rosario';
+      document.getElementById('transportista_nombre').value = 'Marcelo Martina';
+      document.getElementById('toneladas_planificadas').value = '';
+      document.getElementById('estado_entrega').value = 'planificada';
+      document.getElementById('observaciones_entrega').value = '';
+      document.getElementById('modal-entrega').classList.remove('hidden');
+    }
+
+    function abrirModalEditarEntrega(id, tracking, campo, lote, comp, quote, acopio, dest, cult, transp, fecha, tn, estado, obs) {
+      document.getElementById('modal-entrega-titulo').innerText = 'Editar Entrega: ' + tracking;
+      document.getElementById('form-entrega').action = '/comercial/entregas/' + id + '/editar';
+      document.getElementById('entrega_id').value = id;
+      document.getElementById('fecha_planificada').value = fecha || '';
+      document.getElementById('acopio_receptor').value = acopio || '';
+      document.getElementById('destination_final_reference').value = dest || 'Rosario';
+      document.getElementById('transportista_nombre').value = transp || 'Marcelo Martina';
+      document.getElementById('toneladas_planificadas').value = tn || '';
+      document.getElementById('cultivo_entrega').value = cult || 'soja';
+      document.getElementById('estado_entrega').value = estado || 'planificada';
+      document.getElementById('compromiso_id').value = comp || '';
+      document.getElementById('freight_quote_id').value = quote || '';
+      document.getElementById('observaciones_entrega').value = obs || '';
+      document.getElementById('modal-entrega').classList.remove('hidden');
+    }
+
+    function cerrarModalEntrega() {
+      document.getElementById('modal-entrega').classList.add('hidden');
+    }
+
+    function abrirModalNuevaCarta(entregaId) {
+      document.getElementById('modal-carta-titulo').innerText = 'Registrar Carta de Porte para Entrega';
+      document.getElementById('form-carta').action = '/comercial/entregas/' + entregaId + '/cartas/crear';
+      document.getElementById('carta_waybill_id').value = '';
+      document.getElementById('numero_carta_porte').value = '';
+      document.getElementById('tipo_camion').value = 'normal';
+      document.getElementById('capacidad_referencia_kg').value = '35000';
+      document.getElementById('tara_kg').value = '';
+      document.getElementById('peso_bruto_origen_kg').value = '';
+      document.getElementById('peso_recibido_destino_kg').value = '';
+      document.getElementById('referencia_ticket_origen').value = '';
+      document.getElementById('referencia_ticket_destino').value = '';
+      document.getElementById('estado_carta').value = 'planificada';
+      document.getElementById('observaciones_carta').value = '';
+      recalcularVistaPreviaPesos();
+      document.getElementById('modal-carta').classList.remove('hidden');
+    }
+
+    function cerrarModalCarta() {
+      document.getElementById('modal-carta').classList.add('hidden');
+    }
+
+    function alCambiarTipoCamion(elem) {
+      const val = elem.value;
+      const capInput = document.getElementById('capacidad_referencia_kg');
+      if (val === 'normal') {
+        capInput.value = '35000';
+      } else if (val === 'vulcano') {
+        capInput.value = '45000';
+      }
+    }
+
+    function recalcularVistaPreviaPesos() {
+      const taraStr = document.getElementById('tara_kg').value.replace(',', '.');
+      const brutoStr = document.getElementById('peso_bruto_origen_kg').value.replace(',', '.');
+      const recStr = document.getElementById('peso_recibido_destino_kg').value.replace(',', '.');
+
+      const tara = parseFloat(taraStr);
+      const bruto = parseFloat(brutoStr);
+      const rec = parseFloat(recStr);
+
+      const netPrev = document.getElementById('preview_neto_origen');
+      const diffPrev = document.getElementById('preview_diferencia_kg');
+
+      let neto = null;
+      if (!isNaN(bruto) && !isNaN(tara)) {
+        if (bruto < tara) {
+          netPrev.innerHTML = '<span class="text-rose-600">Error: Bruto < Tara</span>';
+        } else {
+          neto = bruto - tara;
+          netPrev.innerText = neto.toLocaleString('es-AR') + ' kg';
+        }
+      } else {
+        netPrev.innerText = '-';
+      }
+
+      if (neto !== null && !isNaN(rec)) {
+        const diff = rec - neto;
+        const pct = (diff / neto) * 100;
+        const color = diff < 0 ? 'text-rose-600' : (diff > 0 ? 'text-emerald-600' : 'text-slate-900');
+        diffPrev.innerHTML = `<span class="${color}">${diff.toLocaleString('es-AR')} kg (${pct.toFixed(2)}%)</span>`;
+      } else {
+        diffPrev.innerText = '-';
+      }
+    }
+
+    function verDetalleEntrega(deliveryId) {
+      const del = DELIVERIES_DATA.find(d => d.id === deliveryId);
+      if (!del) return;
+
+      document.getElementById('detalle-tracking-title').innerText = 'Entrega ' + del.tracking_number;
+      const container = document.getElementById('detalle-content');
+
+      let waybillsHtml = '';
+      if (del.waybills && del.waybills.length > 0) {
+        waybillsHtml = del.waybills.map(w => `
+          <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+            <div class="flex items-center justify-between font-bold">
+              <span>📄 CPE: ${w.numero_carta_porte || 'Carta Pendiente'}</span>
+              <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-slate-200">${w.estado}</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 font-mono pt-1">
+              <div>Bruto: ${w.peso_bruto_origen_kg || '-'} kg</div>
+              <div>Tara: ${w.tara_kg || '-'} kg</div>
+              <div>Neto Origen: <strong>${w.peso_neto_origen_kg || '-'} kg</strong></div>
+              <div>Recibido Destino: <strong>${w.peso_recibido_destino_kg || '-'} kg</strong></div>
+              <div class="col-span-2">Diferencia: <strong>${w.diferencia_kg ? w.diferencia_kg + ' kg (' + (w.diferencia_pct || '0') + '%)' : '-'}</strong></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        waybillsHtml = '<p class="text-slate-400 italic">No registra cartas de porte asociadas.</p>';
+      }
+
+      container.innerHTML = `
+        <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl font-mono">
+          <div><span class="font-sans text-slate-500">Tracking:</span> <strong>${del.tracking_number}</strong></div>
+          <div><span class="font-sans text-slate-500">Estado:</span> <strong>${del.estado}</strong></div>
+          <div><span class="font-sans text-slate-500">Acopio Receptor:</span> <strong>${del.acopio_receptor || '-'}</strong></div>
+          <div><span class="font-sans text-slate-500">Destino Final:</span> <strong>${del.destination_final_reference || 'Rosario'}</strong></div>
+          <div><span class="font-sans text-slate-500">Transportista:</span> <strong>${del.transportista_nombre || 'Marcelo Martina'}</strong></div>
+          <div><span class="font-sans text-slate-500">Tn Planificadas:</span> <strong>${del.toneladas_planificadas || '-'}</strong></div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <div class="flex items-center justify-between">
+            <h4 class="font-extrabold text-slate-800 uppercase text-[11px]">Cartas de Porte (${del.waybills ? del.waybills.length : 0})</h4>
+            <button type="button" onclick="cerrarDetalleYCrearCarta('${del.id}')" class="px-3 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[11px]">
+              + Agregar carta
+            </button>
+          </div>
+          <div class="space-y-2">
+            ${waybillsHtml}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-detalle-entrega').classList.remove('hidden');
+    }
+
+    function cerrarDetalleYCrearCarta(deliveryId) {
+      document.getElementById('modal-detalle-entrega').classList.add('hidden');
+      abrirModalNuevaCarta(deliveryId);
+    }
+  </script>
+</body>
+</html>

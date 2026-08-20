@@ -1,27 +1,32 @@
 """
 Módulo Agente de Reglas de Decisión Agronómica y Comercial (EduAgro).
-Exporta el motor de decisión formal y trazable.
+Exporta helpers para invocar el motor de decisión formal y trazable.
 """
 
 from typing import Dict, List, Any, Optional
-from app.services.decision_motor import evaluar_motor_decisiones, DEFAULT_DECISION_POLICY
+from app.services.decision_motor import evaluar_motor_decisiones
+from app.services.decision_engine import build_demo_decision_context, result_to_legacy_insights, DecisionEngine
 
 
 def evaluar_decision_campo(
-    cultivo: str = "maiz",
-    precio_fisico_usd: float = 188.0,
-    precio_futuro_usd: float = 195.0,
-    humedad_grano_pct: float = 17.5,
-    lluvia_esperada_mm: float = 0.0,
-    viento_max_kmh: float = 14.0,
-    temp_min_c: float = 10.0,
-    campo_nombre: str = "Estancia La Esperanza",
+    cultivo: Optional[str] = None,
+    precio_fisico_usd: Optional[float] = None,
+    precio_futuro_usd: Optional[float] = None,
+    humedad_grano_pct: Optional[float] = None,
+    lluvia_esperada_mm: Optional[float] = None,
+    viento_max_kmh: Optional[float] = None,
+    temp_min_c: Optional[float] = None,
+    campo_nombre: Optional[str] = None,
     policy: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Helper de alto nivel para ejecutar el motor de decisiones ingresando parámetros de prueba u operativos.
+    Helper de nivel superior para ejecutar el motor de decisiones ingresando parámetros de prueba u operativos.
+    Los parámetros no suministrados se procesan como None (sin falsos valores numéricos).
     """
-    spread = round(precio_futuro_usd - precio_fisico_usd, 2)
+    spread = None
+    if precio_futuro_usd is not None and precio_fisico_usd is not None:
+        spread = round(precio_futuro_usd - precio_fisico_usd, 2)
+
     contexto = {
         "cultivo": cultivo,
         "precio_fisico_usd": precio_fisico_usd,
@@ -31,9 +36,16 @@ def evaluar_decision_campo(
         "lluvia_esperada_mm": lluvia_esperada_mm,
         "viento_max_kmh": viento_max_kmh,
         "temp_min_c": temp_min_c,
-        "alerta_viento": viento_max_kmh > 15.0,
-        "alerta_lluvia": lluvia_esperada_mm >= 10.0,
-        "alerta_helada": temp_min_c < 4.0,
         "campo_nombre": campo_nombre,
     }
     return evaluar_motor_decisiones(contexto, policy=policy)
+
+
+def evaluar_demo_campo() -> List[Dict[str, Any]]:
+    """
+    Helper explicito para ejecutar la demostración con contexto de prueba tipado.
+    """
+    engine = DecisionEngine()
+    demo_ctx = build_demo_decision_context()
+    result = engine.evaluate(demo_ctx)
+    return result_to_legacy_insights(result)

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -33,6 +34,10 @@ from app.enums import (
     TipoServicioEnum,
     TipoTransaccion,
     UbicacionStockEnum,
+    EstadoCaminoEnum,
+    EstadoRecepcionEnum,
+    FuenteCotizacionFleteEnum,
+    ConfianzaCotizacionEnum,
 )
 
 
@@ -75,6 +80,12 @@ class Cliente(Base):
     )
     compromisos_grano: Mapped[List["CompromisoGrano"]] = relationship(
         "CompromisoGrano", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    freight_quotes: Mapped[List["FreightQuote"]] = relationship(
+        "FreightQuote", back_populates="cliente", cascade="all, delete-orphan"
+    )
+    deliveries: Mapped[List["GrainDelivery"]] = relationship(
+        "GrainDelivery", back_populates="cliente", cascade="all, delete-orphan"
     )
 
 
@@ -570,6 +581,184 @@ class WeatherSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class FreightQuote(Base):
+    """Entidad de cotizaciones y alternativas de entrega comercial/flete."""
+    __tablename__ = "freight_quotes"
+    __table_args__ = (
+        Index("ix_freight_quotes_cliente_destination", "cliente_id", "destination_name"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False
+    )
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="SET NULL"), nullable=True
+    )
+
+    destination_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    destination_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    cultivo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    condicion_precio: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    distancia_estimada_km: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    price_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    freight_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    conditioning_cost_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    other_costs_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+
+    max_receiving_moisture_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    receiving_confirmed: Mapped[str] = mapped_column(String(50), default="unknown", nullable=False)
+    detalle_cupo_turno: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    road_status: Mapped[str] = mapped_column(String(50), default="unknown", nullable=False)
+
+    quote_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    quote_valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quote_source: Mapped[str] = mapped_column(String(50), default="manual", nullable=False)
+    quote_confidence: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="freight_quotes")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo")
+    lote: Mapped[Optional["Lote"]] = relationship("Lote")
+
+    @property
+    def humedad_max_recepcion_pct(self) -> Optional[Decimal]:
+        return self.max_receiving_moisture_pct
+
+    @humedad_max_recepcion_pct.setter
+    def humedad_max_recepcion_pct(self, val: Optional[Decimal]) -> None:
+        self.max_receiving_moisture_pct = val
+
+
+class GrainDelivery(Base):
+    """Entidad de entrega de grano / movimiento operativo comercial."""
+    __tablename__ = "grain_deliveries"
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "tracking_number", name="uq_grain_deliveries_cliente_tracking"),
+        Index("ix_grain_deliveries_cliente_estado", "cliente_id", "estado"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tracking_number: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="SET NULL"), nullable=True
+    )
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="SET NULL"), nullable=True
+    )
+    compromiso_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("compromisos_grano.id", ondelete="SET NULL"), nullable=True
+    )
+    freight_quote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("freight_quotes.id", ondelete="SET NULL"), nullable=True
+    )
+
+    acopio_receptor: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    destination_final_reference: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    cultivo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    transportista_nombre: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+
+    fecha_planificada: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_salida: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_recepcion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    toneladas_planificadas: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    kg_neto_origen_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    kg_recibido_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    diferencia_total_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    diferencia_total_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    estado: Mapped[str] = mapped_column(String(50), default="planificada", nullable=False)
+    documentacion_status: Mapped[str] = mapped_column(String(50), default="sin_documentacion", nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="deliveries")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo")
+    lote: Mapped[Optional["Lote"]] = relationship("Lote")
+    compromiso: Mapped[Optional["CompromisoGrano"]] = relationship("CompromisoGrano")
+    freight_quote: Mapped[Optional["FreightQuote"]] = relationship("FreightQuote")
+    waybills: Mapped[List["GrainWaybill"]] = relationship(
+        "GrainWaybill", back_populates="entrega", cascade="all, delete-orphan"
+    )
+
+
+class GrainWaybill(Base):
+    """Entidad de Carta de Porte / Movimiento de Transporte de la Entrega."""
+    __tablename__ = "grain_waybills"
+    __table_args__ = (
+        Index("ix_grain_waybills_cliente_numero", "cliente_id", "numero_carta_porte"),
+        Index("ix_grain_waybills_entrega", "entrega_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entrega_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_deliveries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    numero_carta_porte: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    tipo_camion: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    capacidad_referencia_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+
+    tara_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    peso_bruto_origen_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    peso_neto_origen_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    peso_recibido_destino_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    diferencia_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    diferencia_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    fecha_carga: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_recepcion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    referencia_ticket_origen: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    referencia_ticket_destino: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(String(50), default="planificada", nullable=False)
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    entrega: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="waybills")
+
 
 
 

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Cotizaciones de Flete y Destinos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased">
+
+  {% set active_page = 'comercial' %}
+  {% include 'components/header.html' %}
+
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    {# Alertas y Mensajes Flash #}
+    {% if mensaje_exito %}
+    <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 flex items-center justify-between shadow-xs">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">✅</span>
+        <p class="text-sm font-bold">{{ mensaje_exito }}</p>
+      </div>
+      <a href="/comercial/fletes" class="text-xs font-black text-emerald-700 hover:text-emerald-900 underline">Descartar</a>
+    </div>
+    {% endif %}
+
+    {% if mensaje_error %}
+    <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 flex items-center justify-between shadow-xs">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">⚠️</span>
+        <p class="text-sm font-bold">{{ mensaje_error }}</p>
+      </div>
+      <a href="/comercial/fletes" class="text-xs font-black text-rose-700 hover:text-rose-900 underline">Descartar</a>
+    </div>
+    {% endif %}
+
+    {# Encabezado Principal & Tabs #}
+    <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 text-xs font-extrabold text-amber-700 uppercase tracking-wider mb-1">
+          <span>🚚 Módulo Comercial</span>
+          <span>•</span>
+          <span>Campaña {{ campania_activa }}</span>
+        </div>
+        <h1 class="text-2xl font-black text-slate-900">Cotizaciones de Flete y Alternativas de Entrega</h1>
+        <p class="text-xs text-slate-500 mt-1">Cargá el precio y las condiciones de entrega para comparar el valor neto estimado en origen.</p>
+      </div>
+
+      {# Navegación de Tabs #}
+      <div class="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+        <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          📊 Acopios & Resumen
+        </a>
+        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          🚜 Stock Físico
+        </a>
+        <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          📝 Compromisos
+        </a>
+        <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all bg-white text-amber-700 shadow-xs border border-slate-200">
+          🚚 Fletes y destinos
+        </a>
+        <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
+          🚚 Entregas
+        </a>
+      </div>
+    </div>
+
+    {# Barra de Acción Primaria #}
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900 text-white p-4 rounded-3xl shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
+          ⚖️
+        </div>
+        <div>
+          <h2 class="text-sm font-extrabold">Gestión de Cotizaciones Comerciales</h2>
+          <p class="text-xs text-slate-300">Cargá tarifas de flete y precios por comprador/puerto para calcular el mejor valor neto en origen.</p>
+        </div>
+      </div>
+      <button onclick="document.getElementById('modal-nueva-cotizacion').classList.remove('hidden')" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all">
+        <span>+ Nueva Cotización</span>
+      </button>
+    </div>
+
+    {# ESTADO VACÍO (Si no hay cotizaciones) #}
+    {% if not quotes %}
+    <div class="bg-white rounded-3xl p-10 border-2 border-dashed border-slate-200 text-center space-y-4">
+      <div class="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center text-3xl mx-auto shadow-xs">
+        🚚
+      </div>
+      <h3 class="text-lg font-black text-slate-900">Fletes y destinos</h3>
+      <p class="text-sm text-slate-600 max-w-md mx-auto">Cargá cotizaciones manuales para comparar el valor neto estimado en origen.</p>
+
+      <div class="pt-2">
+        <button onclick="document.getElementById('modal-nueva-cotizacion').classList.remove('hidden')" class="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm rounded-2xl shadow-sm inline-flex items-center gap-2 transition-all">
+          <span>+ Nueva cotización</span>
+        </button>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 max-w-lg mx-auto text-left text-xs text-slate-600 mt-6">
+        <p class="font-bold text-slate-800 mb-1">ℹ️ ¿Cómo se calcula el Precio Neto?</p>
+        <p class="font-mono text-amber-800 bg-amber-50 p-2 rounded-lg text-center font-bold">
+          Precio Neto en Origen = Precio offered − Flete − Acondicionamiento − Otros costos
+        </p>
+      </div>
+    </div>
+
+    {% else %}
+
+    {# Formulario de Selección y Comparación Visual #}
+    <form method="POST" action="/comercial/fletes/comparar" id="form-comparar" class="space-y-6">
+      
+      {# Barra de Herramientas de Comparación #}
+      <div class="bg-amber-50 rounded-3xl p-5 border border-amber-200/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-xs font-black uppercase tracking-wider text-amber-900">Configuración de Comparativa:</span>
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-slate-700">Cultivo:</label>
+            <select name="cultivo" class="text-xs font-extrabold rounded-xl border-slate-300 py-1.5 px-3 bg-white shadow-2xs">
+              <option value="maiz" {% if cultivo_seleccionado == 'maiz' %}selected{% endif %}>🌽 Maíz</option>
+              <option value="soja" {% if cultivo_seleccionado == 'soja' %}selected{% endif %}>🫛 Soja</option>
+              <option value="trigo" {% if cultivo_seleccionado == 'trigo' %}selected{% endif %}>🌾 Trigo</option>
+              <option value="sorgo" {% if cultivo_seleccionado == 'sorgo' %}selected{% endif %}>🥣 Sorgo</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-slate-700">Humedad Grano (%):</label>
+            <input type="number" step="0.1" inputmode="decimal" name="humedad_grano_pct" value="{{ humedad_grano_pct or 14.5 }}" class="w-20 text-xs font-extrabold rounded-xl border-slate-300 py-1.5 px-2.5 bg-white shadow-2xs">
+          </div>
+        </div>
+        
+        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all shrink-0">
+          <span>⚖️ Comparar Seleccionadas</span>
+        </button>
+      </div>
+
+      {# Tabla Desktop / Cards Mobile de Cotizaciones #}
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <h3 class="text-sm font-extrabold text-slate-800">Cotizaciones Registradas ({{ quotes|length }})</h3>
+          <span class="text-xs text-slate-500">Seleccioná al menos 2 opciones para comparar</span>
+        </div>
+
+        {# Vista Desktop Tabla #}
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
+                <th class="p-3.5 text-center w-10">Sel</th>
+                <th class="p-3.5">Destino & Detalle</th>
+                <th class="p-3.5 text-right">Precio Ofrecido</th>
+                <th class="p-3.5 text-right">Flete</th>
+                <th class="p-3.5 text-right">Acondic.</th>
+                <th class="p-3.5 text-right">Otros Costos</th>
+                <th class="p-3.5 text-right bg-amber-50/50 text-amber-900">Neto Estimado</th>
+                <th class="p-3.5 text-center">Recepción</th>
+                <th class="p-3.5 text-center">Camino</th>
+                <th class="p-3.5 text-center">Vigencia</th>
+                <th class="p-3.5 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-800 font-medium">
+              {% for q in quotes %}
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-3.5 text-center">
+                  <input type="checkbox" name="selected_quotes" value="{{ q.id }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4" checked>
+                </td>
+                <td class="p-3.5 font-bold">
+                  <div class="font-extrabold text-slate-900">{{ q.destination_name }}</div>
+                  <div class="text-[11px] text-slate-500 font-normal mt-0.5">
+                    {% set meta_parts = [] %}
+                    {% if q.cultivo_label and q.cultivo != 'no_especificado' %}{% set _ = meta_parts.append(q.cultivo_label) %}{% endif %}
+                    {% if q.condicion_precio_label %}{% set _ = meta_parts.append(q.condicion_precio_label) %}{% endif %}
+                    {% if q.distancia_estimada_formatted %}{% set _ = meta_parts.append(q.distancia_estimada_formatted ~ ' km') %}{% endif %}
+                    {{ meta_parts | join(' · ') }}
+                  </div>
+                  {% if q.detalle_cupo_turno %}
+                  <div class="text-[10px] text-amber-800 bg-amber-50 inline-block px-1.5 py-0.5 rounded mt-1 font-bold">
+                    🎟️ {{ q.detalle_cupo_turno }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td class="p-3.5 text-right font-mono font-bold">
+                  {% if q.price_usd_tn is not none %}US$ {{ q.price_usd_formatted }}/Tn{% else %}<span class="text-slate-400">-</span>{% endif %}
+                </td>
+                <td class="p-3.5 text-right font-mono text-slate-600">
+                  {% if q.freight_usd_tn is not none %}US$ {{ q.freight_usd_formatted }}/Tn{% else %}<span class="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg text-[10px] font-bold">Sin flete</span>{% endif %}
+                </td>
+                <td class="p-3.5 text-right font-mono text-slate-600">
+                  {% if q.conditioning_cost_formatted %}US$ {{ q.conditioning_cost_formatted }}/Tn{% else %}US$ 0,00/Tn{% endif %}
+                </td>
+                <td class="p-3.5 text-right font-mono text-slate-600">
+                  {% if q.other_costs_formatted %}US$ {{ q.other_costs_formatted }}/Tn{% else %}US$ 0,00/Tn{% endif %}
+                </td>
+                <td class="p-3.5 text-right font-mono font-black bg-amber-50/30 text-amber-900">
+                  {% if q.net_origin_price_formatted %}
+                    <span class="text-emerald-700 font-extrabold">US$ {{ q.net_origin_price_formatted }}/Tn</span>
+                  {% else %}
+                    <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-extrabold">Completar datos</span>
+                  {% endif %}
+                </td>
+                <td class="p-3.5 text-center">
+                  {% if q.receiving_confirmed == 'available' %}
+                    <span class="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 text-[11px] font-bold inline-flex items-center gap-1">🟢 Confirmado</span>
+                  {% elif q.receiving_confirmed == 'unavailable' %}
+                    <span class="px-2.5 py-1 rounded-xl bg-rose-100 text-rose-800 text-[11px] font-bold inline-flex items-center gap-1">🔴 Sin cupo</span>
+                  {% else %}
+                    <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-800 text-[11px] font-bold inline-flex items-center gap-1">🟡 Por confirmar</span>
+                  {% endif %}
+                </td>
+                <td class="p-3.5 text-center">
+                  {% if q.road_status == 'good' %}
+                    <span class="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 text-[11px] font-bold">🟢 Bueno</span>
+                  {% elif q.road_status in ['conditioned', 'poor'] %}
+                    <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-800 text-[11px] font-bold">🟡 Condicionado</span>
+                  {% elif q.road_status == 'impassable' %}
+                    <span class="px-2.5 py-1 rounded-xl bg-rose-100 text-rose-800 text-[11px] font-bold">🔴 Intransitable</span>
+                  {% else %}
+                    <span class="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold">⚪ Desconocido</span>
+                  {% endif %}
+                </td>
+                <td class="p-3.5 text-center text-[11px]">
+                  {% if q.is_stale %}
+                    <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 font-extrabold">⚠️ Vencida</span>
+                  {% else %}
+                    <span class="text-slate-600 font-bold">Vigente</span>
+                  {% endif %}
+                </td>
+                <td class="p-3.5 text-center">
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button type="button" onclick="editarCotizacion('{{ q.id }}', '{{ q.destination_name }}', '{{ q.destination_type or '' }}', '{{ q.cultivo or '' }}', '{{ q.condicion_precio or '' }}', '{{ q.price_usd_raw }}', '{{ q.freight_usd_raw }}', '{{ q.conditioning_cost_raw }}', '{{ q.other_costs_raw }}', '{{ q.distancia_estimada_raw }}', '{{ q.max_receiving_moisture_raw }}', '{{ q.receiving_confirmed }}', '{{ q.detalle_cupo_turno or '' }}', '{{ q.road_status }}', '{{ q.quote_observed_at_str }}', '{{ q.quote_valid_until_str }}', '{{ q.quote_source }}', '{{ q.quote_confidence or '' }}', '{{ q.notes or '' }}')" class="p-1.5 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors" title="Editar">
+                      ✏️
+                    </button>
+                    <button type="submit" form="form-delete-{{ q.id }}" onclick="return confirm('¿Confirmás eliminar esta cotización de {{ q.destination_name }}?')" class="p-1.5 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold transition-colors" title="Eliminar">
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {# Vista Mobile Cards #}
+        <div class="lg:hidden divide-y divide-slate-100">
+          {% for q in quotes %}
+          <div class="p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" name="selected_quotes" value="{{ q.id }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4" checked>
+                <div>
+                  <h4 class="font-extrabold text-slate-900 text-sm">{{ q.destination_name }}</h4>
+                  <p class="text-xs text-slate-500">
+                    {% set meta_parts = [] %}
+                    {% if q.cultivo_label and q.cultivo != 'no_especificado' %}{% set _ = meta_parts.append(q.cultivo_label) %}{% endif %}
+                    {% if q.condicion_precio_label %}{% set _ = meta_parts.append(q.condicion_precio_label) %}{% endif %}
+                    {% if q.distancia_estimada_formatted %}{% set _ = meta_parts.append(q.distancia_estimada_formatted ~ ' km') %}{% endif %}
+                    {{ meta_parts | join(' · ') }}
+                  </p>
+                </div>
+              </div>
+              {% if q.is_stale %}
+                <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 text-[10px] font-black">Vencida</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">Vigente</span>
+              {% endif %}
+            </div>
+
+            {% if q.detalle_cupo_turno %}
+            <div class="text-xs text-amber-800 bg-amber-50 p-2 rounded-xl font-bold">
+              🎟️ Cupo: {{ q.detalle_cupo_turno }}
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-2xl font-mono">
+              <div><span class="text-slate-500 font-sans">Precio:</span> <strong class="text-slate-900">{% if q.price_usd_tn is not none %}US$ {{ q.price_usd_formatted }}{% else %}-{% endif %}</strong></div>
+              <div><span class="text-slate-500 font-sans">Flete:</span> <strong class="text-slate-900">{% if q.freight_usd_tn is not none %}US$ {{ q.freight_usd_formatted }}{% else %}-{% endif %}</strong></div>
+              <div class="col-span-2 pt-1 border-t border-slate-200">
+                <span class="text-slate-500 font-sans">Neto estimado:</span> 
+                {% if q.net_origin_price_formatted %}
+                  <strong class="text-emerald-700 font-black">US$ {{ q.net_origin_price_formatted }}/Tn</strong>
+                {% else %}
+                  <span class="text-amber-800 font-bold bg-amber-100 px-1.5 py-0.5 rounded text-[10px]">Incompleto</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-1">
+              <div class="flex items-center gap-1.5">
+                {% if q.receiving_confirmed == 'available' %}
+                  <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold">🟢 Cupo</span>
+                {% else %}
+                  <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-bold">🟡 Cupo pend.</span>
+                {% endif %}
+
+                {% if q.road_status == 'good' %}
+                  <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold">🟢 Camino</span>
+                {% else %}
+                  <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-bold">🟡 Camino</span>
+                {% endif %}
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="editarCotizacion('{{ q.id }}', '{{ q.destination_name }}', '{{ q.destination_type or '' }}', '{{ q.cultivo or '' }}', '{{ q.condicion_precio or '' }}', '{{ q.price_usd_raw }}', '{{ q.freight_usd_raw }}', '{{ q.conditioning_cost_raw }}', '{{ q.other_costs_raw }}', '{{ q.distancia_estimada_raw }}', '{{ q.max_receiving_moisture_raw }}', '{{ q.receiving_confirmed }}', '{{ q.detalle_cupo_turno or '' }}', '{{ q.road_status }}', '{{ q.quote_observed_at_str }}', '{{ q.quote_valid_until_str }}', '{{ q.quote_source }}', '{{ q.quote_confidence or '' }}', '{{ q.notes or '' }}')" class="px-2.5 py-1 bg-slate-200 text-slate-800 font-bold rounded-lg text-xs">
+                  Editar
+                </button>
+                <button type="submit" form="form-delete-{{ q.id }}" onclick="return confirm('¿Confirmás eliminar?')" class="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-lg text-xs">
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </form>
+
+    {# Forms de Eliminación Ocultos (PRG) #}
+    {% for q in quotes %}
+    <form id="form-delete-{{ q.id }}" method="POST" action="/comercial/fletes/{{ q.id }}/eliminar" class="hidden"></form>
+    {% endfor %}
+
+    {# RESULTADOS DE COMPARACIÓN VISUAL (Renderizado si hay result) #}
+    {% if comparison_result %}
+    <div class="space-y-6 pt-6 border-t-2 border-slate-200">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🏆</span>
+        <h2 class="text-xl font-black text-slate-900">Resultados de la Comparativa de Destinos</h2>
+      </div>
+
+      {# Advertencia Informativa de Diferente Condición Comercial #}
+      {% if warning_diferente_condicion %}
+      <div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-xs">
+        <span class="text-xl shrink-0">⚠️</span>
+        <div class="text-xs">
+          <p class="font-extrabold text-amber-950 mb-0.5">Diferencia en Condiciones Comerciales</p>
+          <p class="font-medium text-amber-900">Las alternativas comparadas tienen condiciones de precio distintas; verificá que sean comparables antes de decidir.</p>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Tarjeta Ganadora #}
+      {% if winning_option %}
+      <div class="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-3xl p-6 shadow-md space-y-3 relative overflow-hidden">
+        <div class="absolute -right-6 -top-6 text-emerald-500/10 text-9xl font-black select-none pointer-events-none">
+          #1
+        </div>
+        <div class="flex items-center gap-2 text-emerald-400 font-extrabold text-xs uppercase tracking-wider">
+          <span>⭐ Mayor Valor Neto Estimado en Origen</span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+          <h3 class="text-2xl font-black text-white">{{ winning_option.destination_name }}</h3>
+          <div class="text-3xl font-black text-emerald-300 font-mono">
+            US$ {{ winning_option.net_origin_price_usd_tn | round(2) }}/Tn
+          </div>
+        </div>
+
+        {% if winning_advantage_usd %}
+        <p class="text-sm font-bold text-emerald-200">
+          Ventaja económica de +US$ {{ winning_advantage_usd | round(2) }} USD/Tn respecto a la segunda opción elegible.
+        </p>
+        {% endif %}
+
+        <div class="pt-2 flex flex-wrap gap-2 text-xs">
+          <span class="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-bold">
+            Deducciones Totales: US$ {{ winning_option.total_deductions_usd_tn | round(2) }}/Tn
+          </span>
+          <span class="px-3 py-1 rounded-xl bg-white/10 text-slate-200 border border-white/20 font-bold">
+            Flete: US$ {{ winning_option.freight_usd_tn | round(2) }}/Tn
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Insights del Motor de Decisiones #}
+      {% if comparison_insights %}
+      <div class="space-y-3">
+        <h3 class="text-sm font-extrabold text-slate-800">Evaluación Determinística del Motor ({{ comparison_insights|length }} Reglas Emitidas)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {% for ins in comparison_insights %}
+          <div class="p-4 rounded-2xl border shadow-xs transition-all {% if ins.nivel == 'danger' %}bg-rose-50 border-rose-200 text-rose-900{% elif ins.nivel == 'warning' %}bg-amber-50 border-amber-200 text-amber-900{% elif ins.nivel == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-900{% else %}bg-slate-50 border-slate-200 text-slate-900{% endif %}">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-extrabold text-xs uppercase tracking-wide">{{ ins.titulo }}</span>
+              <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-white/80 border">{{ ins.nivel }}</span>
+            </div>
+            <p class="text-xs font-medium leading-relaxed mb-2">{{ ins.mensaje }}</p>
+            {% if ins.accion_recomendada %}
+            <div class="text-[11px] font-bold flex items-center gap-1 opacity-90">
+              <span>💡 Acción Sugerida:</span>
+              <span>{{ ins.accion_recomendada }}</span>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endif %}
+
+    {% endif %}
+
+  </main>
+
+  {# MODAL DE ALTA / EDICIÓN DE COTIZACIÓN #}
+  <div id="modal-nueva-cotizacion" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-3xl w-full p-6 space-y-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <h3 id="modal-titulo" class="text-lg font-black text-slate-900">Registrar Cotización de Flete / Destino</h3>
+          <p class="text-xs text-slate-500">Ingresá los datos ofrecidos por el comprador o transportista.</p>
+        </div>
+        <button type="button" onclick="cerrarModal()" class="text-slate-400 hover:text-slate-600 font-black text-xl p-1">✕</button>
+      </div>
+
+      <form id="form-cotizacion" method="POST" action="/comercial/fletes/crear" class="space-y-6">
+        <input type="hidden" id="quote_id" name="quote_id" value="">
+
+        {# BLOQUE 1: DATOS ECONÓMICOS #}
+        <div class="space-y-3">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 p-2 rounded-xl flex items-center gap-1.5">
+            <span>💰 Bloque 1: Datos Económicos</span>
+          </h4>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label for="destination_name" class="block text-xs font-extrabold text-slate-700 mb-1">Destino / Comprador *</label>
+              <input type="text" id="destination_name" name="destination_name" required placeholder="Ej: Puerto Rosario / Acopio Local" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3 focus:ring-amber-500">
+            </div>
+
+            <div>
+              <label for="destination_type" class="block text-xs font-extrabold text-slate-700 mb-1">Tipo de Destino</label>
+              <select id="destination_type" name="destination_type" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="puerto">⚓ Puerto Directo</option>
+                <option value="acopio">🏭 Acopio / Cooperativa</option>
+                <option value="fabrica">🏭 Fábrica / Procesadora</option>
+                <option value="comprador">👤 Comprador Final</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="cultivo" class="block text-xs font-extrabold text-slate-700 mb-1">Cultivo Aplicable</label>
+              <select id="cultivo" name="cultivo" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="no_especificado" selected>No especificado</option>
+                <option value="soja">🫛 Soja</option>
+                <option value="maiz">🌽 Maíz</option>
+                <option value="trigo">🌾 Trigo</option>
+                <option value="sorgo">🥣 Sorgo</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="condicion_precio" class="block text-xs font-extrabold text-slate-700 mb-1">Condición del Precio</label>
+              <select id="condicion_precio" name="condicion_precio" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="disponible_spot" selected>Disponible / Spot</option>
+                <option value="a_fijar">A Fijar</option>
+                <option value="contrato">Contrato</option>
+                <option value="futuro">Futuro</option>
+                <option value="a_confirmar">A Confirmar</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="price_usd_tn" class="block text-xs font-extrabold text-slate-700 mb-1">Precio Ofrecido (USD/Tn)</label>
+              <input type="text" id="price_usd_tn" name="price_usd_tn" inputmode="decimal" placeholder="Ej: 200.00 o 200,00" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <span class="text-[10px] text-slate-400">Sin precio no se calcula neto.</span>
+            </div>
+
+            <div>
+              <label for="freight_usd_tn" class="block text-xs font-extrabold text-slate-700 mb-1">Flete (USD/Tn)</label>
+              <input type="text" id="freight_usd_tn" name="freight_usd_tn" inputmode="decimal" placeholder="Ej: 15.50 o 15,50" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <span class="text-[10px] text-slate-400">Sin flete no se calcula neto.</span>
+            </div>
+
+            <div>
+              <label for="conditioning_cost_usd_tn" class="block text-xs font-extrabold text-slate-700 mb-1">Acondicionamiento / Secada (USD/Tn)</label>
+              <input type="text" id="conditioning_cost_usd_tn" name="conditioning_cost_usd_tn" inputmode="decimal" placeholder="0.00" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+            </div>
+
+            <div>
+              <label for="other_costs_usd_tn" class="block text-xs font-extrabold text-slate-700 mb-1">Otros Costos (USD/Tn)</label>
+              <input type="text" id="other_costs_usd_tn" name="other_costs_usd_tn" inputmode="decimal" placeholder="0.00" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+            </div>
+
+            <div>
+              <label for="distancia_estimada_km" class="block text-xs font-extrabold text-slate-700 mb-1">Distancia Estimada (km)</label>
+              <input type="text" id="distancia_estimada_km" name="distancia_estimada_km" inputmode="decimal" placeholder="Ej: 340.0 o 340,0" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <span class="text-[10px] text-slate-400">Dato opcional de referencia. No modifica el flete automáticamente.</span>
+            </div>
+          </div>
+        </div>
+
+        {# BLOQUE 2: CONDICIONES DE ENTREGA #}
+        <div class="space-y-3 pt-4 border-t border-slate-100">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 bg-slate-100 p-2 rounded-xl flex items-center gap-1.5">
+            <span>📋 Bloque 2: Condiciones de Entrega</span>
+          </h4>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="humedad_max_recepcion_pct" class="block text-xs font-extrabold text-slate-700 mb-1">Humedad máxima aceptada por destino (%)</label>
+              <input type="text" id="humedad_max_recepcion_pct" name="humedad_max_recepcion_pct" inputmode="decimal" placeholder="" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <span class="text-[10px] text-slate-400">Dato informado por el destino. Si no lo conocés, dejalo vacío.</span>
+            </div>
+
+            <div>
+              <label for="receiving_confirmed" class="block text-xs font-extrabold text-slate-700 mb-1">Recepción / Cupo</label>
+              <select id="receiving_confirmed" name="receiving_confirmed" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="available">🟢 Confirmado / Disponible</option>
+                <option value="unknown" selected>🟡 Por confirmar / Desconocido</option>
+                <option value="unavailable">🔴 Sin cupo / No disponible</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label for="detalle_cupo_turno" class="block text-xs font-extrabold text-slate-700 mb-1">Detalle de Cupo o Turno</label>
+              <input type="text" id="detalle_cupo_turno" name="detalle_cupo_turno" maxlength="300" placeholder="Ej.: 2 camiones hoy, 90 Tn/día o entrega con turno." class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+            </div>
+
+            <div>
+              <label for="road_status" class="block text-xs font-extrabold text-slate-700 mb-1">Estado del Camino Rural</label>
+              <select id="road_status" name="road_status" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="good" selected>🟢 Bueno</option>
+                <option value="conditioned">🟡 Condicionado</option>
+                <option value="poor">🟡 Malo</option>
+                <option value="impassable">🔴 Intransitable</option>
+                <option value="unknown">⚪ Desconocido</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="quote_observed_at" class="block text-xs font-extrabold text-slate-700 mb-1">Fecha de Cotización *</label>
+              <input type="date" id="quote_observed_at" name="quote_observed_at" required class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+            </div>
+
+            <div>
+              <label for="quote_valid_until" class="block text-xs font-extrabold text-slate-700 mb-1">Válida Hasta</label>
+              <input type="date" id="quote_valid_until" name="quote_valid_until" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+              <span class="text-[10px] text-slate-400">Las cotizaciones vencidas se conservan para referencia, pero requieren actualización antes de decidir.</span>
+            </div>
+
+            <div>
+              <label for="quote_source" class="block text-xs font-extrabold text-slate-700 mb-1">Fuente de Cotización</label>
+              <select id="quote_source" name="quote_source" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="manual">✍️ Carga Manual</option>
+                <option value="transporter_quote">🚚 Cotización de Transportista</option>
+                <option value="estimated">📊 Estimada</option>
+                <option value="external">🌐 Externa</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="quote_confidence" class="block text-xs font-extrabold text-slate-700 mb-1">Confianza de Cotización</label>
+              <select id="quote_confidence" name="quote_confidence" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3">
+                <option value="">Seleccionar confianza</option>
+                <option value="high">🟢 Alta</option>
+                <option value="medium">🟡 Media</option>
+                <option value="low">🔴 Baja</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="notes" class="block text-xs font-extrabold text-slate-700 mb-1">Observaciones / Notas</label>
+            <textarea id="notes" name="notes" rows="2" placeholder="Condiciones especiales de descarga, tarifa especial, etc." class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3"></textarea>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="cerrarModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors">
+            Guardar Cotización
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function cerrarModal() {
+      document.getElementById('modal-nueva-cotizacion').classList.add('hidden');
+      document.getElementById('form-cotizacion').action = '/comercial/fletes/crear';
+      document.getElementById('modal-titulo').innerText = 'Registrar Cotización de Flete / Destino';
+      document.getElementById('quote_id').value = '';
+      document.getElementById('destination_name').value = '';
+      document.getElementById('destination_type').value = 'acopio';
+      document.getElementById('cultivo').value = 'no_especificado';
+      document.getElementById('condicion_precio').value = 'disponible_spot';
+      document.getElementById('price_usd_tn').value = '';
+      document.getElementById('freight_usd_tn').value = '';
+      document.getElementById('conditioning_cost_usd_tn').value = '';
+      document.getElementById('other_costs_usd_tn').value = '';
+      document.getElementById('distancia_estimada_km').value = '';
+      document.getElementById('humedad_max_recepcion_pct').value = '';
+      document.getElementById('detalle_cupo_turno').value = '';
+      document.getElementById('notes').value = '';
+    }
+
+    function editarCotizacion(id, name, type, cult, cond, price, freight, cond_cost, other, dist, moisture, receiving, cupo, road, observed, valid, source, conf, notes) {
+      document.getElementById('modal-titulo').innerText = 'Editar Cotización: ' + name;
+      document.getElementById('form-cotizacion').action = '/comercial/fletes/' + id + '/editar';
+      document.getElementById('quote_id').value = id;
+      document.getElementById('destination_name').value = name;
+      document.getElementById('destination_type').value = type || 'acopio';
+      document.getElementById('cultivo').value = cult || 'no_especificado';
+      document.getElementById('condicion_precio').value = cond || 'disponible_spot';
+      document.getElementById('price_usd_tn').value = price || '';
+      document.getElementById('freight_usd_tn').value = freight || '';
+      document.getElementById('conditioning_cost_usd_tn').value = cond_cost || '';
+      document.getElementById('other_costs_usd_tn').value = other || '';
+      document.getElementById('distancia_estimada_km').value = dist || '';
+      document.getElementById('humedad_max_recepcion_pct').value = moisture || '';
+      document.getElementById('receiving_confirmed').value = receiving || 'unknown';
+      document.getElementById('detalle_cupo_turno').value = cupo || '';
+      document.getElementById('road_status').value = road || 'good';
+      document.getElementById('quote_observed_at').value = observed || '';
+      document.getElementById('quote_valid_until').value = valid || '';
+      document.getElementById('quote_source').value = source || 'manual';
+      document.getElementById('quote_confidence').value = conf || '';
+      document.getElementById('notes').value = notes || '';
+      document.getElementById('modal-nueva-cotizacion').classList.remove('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const obsInput = document.getElementById('quote_observed_at');
+      if (obsInput && !obsInput.value) {
+        obsInput.value = new Date().toISOString().split('T')[0];
+      }
+    });
+  </script>
+</body>
+</html>

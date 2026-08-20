@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Dict
 import uuid
@@ -2668,6 +2668,1144 @@ async def refrescar_precios_mercado_api(
         "mensaje": f"Se actualizaron {len(registros)} cotizaciones de mercado en la base de datos.",
         "precios": registros,
     })
+
+
+# ----------------------------------------------------------------------
+# Módulo Comercial V1 - Fletes y Destinos Comerciales (Freight)
+# ----------------------------------------------------------------------
+
+CULTIVO_LABELS = {
+    "maiz": "Maíz",
+    "soja": "Soja",
+    "trigo": "Trigo",
+    "sorgo": "Sorgo",
+    "no_especificado": "No especificado",
+}
+
+CONDICION_PRECIO_LABELS = {
+    "disponible_spot": "Disponible / Spot",
+    "a_fijar": "A Fijar",
+    "contrato": "Contrato",
+    "futuro": "Futuro",
+    "a_confirmar": "A Confirmar",
+}
+
+
+def parse_decimal_ar(val: Optional[str]) -> Optional[Decimal]:
+    """
+    Parseador seguro de montos con formato numérico argentino (ej. '334,80' o '334.80').
+    """
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        d = Decimal(s)
+        return d
+    except Exception:
+        return None
+
+
+@app.get("/comercial/fletes", response_class=HTMLResponse)
+async def read_comercial_fletes(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista principal de Cotizaciones de Flete y Alternativas de Entrega Commercial.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/fletes", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    campos = await fetch_campos_dicts(db)
+    campos_map = {str(c["id"]): c["nombre"] for c in campos}
+
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    cultivo_sel = (cultivo or "soja").strip().lower()
+
+    from app.models import FreightQuote
+    from app.services.decision_engine.models import (
+        DeliveryDestinationContext,
+        RoadStatus,
+        AvailabilityStatus,
+        FreightQuoteSource,
+    )
+    from app.services.decision_engine.calculators.freight import calculate_delivery_economics
+
+    stmt = (
+        select(FreightQuote)
+        .where(FreightQuote.cliente_id == cliente_id)
+        .order_by(FreightQuote.fecha_creacion.desc())
+    )
+    res = await db.execute(stmt)
+    quotes_objs = res.scalars().all()
+
+    now = datetime.now()
+
+    quotes_list = []
+    for q in quotes_objs:
+        dest_ctx = DeliveryDestinationContext(
+            destination_id=q.id,
+            destination_name=q.destination_name,
+            destination_type=q.destination_type,
+            cultivo=q.cultivo,
+            condicion_precio=q.condicion_precio,
+            distancia_estimada_km=q.distancia_estimada_km,
+            detalle_cupo_turno=q.detalle_cupo_turno,
+            price_usd_tn=q.price_usd_tn,
+            freight_usd_tn=q.freight_usd_tn,
+            conditioning_cost_usd_tn=q.conditioning_cost_usd_tn,
+            other_costs_usd_tn=q.other_costs_usd_tn,
+            max_receiving_moisture_pct=q.max_receiving_moisture_pct,
+            receiving_confirmed=AvailabilityStatus(q.receiving_confirmed) if q.receiving_confirmed in AvailabilityStatus._value2member_map_ else AvailabilityStatus.UNKNOWN,
+            road_status=RoadStatus(q.road_status) if q.road_status in RoadStatus._value2member_map_ else RoadStatus.UNKNOWN,
+            quote_observed_at=q.quote_observed_at,
+            quote_valid_until=q.quote_valid_until,
+            quote_source=FreightQuoteSource(q.quote_source) if q.quote_source in FreightQuoteSource._value2member_map_ else FreightQuoteSource.MANUAL,
+            notes=q.notes,
+        )
+
+        econ = calculate_delivery_economics(dest_ctx, current_time=now)
+
+        quotes_list.append({
+            "id": str(q.id),
+            "destination_name": q.destination_name,
+            "destination_type": q.destination_type or "",
+            "cultivo": q.cultivo or "",
+            "cultivo_label": CULTIVO_LABELS.get(q.cultivo or "", q.cultivo or ""),
+            "condicion_precio": q.condicion_precio or "",
+            "condicion_precio_label": CONDICION_PRECIO_LABELS.get(q.condicion_precio or "", q.condicion_precio or ""),
+            "distancia_estimada_km": float(q.distancia_estimada_km) if q.distancia_estimada_km is not None else None,
+            "distancia_estimada_formatted": f"{q.distancia_estimada_km:.1f}".replace(".", ",") if q.distancia_estimada_km is not None else "",
+            "distancia_estimada_raw": str(q.distancia_estimada_km) if q.distancia_estimada_km is not None else "",
+            "detalle_cupo_turno": q.detalle_cupo_turno or "",
+            "campo_id": str(q.campo_id) if q.campo_id else "",
+            "campo_nombre": campos_map.get(str(q.campo_id), "") if q.campo_id else "",
+            "price_usd_tn": float(q.price_usd_tn) if q.price_usd_tn is not None else None,
+            "price_usd_formatted": f"{q.price_usd_tn:.2f}".replace(".", ",") if q.price_usd_tn is not None else "",
+            "price_usd_raw": str(q.price_usd_tn) if q.price_usd_tn is not None else "",
+            "freight_usd_tn": float(q.freight_usd_tn) if q.freight_usd_tn is not None else None,
+            "freight_usd_formatted": f"{q.freight_usd_tn:.2f}".replace(".", ",") if q.freight_usd_tn is not None else "",
+            "freight_usd_raw": str(q.freight_usd_tn) if q.freight_usd_tn is not None else "",
+            "conditioning_cost_formatted": f"{q.conditioning_cost_usd_tn:.2f}".replace(".", ",") if q.conditioning_cost_usd_tn is not None else "0,00",
+            "conditioning_cost_raw": str(q.conditioning_cost_usd_tn) if q.conditioning_cost_usd_tn is not None else "",
+            "other_costs_formatted": f"{q.other_costs_usd_tn:.2f}".replace(".", ",") if q.other_costs_usd_tn is not None else "0,00",
+            "other_costs_raw": str(q.other_costs_usd_tn) if q.other_costs_usd_tn is not None else "",
+            "max_receiving_moisture_raw": str(q.max_receiving_moisture_pct) if q.max_receiving_moisture_pct is not None else "",
+            "humedad_max_recepcion_formatted": f"{q.max_receiving_moisture_pct:.1f}".replace(".", ",") if q.max_receiving_moisture_pct is not None else "",
+            "net_origin_price_formatted": f"{econ.net_origin_price_usd_tn:.2f}".replace(".", ",") if econ.net_origin_price_usd_tn is not None else "",
+            "is_net_fully_calculated": econ.is_net_price_fully_calculated,
+            "is_stale": econ.is_quote_stale,
+            "receiving_confirmed": q.receiving_confirmed,
+            "road_status": q.road_status,
+            "quote_source": q.quote_source,
+            "quote_confidence": q.quote_confidence or "",
+            "quote_observed_at_str": q.quote_observed_at.strftime("%Y-%m-%d") if q.quote_observed_at else "",
+            "quote_valid_until_str": q.quote_valid_until.strftime("%Y-%m-%d") if q.quote_valid_until else "",
+            "notes": q.notes or "",
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_fletes.html",
+        context={
+            "user": user,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo_sel,
+            "campos": campos,
+            "quotes": quotes_list,
+            "mensaje_exito": mensaje,
+            "mensaje_error": error,
+        },
+    )
+
+
+@app.post("/comercial/fletes/crear")
+async def create_comercial_flete(
+    request: Request,
+    destination_name: str = Form(...),
+    destination_type: Optional[str] = Form(None),
+    cultivo: Optional[str] = Form(None),
+    condicion_precio: Optional[str] = Form(None),
+    price_usd_tn: Optional[str] = Form(None),
+    freight_usd_tn: Optional[str] = Form(None),
+    conditioning_cost_usd_tn: Optional[str] = Form(None),
+    other_costs_usd_tn: Optional[str] = Form(None),
+    distancia_estimada_km: Optional[str] = Form(None),
+    humedad_max_recepcion_pct: Optional[str] = Form(None),
+    max_receiving_moisture_pct: Optional[str] = Form(None),
+    receiving_confirmed: str = Form("unknown"),
+    detalle_cupo_turno: Optional[str] = Form(None),
+    road_status: str = Form("good"),
+    quote_observed_at: str = Form(...),
+    quote_valid_until: Optional[str] = Form(None),
+    quote_source: str = Form("manual"),
+    quote_confidence: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    campo_id: Optional[str] = Form(None),
+    lote_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de una cotización manual de flete/destino comercial.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/fletes", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    dest_name = destination_name.strip() if destination_name else ""
+    if not dest_name:
+        return RedirectResponse("/comercial/fletes?error=El+nombre+del+destino+es+obligatorio", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Validar Enums permitidos
+    cult_val = cultivo.strip().lower() if (cultivo and cultivo.strip()) else None
+    if cult_val and cult_val not in ["maiz", "soja", "trigo", "sorgo", "no_especificado"]:
+        return RedirectResponse("/comercial/fletes?error=El+cultivo+especificable+no+es+válido", status_code=status.HTTP_303_SEE_OTHER)
+
+    cond_val = condicion_precio.strip().lower() if (condicion_precio and condicion_precio.strip()) else None
+    if cond_val and cond_val not in ["disponible_spot", "a_fijar", "contrato", "futuro", "a_confirmar"]:
+        return RedirectResponse("/comercial/fletes?error=La+condición+de+precio+no+es+válida", status_code=status.HTTP_303_SEE_OTHER)
+
+    p_usd = parse_decimal_ar(price_usd_tn)
+    f_usd = parse_decimal_ar(freight_usd_tn)
+    c_usd = parse_decimal_ar(conditioning_cost_usd_tn)
+    o_usd = parse_decimal_ar(other_costs_usd_tn)
+    dist_km = parse_decimal_ar(distancia_estimada_km)
+
+    # Soporte para ambas denominaciones de humedad
+    moist_input = humedad_max_recepcion_pct if humedad_max_recepcion_pct is not None else max_receiving_moisture_pct
+    moist_pct = parse_decimal_ar(moist_input)
+
+    # Validar importes no negativos
+    for val, name in [(p_usd, "precio"), (f_usd, "flete"), (c_usd, "acondicionamiento"), (o_usd, "otros costos")]:
+        if val is not None and val < Decimal("0.0"):
+            return RedirectResponse(f"/comercial/fletes?error=El+monto+de+{name}+no+puede+ser+negativo", status_code=status.HTTP_303_SEE_OTHER)
+
+    if dist_km is not None and (dist_km < Decimal("0.0") or dist_km > Decimal("5000.0")):
+        return RedirectResponse("/comercial/fletes?error=La+distancia+estimada+debe+ser+un+número+positivo", status_code=status.HTTP_303_SEE_OTHER)
+
+    if moist_pct is not None and (moist_pct < Decimal("5.0") or moist_pct > Decimal("35.0")):
+        return RedirectResponse("/comercial/fletes?error=La+humedad+máxima+aceptada+debe+estar+entre+5%+y+35%", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        obs_dt = datetime.fromisoformat(quote_observed_at)
+    except Exception:
+        obs_dt = datetime.now()
+
+    valid_dt = None
+    if quote_valid_until and quote_valid_until.strip():
+        try:
+            valid_dt = datetime.fromisoformat(quote_valid_until)
+            if valid_dt < obs_dt:
+                return RedirectResponse("/comercial/fletes?error=La+fecha+de+validez+no+puede+ser+anterior+a+la+fecha+de+observación", status_code=status.HTTP_303_SEE_OTHER)
+        except Exception:
+            valid_dt = None
+
+    cupo_detail = detalle_cupo_turno.strip()[:300] if (detalle_cupo_turno and detalle_cupo_turno.strip()) else None
+
+    from app.models import FreightQuote
+
+    nuevo_flete = FreightQuote(
+        cliente_id=cliente_id,
+        campo_id=get_uuid(campo_id) if campo_id else None,
+        lote_id=get_uuid(lote_id) if lote_id else None,
+        destination_name=dest_name,
+        destination_type=destination_type.strip() if destination_type else None,
+        cultivo=cult_val,
+        condicion_precio=cond_val,
+        distancia_estimada_km=dist_km,
+        detalle_cupo_turno=cupo_detail,
+        price_usd_tn=p_usd,
+        freight_usd_tn=f_usd,
+        conditioning_cost_usd_tn=c_usd,
+        other_costs_usd_tn=o_usd,
+        max_receiving_moisture_pct=moist_pct,
+        receiving_confirmed=receiving_confirmed.strip(),
+        road_status=road_status.strip(),
+        quote_observed_at=obs_dt,
+        quote_valid_until=valid_dt,
+        quote_source=quote_source.strip(),
+        quote_confidence=quote_confidence.strip() if quote_confidence else None,
+        notes=notes.strip() if notes else None,
+        created_by_user_id=get_uuid(user.get("id")),
+    )
+
+    db.add(nuevo_flete)
+    await db.commit()
+
+    msg = f"Cotización de '{dest_name}' registrada exitosamente."
+    return RedirectResponse(f"/comercial/fletes?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/fletes/{quote_id}/editar")
+async def edit_comercial_flete(
+    request: Request,
+    quote_id: str,
+    destination_name: str = Form(...),
+    destination_type: Optional[str] = Form(None),
+    cultivo: Optional[str] = Form(None),
+    condicion_precio: Optional[str] = Form(None),
+    price_usd_tn: Optional[str] = Form(None),
+    freight_usd_tn: Optional[str] = Form(None),
+    conditioning_cost_usd_tn: Optional[str] = Form(None),
+    other_costs_usd_tn: Optional[str] = Form(None),
+    distancia_estimada_km: Optional[str] = Form(None),
+    humedad_max_recepcion_pct: Optional[str] = Form(None),
+    max_receiving_moisture_pct: Optional[str] = Form(None),
+    receiving_confirmed: str = Form("unknown"),
+    detalle_cupo_turno: Optional[str] = Form(None),
+    road_status: str = Form("good"),
+    quote_observed_at: str = Form(...),
+    quote_valid_until: Optional[str] = Form(None),
+    quote_source: str = Form("manual"),
+    quote_confidence: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edición protegida por multitenant de una cotización existente.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/fletes", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    q_uuid = get_uuid(quote_id)
+
+    from app.models import FreightQuote
+    stmt = select(FreightQuote).where(FreightQuote.id == q_uuid, FreightQuote.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    quote = res.scalars().first()
+
+    if not quote:
+        return RedirectResponse("/comercial/fletes?error=Cotización+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    dest_name = destination_name.strip() if destination_name else ""
+    if not dest_name:
+        return RedirectResponse("/comercial/fletes?error=El+nombre+del+destino+es+obligatorio", status_code=status.HTTP_303_SEE_OTHER)
+
+    cult_val = cultivo.strip().lower() if (cultivo and cultivo.strip()) else None
+    if cult_val and cult_val not in ["maiz", "soja", "trigo", "sorgo", "no_especificado"]:
+        return RedirectResponse("/comercial/fletes?error=El+cultivo+especificable+no+es+válido", status_code=status.HTTP_303_SEE_OTHER)
+
+    cond_val = condicion_precio.strip().lower() if (condicion_precio and condicion_precio.strip()) else None
+    if cond_val and cond_val not in ["disponible_spot", "a_fijar", "contrato", "futuro", "a_confirmar"]:
+        return RedirectResponse("/comercial/fletes?error=La+condición+de+precio+no+es+válida", status_code=status.HTTP_303_SEE_OTHER)
+
+    p_usd = parse_decimal_ar(price_usd_tn)
+    f_usd = parse_decimal_ar(freight_usd_tn)
+    c_usd = parse_decimal_ar(conditioning_cost_usd_tn)
+    o_usd = parse_decimal_ar(other_costs_usd_tn)
+    dist_km = parse_decimal_ar(distancia_estimada_km)
+
+    moist_input = humedad_max_recepcion_pct if humedad_max_recepcion_pct is not None else max_receiving_moisture_pct
+    moist_pct = parse_decimal_ar(moist_input)
+
+    for val, name in [(p_usd, "precio"), (f_usd, "flete"), (c_usd, "acondicionamiento"), (o_usd, "otros costos")]:
+        if val is not None and val < Decimal("0.0"):
+            return RedirectResponse(f"/comercial/fletes?error=El+monto+de+{name}+no+puede+ser+negativo", status_code=status.HTTP_303_SEE_OTHER)
+
+    if dist_km is not None and (dist_km < Decimal("0.0") or dist_km > Decimal("5000.0")):
+        return RedirectResponse("/comercial/fletes?error=La+distancia+estimada+debe+ser+un+número+positivo", status_code=status.HTTP_303_SEE_OTHER)
+
+    if moist_pct is not None and (moist_pct < Decimal("5.0") or moist_pct > Decimal("35.0")):
+        return RedirectResponse("/comercial/fletes?error=La+humedad+máxima+aceptada+debe+estar+entre+5%+y+35%", status_code=status.HTTP_303_SEE_OTHER)
+
+    obs_dt = quote.quote_observed_at
+    if quote_observed_at:
+        try:
+            obs_dt = datetime.fromisoformat(quote_observed_at)
+        except Exception:
+            pass
+
+    valid_dt = None
+    if quote_valid_until and quote_valid_until.strip():
+        try:
+            valid_dt = datetime.fromisoformat(quote_valid_until)
+            if valid_dt < obs_dt:
+                return RedirectResponse("/comercial/fletes?error=La+fecha+de+validez+no+puede+ser+anterior+a+la+fecha+de+observación", status_code=status.HTTP_303_SEE_OTHER)
+        except Exception:
+            valid_dt = None
+
+    quote.destination_name = dest_name
+    quote.destination_type = destination_type.strip() if destination_type else None
+    quote.cultivo = cult_val
+    quote.condicion_precio = cond_val
+    quote.distancia_estimada_km = dist_km
+    quote.detalle_cupo_turno = detalle_cupo_turno.strip()[:300] if (detalle_cupo_turno and detalle_cupo_turno.strip()) else None
+    quote.price_usd_tn = p_usd
+    quote.freight_usd_tn = f_usd
+    quote.conditioning_cost_usd_tn = c_usd
+    quote.other_costs_usd_tn = o_usd
+    quote.max_receiving_moisture_pct = moist_pct
+    quote.receiving_confirmed = receiving_confirmed.strip()
+    quote.road_status = road_status.strip()
+    quote.quote_observed_at = obs_dt
+    quote.quote_valid_until = valid_dt
+    quote.quote_source = quote_source.strip()
+    quote.quote_confidence = quote_confidence.strip() if quote_confidence else None
+    quote.notes = notes.strip() if notes else None
+
+    await db.commit()
+
+    msg = f"Cotización de '{quote.destination_name}' actualizada exitosamente."
+    return RedirectResponse(f"/comercial/fletes?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/fletes/{quote_id}/eliminar")
+async def delete_comercial_flete(
+    request: Request,
+    quote_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Eliminación protegida por multitenant de una cotización existente.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/fletes", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    q_uuid = get_uuid(quote_id)
+
+    from app.models import FreightQuote
+    stmt = select(FreightQuote).where(FreightQuote.id == q_uuid, FreightQuote.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    quote = res.scalars().first()
+
+    if not quote:
+        return RedirectResponse("/comercial/fletes?error=Cotización+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    name = quote.destination_name
+    await db.delete(quote)
+    await db.commit()
+
+    msg = f"Cotización de '{name}' eliminada exitosamente."
+    return RedirectResponse(f"/comercial/fletes?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/fletes/comparar")
+async def compare_comercial_fletes(
+    request: Request,
+    selected_quotes: List[str] = Form(...),
+    cultivo: str = Form("soja"),
+    humedad_grano_pct: float = Form(14.5),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Ejecuta la comparación determinística de alternativas con el motor de decisiones V2.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/fletes", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    if not selected_quotes or len(selected_quotes) < 2:
+        return RedirectResponse("/comercial/fletes?error=Seleccioná+al+menos+2+cotizaciones+para+comparar", status_code=status.HTTP_303_SEE_OTHER)
+
+    uuids = [get_uuid(q) for q in selected_quotes if q]
+
+    from app.models import FreightQuote
+    from app.services.decision_engine.models import (
+        DeliveryDestinationContext,
+        DecisionContext,
+        HarvestData,
+        RoadStatus,
+        AvailabilityStatus,
+        FreightQuoteSource,
+    )
+    from app.services.decision_motor import evaluar_motor_decisiones_detallado
+    from app.services.decision_engine.calculators.delivery_economics import rank_delivery_options
+
+    stmt = select(FreightQuote).where(
+        FreightQuote.id.in_(uuids),
+        FreightQuote.cliente_id == cliente_id,
+    )
+    res = await db.execute(stmt)
+    quotes_objs = res.scalars().all()
+
+    if len(quotes_objs) < 2:
+        return RedirectResponse("/comercial/fletes?error=Cotizaciones+insuficientes+o+no+autorizadas", status_code=status.HTTP_303_SEE_OTHER)
+
+    dest_options: List[DeliveryDestinationContext] = []
+    condiciones_set = set()
+    for q in quotes_objs:
+        if q.condicion_precio and q.condicion_precio.strip():
+            condiciones_set.add(q.condicion_precio.strip())
+
+        dest_options.append(
+            DeliveryDestinationContext(
+                destination_id=q.id,
+                destination_name=q.destination_name,
+                destination_type=q.destination_type,
+                cultivo=q.cultivo,
+                condicion_precio=q.condicion_precio,
+                distancia_estimada_km=q.distancia_estimada_km,
+                detalle_cupo_turno=q.detalle_cupo_turno,
+                price_usd_tn=q.price_usd_tn,
+                freight_usd_tn=q.freight_usd_tn,
+                conditioning_cost_usd_tn=q.conditioning_cost_usd_tn,
+                other_costs_usd_tn=q.other_costs_usd_tn,
+                max_receiving_moisture_pct=q.max_receiving_moisture_pct,
+                receiving_confirmed=AvailabilityStatus(q.receiving_confirmed) if q.receiving_confirmed in AvailabilityStatus._value2member_map_ else AvailabilityStatus.UNKNOWN,
+                road_status=RoadStatus(q.road_status) if q.road_status in RoadStatus._value2member_map_ else RoadStatus.UNKNOWN,
+                quote_observed_at=q.quote_observed_at,
+                quote_valid_until=q.quote_valid_until,
+                quote_source=FreightQuoteSource(q.quote_source) if q.quote_source in FreightQuoteSource._value2member_map_ else FreightQuoteSource.MANUAL,
+                notes=q.notes,
+            )
+        )
+
+    warning_diferente_condicion = len(condiciones_set) > 1
+
+    context = DecisionContext(
+        cultivo=cultivo.strip().lower(), # type: ignore
+        harvest=HarvestData(humedad_grano_pct=humedad_grano_pct),
+        delivery_options=dest_options,
+    )
+
+    decision_result = evaluar_motor_decisiones_detallado(context)
+
+    ranked_res = rank_delivery_options(dest_options, grain_moisture_pct=humedad_grano_pct)
+
+    winning_opt = ranked_res.best_option if ranked_res.is_best_option_material else None
+    winning_adv = float(ranked_res.net_difference_usd_tn) if ranked_res.net_difference_usd_tn is not None else None
+
+    # Renderizar la vista con los resultados de comparación
+    campos = await fetch_campos_dicts(db)
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    stmt_all = select(FreightQuote).where(FreightQuote.cliente_id == cliente_id).order_by(FreightQuote.fecha_creacion.desc())
+    res_all = await db.execute(stmt_all)
+    all_quotes_objs = res_all.scalars().all()
+    campos_map = {str(c["id"]): c["nombre"] for c in campos}
+
+    from app.services.decision_engine.calculators.freight import calculate_delivery_economics
+    now = datetime.now()
+    quotes_list = []
+    for q in all_quotes_objs:
+        dest_ctx = DeliveryDestinationContext(
+            destination_id=q.id,
+            destination_name=q.destination_name,
+            destination_type=q.destination_type,
+            cultivo=q.cultivo,
+            condicion_precio=q.condicion_precio,
+            distancia_estimada_km=q.distancia_estimada_km,
+            detalle_cupo_turno=q.detalle_cupo_turno,
+            price_usd_tn=q.price_usd_tn,
+            freight_usd_tn=q.freight_usd_tn,
+            conditioning_cost_usd_tn=q.conditioning_cost_usd_tn,
+            other_costs_usd_tn=q.other_costs_usd_tn,
+            max_receiving_moisture_pct=q.max_receiving_moisture_pct,
+            receiving_confirmed=AvailabilityStatus(q.receiving_confirmed) if q.receiving_confirmed in AvailabilityStatus._value2member_map_ else AvailabilityStatus.UNKNOWN,
+            road_status=RoadStatus(q.road_status) if q.road_status in RoadStatus._value2member_map_ else RoadStatus.UNKNOWN,
+            quote_observed_at=q.quote_observed_at,
+            quote_valid_until=q.quote_valid_until,
+            quote_source=FreightQuoteSource(q.quote_source) if q.quote_source in FreightQuoteSource._value2member_map_ else FreightQuoteSource.MANUAL,
+            notes=q.notes,
+        )
+        econ = calculate_delivery_economics(dest_ctx, current_time=now)
+        quotes_list.append({
+            "id": str(q.id),
+            "destination_name": q.destination_name,
+            "destination_type": q.destination_type or "",
+            "cultivo": q.cultivo or "",
+            "cultivo_label": CULTIVO_LABELS.get(q.cultivo or "", q.cultivo or ""),
+            "condicion_precio": q.condicion_precio or "",
+            "condicion_precio_label": CONDICION_PRECIO_LABELS.get(q.condicion_precio or "", q.condicion_precio or ""),
+            "distancia_estimada_km": float(q.distancia_estimada_km) if q.distancia_estimada_km is not None else None,
+            "distancia_estimada_formatted": f"{q.distancia_estimada_km:.1f}".replace(".", ",") if q.distancia_estimada_km is not None else "",
+            "distancia_estimada_raw": str(q.distancia_estimada_km) if q.distancia_estimada_km is not None else "",
+            "detalle_cupo_turno": q.detalle_cupo_turno or "",
+            "campo_id": str(q.campo_id) if q.campo_id else "",
+            "campo_nombre": campos_map.get(str(q.campo_id), "") if q.campo_id else "",
+            "price_usd_tn": float(q.price_usd_tn) if q.price_usd_tn is not None else None,
+            "price_usd_formatted": f"{q.price_usd_tn:.2f}".replace(".", ",") if q.price_usd_tn is not None else "",
+            "price_usd_raw": str(q.price_usd_tn) if q.price_usd_tn is not None else "",
+            "freight_usd_tn": float(q.freight_usd_tn) if q.freight_usd_tn is not None else None,
+            "freight_usd_formatted": f"{q.freight_usd_tn:.2f}".replace(".", ",") if q.freight_usd_tn is not None else "",
+            "freight_usd_raw": str(q.freight_usd_tn) if q.freight_usd_tn is not None else "",
+            "conditioning_cost_formatted": f"{q.conditioning_cost_usd_tn:.2f}".replace(".", ",") if q.conditioning_cost_usd_tn is not None else "0,00",
+            "conditioning_cost_raw": str(q.conditioning_cost_usd_tn) if q.conditioning_cost_usd_tn is not None else "",
+            "other_costs_formatted": f"{q.other_costs_usd_tn:.2f}".replace(".", ",") if q.other_costs_usd_tn is not None else "0,00",
+            "other_costs_raw": str(q.other_costs_usd_tn) if q.other_costs_usd_tn is not None else "",
+            "max_receiving_moisture_raw": str(q.max_receiving_moisture_pct) if q.max_receiving_moisture_pct is not None else "",
+            "humedad_max_recepcion_formatted": f"{q.max_receiving_moisture_pct:.1f}".replace(".", ",") if q.max_receiving_moisture_pct is not None else "",
+            "net_origin_price_formatted": f"{econ.net_origin_price_usd_tn:.2f}".replace(".", ",") if econ.net_origin_price_usd_tn is not None else "",
+            "is_net_fully_calculated": econ.is_net_price_fully_calculated,
+            "is_stale": econ.is_quote_stale,
+            "receiving_confirmed": q.receiving_confirmed,
+            "road_status": q.road_status,
+            "quote_source": q.quote_source,
+            "quote_confidence": q.quote_confidence or "",
+            "quote_observed_at_str": q.quote_observed_at.strftime("%Y-%m-%d") if q.quote_observed_at else "",
+            "quote_valid_until_str": q.quote_valid_until.strftime("%Y-%m-%d") if q.quote_valid_until else "",
+            "notes": q.notes or "",
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_fletes.html",
+        context={
+            "user": user,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo,
+            "humedad_grano_pct": humedad_grano_pct,
+            "campos": campos,
+            "quotes": quotes_list,
+            "comparison_result": decision_result,
+            "winning_option": winning_opt,
+            "winning_advantage_usd": winning_adv,
+            "comparison_insights": decision_result.insights,
+            "warning_diferente_condicion": warning_diferente_condicion,
+        },
+    )
+
+
+# ==============================================================================
+# RUTAS DEL MÓDULO COMERCIAL - ENTREGAS Y CARTAS DE PORTE
+# ==============================================================================
+
+VALID_DELIVERY_TRANSITIONS = {
+    "planificada": {"en_transito", "cancelada", "observada", "planificada"},
+    "en_transito": {"recibida", "observada", "cancelada", "en_transito"},
+    "recibida": {"liquidada", "observada", "recibida"},
+    "liquidada": {"observada", "liquidada"},
+    "observada": {"planificada", "en_transito", "recibida", "liquidada", "cancelada", "observada"},
+    "cancelada": {"cancelada", "planificada"},
+}
+
+
+def recalculate_delivery_totals(delivery) -> None:
+    """
+    Recalcula los totales de pesaje derivados a partir de sus cartas de porte asociadas.
+    """
+    active_waybills = [w for w in delivery.waybills if w.estado != "anulada"]
+
+    net_origen = Decimal("0.0")
+    has_origen = False
+    for w in active_waybills:
+        if w.peso_neto_origen_kg is not None:
+            net_origen += Decimal(str(w.peso_neto_origen_kg))
+            has_origen = True
+
+    rec_destino = Decimal("0.0")
+    has_destino = False
+    for w in active_waybills:
+        if w.peso_recibido_destino_kg is not None:
+            rec_destino += Decimal(str(w.peso_recibido_destino_kg))
+            has_destino = True
+
+    delivery.kg_neto_origen_total = net_origen if has_origen else None
+    delivery.kg_recibido_total = rec_destino if has_destino else None
+
+    if has_origen and has_destino and net_origen > Decimal("0.0"):
+        diff_kg = rec_destino - net_origen
+        diff_pct = (diff_kg / net_origen) * Decimal("100.0")
+        delivery.diferencia_total_kg = diff_kg
+        delivery.diferencia_total_pct = diff_pct.quantize(Decimal("0.01"))
+    elif has_origen and has_destino:
+        delivery.diferencia_total_kg = rec_destino - net_origen
+        delivery.diferencia_total_pct = None
+    else:
+        delivery.diferencia_total_kg = None
+        delivery.diferencia_total_pct = None
+
+    if not active_waybills:
+        delivery.documentacion_status = "sin_documentacion"
+    else:
+        has_obs = any(w.estado == "observada" for w in active_waybills)
+        if has_obs:
+            delivery.documentacion_status = "observada"
+        else:
+            num_with_cpe = sum(1 for w in active_waybills if w.numero_carta_porte and w.numero_carta_porte.strip())
+            num_total = len(active_waybills)
+            if num_with_cpe == 0:
+                delivery.documentacion_status = "carta_pendiente"
+            elif num_with_cpe < num_total:
+                delivery.documentacion_status = "parcial"
+            else:
+                delivery.documentacion_status = "completa"
+
+
+@app.get("/comercial/entregas", response_class=HTMLResponse)
+async def read_comercial_entregas(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista principal de Entregas y Cartas de Porte en el módulo Comercial.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
+
+    from app.models import GrainDelivery, GrainWaybill, CompromisoGrano, FreightQuote
+    from sqlalchemy.orm import selectinload
+
+    stmt_del = (
+        select(GrainDelivery)
+        .options(
+            selectinload(GrainDelivery.waybills),
+            selectinload(GrainDelivery.compromiso),
+            selectinload(GrainDelivery.freight_quote),
+        )
+        .where(GrainDelivery.cliente_id == cliente_id)
+        .order_by(GrainDelivery.fecha_creacion.desc())
+    )
+    res_del = await db.execute(stmt_del)
+    deliveries_objs = res_del.scalars().all()
+
+    stmt_comp = select(CompromisoGrano).where(CompromisoGrano.cliente_id == cliente_id)
+    res_comp = await db.execute(stmt_comp)
+    compromisos_objs = res_comp.scalars().all()
+
+    stmt_quotes = select(FreightQuote).where(FreightQuote.cliente_id == cliente_id)
+    res_quotes = await db.execute(stmt_quotes)
+    quotes_objs = res_quotes.scalars().all()
+
+    deliveries_list = []
+    deliveries_dict_json = []
+
+    from app.services.decision_engine.models import (
+        DecisionContext,
+        GrainDeliveryContext,
+        GrainWaybillContext,
+    )
+    from app.services.decision_motor import evaluar_motor_decisiones_detallado
+
+    engine_deliveries: List[GrainDeliveryContext] = []
+
+    for d in deliveries_objs:
+        recalculate_delivery_totals(d)
+
+        waybills_list = []
+        engine_waybills: List[GrainWaybillContext] = []
+
+        for w in d.waybills:
+            w_dict = {
+                "id": str(w.id),
+                "numero_carta_porte": w.numero_carta_porte or "",
+                "tipo_camion": w.tipo_camion or "normal",
+                "capacidad_referencia_kg": float(w.capacidad_referencia_kg) if w.capacidad_referencia_kg is not None else None,
+                "tara_kg": float(w.tara_kg) if w.tara_kg is not None else None,
+                "peso_bruto_origen_kg": float(w.peso_bruto_origen_kg) if w.peso_bruto_origen_kg is not None else None,
+                "peso_neto_origen_kg": float(w.peso_neto_origen_kg) if w.peso_neto_origen_kg is not None else None,
+                "peso_recibido_destino_kg": float(w.peso_recibido_destino_kg) if w.peso_recibido_destino_kg is not None else None,
+                "diferencia_kg": float(w.diferencia_kg) if w.diferencia_kg is not None else None,
+                "diferencia_pct": float(w.diferencia_pct) if w.diferencia_pct is not None else None,
+                "referencia_ticket_origen": w.referencia_ticket_origen or "",
+                "referencia_ticket_destino": w.referencia_ticket_destino or "",
+                "estado": w.estado,
+                "observaciones": w.observaciones or "",
+            }
+            waybills_list.append(w_dict)
+            engine_waybills.append(
+                GrainWaybillContext(
+                    id=w.id,
+                    numero_carta_porte=w.numero_carta_porte,
+                    tipo_camion=w.tipo_camion,
+                    capacidad_referencia_kg=w.capacidad_referencia_kg,
+                    tara_kg=w.tara_kg,
+                    peso_bruto_origen_kg=w.peso_bruto_origen_kg,
+                    peso_neto_origen_kg=w.peso_neto_origen_kg,
+                    peso_recibido_destino_kg=w.peso_recibido_destino_kg,
+                    diferencia_kg=w.diferencia_kg,
+                    diferencia_pct=w.diferencia_pct,
+                    estado=w.estado,
+                    observaciones=w.observaciones,
+                )
+            )
+
+        deliv_item = {
+            "id": str(d.id),
+            "tracking_number": d.tracking_number,
+            "campo_id": str(d.campo_id) if d.campo_id else "",
+            "lote_id": str(d.lote_id) if d.lote_id else "",
+            "compromiso_id": str(d.compromiso_id) if d.compromiso_id else "",
+            "compromiso_rel": d.compromiso,
+            "freight_quote_id": str(d.freight_quote_id) if d.freight_quote_id else "",
+            "freight_quote_rel": d.freight_quote,
+            "acopio_receptor": d.acopio_receptor or "",
+            "destination_final_reference": d.destination_final_reference or "Rosario",
+            "cultivo": d.cultivo or "soja",
+            "transportista_nombre": d.transportista_nombre or "Marcelo Martina",
+            "fecha_planificada_fmt": d.fecha_planificada.strftime("%d/%m/%Y") if d.fecha_planificada else "-",
+            "fecha_planificada_str": d.fecha_planificada.strftime("%Y-%m-%d") if d.fecha_planificada else "",
+            "toneladas_planificadas": float(d.toneladas_planificadas) if d.toneladas_planificadas is not None else None,
+            "toneladas_planificadas_fmt": f"{d.toneladas_planificadas:.2f}".replace(".", ",") if d.toneladas_planificadas is not None else "-",
+            "toneladas_planificadas_raw": str(d.toneladas_planificadas) if d.toneladas_planificadas is not None else "",
+            "kg_neto_origen_total": float(d.kg_neto_origen_total) if d.kg_neto_origen_total is not None else None,
+            "kg_neto_origen_total_fmt": f"{d.kg_neto_origen_total:,.0f}".replace(",", ".") if d.kg_neto_origen_total is not None else "-",
+            "kg_recibido_total": float(d.kg_recibido_total) if d.kg_recibido_total is not None else None,
+            "diferencia_total_kg": float(d.diferencia_total_kg) if d.diferencia_total_kg is not None else None,
+            "diferencia_total_kg_fmt": f"{d.diferencia_total_kg:+.0f}".replace(",", ".") if d.diferencia_total_kg is not None else "-",
+            "diferencia_total_pct": float(d.diferencia_total_pct) if d.diferencia_total_pct is not None else None,
+            "diferencia_total_pct_fmt": f"{d.diferencia_total_pct:+.2f}".replace(".", ",") if d.diferencia_total_pct is not None else "-",
+            "estado": d.estado,
+            "documentacion_status": d.documentacion_status,
+            "observaciones": d.observaciones or "",
+            "waybills": waybills_list,
+        }
+
+        deliveries_list.append(deliv_item)
+        deliveries_dict_json.append({
+            "id": deliv_item["id"],
+            "tracking_number": deliv_item["tracking_number"],
+            "acopio_receptor": deliv_item["acopio_receptor"],
+            "destination_final_reference": deliv_item["destination_final_reference"],
+            "transportista_nombre": deliv_item["transportista_nombre"],
+            "toneladas_planificadas": deliv_item["toneladas_planificadas"],
+            "estado": deliv_item["estado"],
+            "waybills": waybills_list,
+        })
+
+        engine_deliveries.append(
+            GrainDeliveryContext(
+                id=d.id,
+                tracking_number=d.tracking_number,
+                campo_id=d.campo_id,
+                lote_id=d.lote_id,
+                compromiso_id=d.compromiso_id,
+                freight_quote_id=d.freight_quote_id,
+                acopio_receptor=d.acopio_receptor,
+                destination_final_reference=d.destination_final_reference,
+                cultivo=d.cultivo,
+                transportista_nombre=d.transportista_nombre,
+                fecha_planificada=d.fecha_planificada,
+                toneladas_planificadas=d.toneladas_planificadas,
+                kg_neto_origen_total=d.kg_neto_origen_total,
+                kg_recibido_total=d.kg_recibido_total,
+                diferencia_total_kg=d.diferencia_total_kg,
+                diferencia_total_pct=d.diferencia_total_pct,
+                estado=d.estado,
+                documentacion_status=d.documentacion_status,
+                observaciones=d.observaciones,
+                waybills=engine_waybills,
+            )
+        )
+
+    ctx = DecisionContext(
+        cultivo=cultivo if cultivo in ["maiz", "soja", "sorgo", "trigo"] else "soja",  # type: ignore
+        deliveries=engine_deliveries,
+    )
+    result = evaluar_motor_decisiones_detallado(ctx)
+    delivery_insights = [ins for ins in result.insights if ins.domain == "deliveries"]
+
+    import json
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_entregas.html",
+        context={
+            "user": user,
+            "campania_activa": camp_nombre,
+            "cultivo_seleccionado": cultivo,
+            "mensaje_exito": mensaje,
+            "mensaje_error": error,
+            "deliveries": deliveries_list,
+            "deliveries_json": json.dumps(deliveries_dict_json),
+            "delivery_insights": delivery_insights,
+            "compromisos": compromisos_objs,
+            "quotes": quotes_objs,
+        },
+    )
+
+
+@app.post("/comercial/entregas/crear")
+async def create_comercial_entrega(
+    request: Request,
+    fecha_planificada: str = Form(...),
+    acopio_receptor: str = Form(...),
+    destination_final_reference: Optional[str] = Form("Rosario"),
+    transportista_nombre: Optional[str] = Form("Marcelo Martina"),
+    toneladas_planificadas: Optional[str] = Form(None),
+    cultivo: Optional[str] = Form("soja"),
+    estado: str = Form("planificada"),
+    compromiso_id: Optional[str] = Form(None),
+    freight_quote_id: Optional[str] = Form(None),
+    campo_id: Optional[str] = Form(None),
+    lote_id: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Crea una nueva entrega de grano con número único de seguimiento interno.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    if not acopio_receptor or not acopio_receptor.strip():
+        return RedirectResponse("/comercial/entregas?error=El+acopio+receptor+es+obligatorio", status_code=status.HTTP_303_SEE_OTHER)
+
+    fecha_plan = None
+    if fecha_planificada:
+        try:
+            fecha_plan = datetime.strptime(fecha_planificada.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            return RedirectResponse("/comercial/entregas?error=Formato+de+fecha+inválido", status_code=status.HTTP_303_SEE_OTHER)
+
+    ton_dec = parse_decimal_ar(toneladas_planificadas)
+
+    date_str = datetime.now().strftime("%Y%m%d")
+    unique_suffix = uuid4().hex[:4].upper()
+    tracking_number = f"ENT-{date_str}-{unique_suffix}"
+
+    from app.models import GrainDelivery
+    delivery = GrainDelivery(
+        cliente_id=cliente_id,
+        tracking_number=tracking_number,
+        acopio_receptor=acopio_receptor.strip(),
+        destination_final_reference=(destination_final_reference or "Rosario").strip(),
+        transportista_nombre=(transportista_nombre or "Marcelo Martina").strip(),
+        fecha_planificada=fecha_plan,
+        toneladas_planificadas=ton_dec,
+        cultivo=(cultivo or "soja").strip().lower(),
+        estado=estado if estado in VALID_DELIVERY_TRANSITIONS else "planificada",
+        documentacion_status="sin_documentacion",
+        compromiso_id=get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None,
+        freight_quote_id=get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None,
+        campo_id=get_uuid(campo_id) if campo_id and campo_id.strip() else None,
+        lote_id=get_uuid(lote_id) if lote_id and lote_id.strip() else None,
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+
+    db.add(delivery)
+    await db.commit()
+
+    msg = f"Entrega '{tracking_number}' registrada exitosamente."
+    return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/{delivery_id}/editar")
+async def edit_comercial_entrega(
+    request: Request,
+    delivery_id: str,
+    fecha_planificada: str = Form(...),
+    acopio_receptor: str = Form(...),
+    destination_final_reference: Optional[str] = Form("Rosario"),
+    transportista_nombre: Optional[str] = Form("Marcelo Martina"),
+    toneladas_planificadas: Optional[str] = Form(None),
+    cultivo: Optional[str] = Form("soja"),
+    estado: str = Form("planificada"),
+    compromiso_id: Optional[str] = Form(None),
+    freight_quote_id: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edita una entrega existente y valida transiciones permitidas.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    d_uuid = get_uuid(delivery_id)
+
+    from app.models import GrainDelivery
+    stmt = select(GrainDelivery).where(GrainDelivery.id == d_uuid, GrainDelivery.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    delivery = res.scalars().first()
+
+    if not delivery:
+        return RedirectResponse("/comercial/entregas?error=Entrega+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    if estado != delivery.estado:
+        allowed = VALID_DELIVERY_TRANSITIONS.get(delivery.estado, set())
+        if estado not in allowed:
+            return RedirectResponse(
+                f"/comercial/entregas?error=Transición+de+estado+no+permitida+desde+'{delivery.estado}'+hacia+'{estado}'",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        delivery.estado = estado
+
+    if fecha_planificada:
+        try:
+            delivery.fecha_planificada = datetime.strptime(fecha_planificada.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    delivery.acopio_receptor = acopio_receptor.strip()
+    delivery.destination_final_reference = (destination_final_reference or "Rosario").strip()
+    delivery.transportista_nombre = (transportista_nombre or "Marcelo Martina").strip()
+    delivery.toneladas_planificadas = parse_decimal_ar(toneladas_planificadas)
+    delivery.cultivo = (cultivo or "soja").strip().lower()
+    delivery.compromiso_id = get_uuid(compromiso_id) if compromiso_id and compromiso_id.strip() else None
+    delivery.freight_quote_id = get_uuid(freight_quote_id) if freight_quote_id and freight_quote_id.strip() else None
+    delivery.observaciones = observaciones.strip() if observaciones else None
+
+    await db.commit()
+
+    msg = f"Entrega '{delivery.tracking_number}' actualizada exitosamente."
+    return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/{delivery_id}/eliminar")
+async def delete_comercial_entrega(
+    request: Request,
+    delivery_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Elimina una entrega de grano respetando multitenancy.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    d_uuid = get_uuid(delivery_id)
+
+    from app.models import GrainDelivery
+    stmt = select(GrainDelivery).where(GrainDelivery.id == d_uuid, GrainDelivery.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    delivery = res.scalars().first()
+
+    if not delivery:
+        return RedirectResponse("/comercial/entregas?error=Entrega+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    tracking = delivery.tracking_number
+    await db.delete(delivery)
+    await db.commit()
+
+    msg = f"Entrega '{tracking}' eliminada exitosamente."
+    return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/{delivery_id}/cartas/crear")
+async def create_comercial_waybill(
+    request: Request,
+    delivery_id: str,
+    numero_carta_porte: Optional[str] = Form(None),
+    tipo_camion: Optional[str] = Form("normal"),
+    capacidad_referencia_kg: Optional[str] = Form("35000"),
+    tara_kg: Optional[str] = Form(None),
+    peso_bruto_origen_kg: Optional[str] = Form(None),
+    peso_recibido_destino_kg: Optional[str] = Form(None),
+    referencia_ticket_origen: Optional[str] = Form(None),
+    referencia_ticket_destino: Optional[str] = Form(None),
+    estado: str = Form("planificada"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Crea una carta de porte asociada a una entrega.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    d_uuid = get_uuid(delivery_id)
+
+    from app.models import GrainDelivery, GrainWaybill
+    from sqlalchemy.orm import selectinload
+    stmt = select(GrainDelivery).options(selectinload(GrainDelivery.waybills)).where(
+        GrainDelivery.id == d_uuid, GrainDelivery.cliente_id == cliente_id
+    )
+    res = await db.execute(stmt)
+    delivery = res.scalars().first()
+
+    if not delivery:
+        return RedirectResponse("/comercial/entregas?error=Entrega+no+encontrada+o+no+autorizada", status_code=status.HTTP_303_SEE_OTHER)
+
+    cpe_num = numero_carta_porte.strip() if numero_carta_porte and numero_carta_porte.strip() else None
+
+    if cpe_num:
+        stmt_dup = select(GrainWaybill).where(
+            GrainWaybill.cliente_id == cliente_id,
+            GrainWaybill.numero_carta_porte == cpe_num,
+        )
+        res_dup = await db.execute(stmt_dup)
+        if res_dup.scalars().first():
+            return RedirectResponse(
+                f"/comercial/entregas?error=Ya+existe+una+carta+de+porte+con+el+número+'{cpe_num}'",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    tara_dec = parse_decimal_ar(tara_kg)
+    bruto_dec = parse_decimal_ar(peso_bruto_origen_kg)
+    recibido_dec = parse_decimal_ar(peso_recibido_destino_kg)
+    cap_dec = parse_decimal_ar(capacidad_referencia_kg)
+
+    from app.services.decision_engine.calculators.delivery import (
+        calculate_origin_net_weight,
+        calculate_delivery_weight_difference,
+    )
+    weight_res = calculate_origin_net_weight(bruto_dec, tara_dec)
+    if bruto_dec is not None and tara_dec is not None and not weight_res.is_valid_origin_weight:
+        return RedirectResponse(
+            f"/comercial/entregas?error={weight_res.warning or 'El+peso+bruto+no+puede+ser+menor+a+la+tara'}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    neto_origen_dec = weight_res.origin_net_weight_kg
+    diff_res = calculate_delivery_weight_difference(neto_origen_dec, recibido_dec)
+
+    waybill = GrainWaybill(
+        cliente_id=cliente_id,
+        entrega_id=delivery.id,
+        numero_carta_porte=cpe_num,
+        tipo_camion=(tipo_camion or "normal").strip(),
+        capacidad_referencia_kg=cap_dec or Decimal("35000"),
+        tara_kg=tara_dec,
+        peso_bruto_origen_kg=bruto_dec,
+        peso_neto_origen_kg=neto_origen_dec,
+        peso_recibido_destino_kg=recibido_dec,
+        diferencia_kg=diff_res.difference_kg,
+        diferencia_pct=diff_res.difference_pct,
+        referencia_ticket_origen=referencia_ticket_origen.strip() if referencia_ticket_origen else None,
+        referencia_ticket_destino=referencia_ticket_destino.strip() if referencia_ticket_destino else None,
+        estado=estado if estado in ["planificada", "cargada", "en_transito", "recibida", "observada", "anulada"] else "planificada",
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+
+    db.add(waybill)
+    delivery.waybills.append(waybill)
+    recalculate_delivery_totals(delivery)
+
+    await db.commit()
+
+    msg = f"Carta de porte registrada para la entrega '{delivery.tracking_number}'."
+    return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+
 
 
 
