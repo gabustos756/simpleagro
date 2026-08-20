@@ -2228,6 +2228,9 @@ async def read_comercial_stock(
         release_stock_reservation,
         allocate_stock_to_delivery,
         cancel_stock_delivery_allocation,
+        build_commitment_display_label,
+        get_compromisos_saldos_map,
+        format_compromiso_dict,
     )
     stock_summary = await fetch_aggregated_stock_v1_summary(db, cliente_id, cultivo_sel)
 
@@ -2398,6 +2401,7 @@ async def read_comercial_stock(
             "partida_id": str(r.stock_partida_id),
             "compromiso_concepto": r.compromiso.concepto if r.compromiso else "N/D",
             "compromiso_beneficiario": r.compromiso.beneficiario if r.compromiso else "",
+            "compromiso_label": build_commitment_display_label(r.compromiso) if r.compromiso else (r.compromiso.concepto if r.compromiso else "N/D"),
             "cantidad_reserva_tn": float(r.cantidad_reserva_kg / Decimal("1000.0")),
             "estado": r.estado,
             "fecha_reserva": r.fecha_reserva.strftime("%Y-%m-%d %H:%M") if r.fecha_reserva else "",
@@ -2432,14 +2436,9 @@ async def read_comercial_stock(
     stmt_comp = select(CompromisoGrano).where(CompromisoGrano.cliente_id == cliente_id, CompromisoGrano.cumplido == False)
     res_comp = await db.execute(stmt_comp)
     compromisos_objs = res_comp.scalars().all()
+    saldos_map = await get_compromisos_saldos_map(db, cliente_id)
     compromisos_list = [
-        {
-            "id": str(c.id),
-            "concepto": c.concepto,
-            "beneficiario": c.beneficiario,
-            "cultivo": c.cultivo,
-            "toneladas_comprometidas": float(c.toneladas_comprometidas),
-        }
+        format_compromiso_dict(c, saldo_tn=saldos_map.get(c.id, c.toneladas_comprometidas))
         for c in compromisos_objs
     ]
 
@@ -4243,7 +4242,7 @@ async def read_comercial_entregas(
     camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
     camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
 
-    from app.models import GrainDelivery, GrainWaybill, CompromisoGrano, FreightQuote
+    from app.models import GrainDelivery, GrainWaybill, CompromisoGrano, FreightQuote, StockDeliveryAllocation, StockWeightReconciliation, StockPartida
     from sqlalchemy.orm import selectinload
 
     stmt_del = (
@@ -4252,6 +4251,8 @@ async def read_comercial_entregas(
             selectinload(GrainDelivery.waybills),
             selectinload(GrainDelivery.compromiso),
             selectinload(GrainDelivery.freight_quote),
+            selectinload(GrainDelivery.allocations).selectinload(StockDeliveryAllocation.stock_partida),
+            selectinload(GrainDelivery.reconciliations),
         )
         .where(GrainDelivery.cliente_id == cliente_id)
         .order_by(GrainDelivery.fecha_creacion.desc())
@@ -4259,9 +4260,15 @@ async def read_comercial_entregas(
     res_del = await db.execute(stmt_del)
     deliveries_objs = res_del.scalars().all()
 
-    stmt_comp = select(CompromisoGrano).where(CompromisoGrano.cliente_id == cliente_id)
+    from app.services.stock_service import get_compromisos_saldos_map, format_compromiso_dict
+    stmt_comp = select(CompromisoGrano).where(CompromisoGrano.cliente_id == cliente_id, CompromisoGrano.cumplido == False)
     res_comp = await db.execute(stmt_comp)
     compromisos_objs = res_comp.scalars().all()
+    saldos_map = await get_compromisos_saldos_map(db, cliente_id)
+    compromisos_list = [
+        format_compromiso_dict(c, saldo_tn=saldos_map.get(c.id, c.toneladas_comprometidas))
+        for c in compromisos_objs
+    ]
 
     stmt_quotes = select(FreightQuote).where(FreightQuote.cliente_id == cliente_id)
     res_quotes = await db.execute(stmt_quotes)
@@ -4320,6 +4327,27 @@ async def read_comercial_entregas(
                 )
             )
 
+        allocations_activas = [a for a in d.allocations if a.estado == "activa"]
+        allocations_despachadas = [a for a in d.allocations if a.estado == "despachada"]
+        asig_activas_kg = sum((a.cantidad_kg for a in allocations_activas), Decimal("0.0"))
+        asig_despachadas_kg = sum((a.cantidad_kg for a in allocations_despachadas), Decimal("0.0"))
+
+        reconciliation_pending = next((r for r in d.reconciliations if r.estado == "pendiente"), None)
+        reconciliaciones_list = [
+            {
+                "id": str(r.id),
+                "grain_waybill_id": str(r.grain_waybill_id),
+                "peso_neto_origen_kg": float(r.peso_neto_origen_kg),
+                "peso_recibido_destino_kg": float(r.peso_recibido_destino_kg),
+                "diferencia_kg": float(r.diferencia_kg),
+                "diferencia_pct": float(r.diferencia_pct),
+                "estado": r.estado,
+                "resolucion_tipo": r.resolucion_tipo or "",
+                "resolucion_observaciones": r.resolucion_observaciones or "",
+            }
+            for r in d.reconciliations
+        ]
+
         deliv_item = {
             "id": str(d.id),
             "tracking_number": d.tracking_number,
@@ -4349,6 +4377,12 @@ async def read_comercial_entregas(
             "documentacion_status": d.documentacion_status,
             "observaciones": d.observaciones or "",
             "waybills": waybills_list,
+            "allocations_activas": allocations_activas,
+            "allocations_despachadas": allocations_despachadas,
+            "toneladas_asignadas_activas_tn": float(asig_activas_kg / Decimal("1000.0")),
+            "toneladas_despachadas_tn": float(asig_despachadas_kg / Decimal("1000.0")),
+            "reconciliation_pending": reconciliation_pending,
+            "reconciliations": reconciliaciones_list,
         }
 
         deliveries_list.append(deliv_item)
@@ -4408,7 +4442,7 @@ async def read_comercial_entregas(
             "deliveries": deliveries_list,
             "deliveries_json": json.dumps(deliveries_dict_json),
             "delivery_insights": delivery_insights,
-            "compromisos": compromisos_objs,
+            "compromisos": compromisos_list,
             "quotes": quotes_objs,
         },
     )
@@ -4742,6 +4776,135 @@ async def delete_comercial_waybill(
     await db.commit()
 
     return RedirectResponse("/comercial/entregas?mensaje=Carta+de+porte+eliminada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/{delivery_id}/despachar")
+async def dispatch_comercial_entrega(
+    request: Request,
+    delivery_id: str,
+    waybill_id: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Confirma el despacho físico de stock para una entrega con carta de porte (Stock 1C).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    user_id = get_uuid(user.get("id"))
+    d_uuid = get_uuid(delivery_id)
+    w_uuid = get_uuid(waybill_id)
+
+    from app.services.stock_service import confirm_delivery_dispatch
+
+    try:
+        res = await confirm_delivery_dispatch(
+            db=db,
+            cliente_id=cliente_id,
+            user_id=user_id,
+            delivery_id=d_uuid,
+            waybill_id=w_uuid,
+            observaciones=observaciones,
+        )
+        msg = f"Despacho físico confirmado exitosamente ({res['peso_despachado_kg'] / Decimal('1000.0'):.2f} Tn salidas de stock)."
+        return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ve:
+        return RedirectResponse(f"/comercial/entregas?error={str(ve).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/comercial/entregas?error=Error+al+confirmar+despacho:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/{delivery_id}/cartas/{waybill_id}/recepcion")
+async def record_waybill_reception(
+    request: Request,
+    delivery_id: str,
+    waybill_id: str,
+    peso_recibido_destino_kg: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Registra el peso recibido en destino y genera la evaluación de conciliación de pesaje (Stock 1C).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    user_id = get_uuid(user.get("id"))
+    d_uuid = get_uuid(delivery_id)
+    w_uuid = get_uuid(waybill_id)
+
+    try:
+        from app.services.stock_service import parse_decimal_ar
+        peso_destino = parse_decimal_ar(peso_recibido_destino_kg)
+        if not peso_destino or peso_destino <= Decimal("0.0"):
+            return RedirectResponse("/comercial/entregas?error=El+peso+recibido+en+destino+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+        from app.services.stock_service import record_delivery_reception_and_reconciliation
+        res = await record_delivery_reception_and_reconciliation(
+            db=db,
+            cliente_id=cliente_id,
+            user_id=user_id,
+            delivery_id=d_uuid,
+            waybill_id=w_uuid,
+            peso_recibido_destino_kg=peso_destino,
+            observaciones=observaciones,
+        )
+        msg = f"Peso de recepción registrado exitosamente ({peso_destino / Decimal('1000.0'):.2f} Tn). Conciliación: {res['estado_reconciliacion']}."
+        return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ve:
+        return RedirectResponse(f"/comercial/entregas?error={str(ve).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/comercial/entregas?error=Error+al+registrar+recepción:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/entregas/reconciliaciones/{reconciliation_id}/resolver")
+async def resolve_waybill_reconciliation_endpoint(
+    request: Request,
+    reconciliation_id: str,
+    resolucion_tipo: str = Form(...),
+    observaciones: str = Form(...),
+    ajuste_cantidad_valor: Optional[str] = Form(None),
+    stock_partida_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resuelve explícitamente una diferencia de pesaje de conciliación (Stock 1C).
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/entregas", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    user_id = get_uuid(user.get("id"))
+    r_uuid = get_uuid(reconciliation_id)
+    p_uuid = get_uuid(stock_partida_id) if stock_partida_id and stock_partida_id.strip() else None
+
+    from app.services.stock_service import resolve_weight_reconciliation, parse_decimal_ar
+
+    try:
+        ajuste_val = parse_decimal_ar(ajuste_cantidad_valor) if ajuste_cantidad_valor else None
+        res = await resolve_weight_reconciliation(
+            db=db,
+            cliente_id=cliente_id,
+            user_id=user_id,
+            reconciliation_id=r_uuid,
+            resolucion_tipo=resolucion_tipo,
+            observaciones=observaciones,
+            ajuste_cantidad_valor=ajuste_val,
+            stock_partida_id=p_uuid,
+        )
+        msg = f"Conciliación de pesaje resuelta exitosamente ('{res['resolucion_tipo']}')."
+        return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ve:
+        return RedirectResponse(f"/comercial/entregas?error={str(ve).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/comercial/entregas?error=Error+al+resolver+conciliación:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 
 

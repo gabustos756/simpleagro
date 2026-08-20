@@ -191,6 +191,8 @@ class GrainDeliveryContext(BaseModel):
 
 
 class DecisionContext(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     request_id: Optional[Union[UUID, str]] = None
     organization_id: Optional[Union[UUID, str]] = None
     family_client_id: Optional[Union[UUID, str]] = None

@@ -526,8 +526,8 @@
                 <td class="p-3 text-slate-600 font-medium">{{ m.fecha_movimiento }}</td>
                 <td class="p-3 font-bold text-slate-900">{{ m.tracking_partida }}</td>
                 <td class="p-3">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if m.tipo == 'ingreso_inicial' %} bg-emerald-100 text-emerald-800 border-emerald-200 {% else %} bg-blue-100 text-blue-800 border-blue-200 {% endif %}">
-                    {{ m.tipo }}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border {% if m.tipo == 'ingreso_inicial' %} bg-emerald-100 text-emerald-800 border-emerald-200 {% elif m.tipo == 'despacho_entrega' %} bg-amber-100 text-amber-900 border-amber-300 {% elif m.tipo == 'ajuste_diferencia_pesaje' %} bg-purple-100 text-purple-900 border-purple-300 {% else %} bg-blue-100 text-blue-800 border-blue-200 {% endif %}">
+                    {% if m.tipo == 'despacho_entrega' %}🚚 Despacho Entrega{% elif m.tipo == 'ajuste_diferencia_pesaje' %}⚖️ Ajuste Pesaje{% else %}{{ m.tipo }}{% endif %}
                   </span>
                 </td>
                 <td class="p-3 text-right font-black {% if m.cantidad_kg > 0 %} text-emerald-700 {% else %} text-rose-700 {% endif %}">
@@ -876,7 +876,7 @@
           <label class="block font-bold text-slate-700 uppercase mb-1">Compromiso Comercial *</label>
           <select name="compromiso_id" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold">
             {% for c in compromisos %}
-            <option value="{{ c.id }}">📝 {{ c.concepto }} - {{ c.beneficiario }} ({{ c.toneladas_comprometidas | formato_ar }} Tn {{ c.cultivo }})</option>
+            <option value="{{ c.id }}">{{ c.label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -943,7 +943,7 @@
             <option value="">-- Stock Libre (Sin Reserva previa) --</option>
             {% for r in reservas %}
             {% if r.estado in ['activa', 'parcialmente_asignada'] %}
-            <option value="{{ r.id }}">🔒 Reserva de {{ r.compromiso_concepto }} ({{ r.tracking_partida }})</option>
+            <option value="{{ r.id }}">🔒 Reserva: {{ r.compromiso_label or r.compromiso_concepto }} (Partida {{ r.tracking_partida }})</option>
             {% endif %}
             {% endfor %}
           </select>

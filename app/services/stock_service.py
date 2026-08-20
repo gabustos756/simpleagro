@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Servicio de Stock Físico V1 y Stock Comercial 1B (EduAgro).
 Provee cálculo de saldos derivados (Físico, Reservado, Asignado y Disponible),
@@ -846,3 +848,609 @@ async def get_storage_location_occupancy(
         "estado_capacidad": status,
         "requires_capacity": requires_capacity,
     }
+
+
+async def confirm_delivery_dispatch(
+    db: AsyncSession,
+    cliente_id: UUID,
+    user_id: Optional[UUID],
+    delivery_id: UUID,
+    waybill_id: UUID,
+    allocations_breakdown: Optional[List[Dict[str, Any]]] = None,
+    observaciones: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Confirma el despacho físico de una entrega con carta de porte (Stock 1C).
+    Precondiciones:
+    - Mismo cliente_id.
+    - Delivery existe, no cancelada/liquidada.
+    - Waybill existe, estado != 'despachada', peso_neto_origen_kg > 0.
+    - Asignaciones activas disponibles cubren o coinciden con peso_neto_origen_kg.
+    Acciones:
+    1. Lock pesimista en delivery, waybill, allocations y partidas.
+    2. Crea 1 o más StockMovement de salida ('despacho_entrega', cantidad_kg < 0).
+    3. Reclasifica asignaciones usadas a 'despachada'.
+    4. Actualiza GrainWaybill a 'despachada' y GrainDelivery a 'en_transito' (si planificada).
+    5. Valida que el saldo físico no quede negativo.
+    """
+    from app.models import GrainWaybill, StockWeightReconciliation
+
+    # 1. Obtener Delivery con Lock
+    stmt_d = (
+        select(GrainDelivery)
+        .where(GrainDelivery.id == delivery_id, GrainDelivery.cliente_id == cliente_id)
+        .with_for_update()
+    )
+    res_d = await db.execute(stmt_d)
+    delivery = res_d.scalars().first()
+    if not delivery:
+        raise ValueError("Entrega no encontrada o no autorizada.")
+
+    if delivery.estado in ["cancelada", "liquidada"]:
+        raise ValueError(f"No se puede despachar una entrega en estado '{delivery.estado}'.")
+
+    # 2. Obtener Waybill con Lock
+    stmt_w = (
+        select(GrainWaybill)
+        .where(GrainWaybill.id == waybill_id, GrainWaybill.entrega_id == delivery_id, GrainWaybill.cliente_id == cliente_id)
+        .with_for_update()
+    )
+    res_w = await db.execute(stmt_w)
+    waybill = res_w.scalars().first()
+    if not waybill:
+        raise ValueError("Carta de porte no encontrada o no pertenece a la entrega.")
+
+    if waybill.estado == "despachada":
+        raise ValueError("La carta de porte ya fue despachada anteriormente.")
+
+    peso_neto_kg = waybill.peso_neto_origen_kg
+    if not peso_neto_kg or peso_neto_kg <= Decimal("0.0"):
+        if waybill.peso_bruto_origen_kg and waybill.tara_kg and waybill.peso_bruto_origen_kg > waybill.tara_kg:
+            peso_neto_kg = waybill.peso_bruto_origen_kg - waybill.tara_kg
+            waybill.peso_neto_origen_kg = peso_neto_kg
+        else:
+            raise ValueError("La carta de porte no posee peso neto de origen válido (bruto y tara requeridos).")
+
+    # 3. Obtener Asignaciones Activas de la Entrega con Lock
+    stmt_alloc = (
+        select(StockDeliveryAllocation)
+        .where(
+            StockDeliveryAllocation.cliente_id == cliente_id,
+            StockDeliveryAllocation.grain_delivery_id == delivery_id,
+            StockDeliveryAllocation.estado == "activa",
+        )
+        .with_for_update()
+    )
+    res_alloc = await db.execute(stmt_alloc)
+    allocations = res_alloc.scalars().all()
+
+    if not allocations:
+        raise ValueError("La entrega no posee asignaciones activas de stock para despachar.")
+
+    total_asig_kg = sum((a.cantidad_kg for a in allocations), Decimal("0.0"))
+    if total_asig_kg < peso_neto_kg:
+        raise ValueError(
+            f"El total asignado activo ({total_asig_kg / Decimal('1000.0'):.2f} Tn) "
+            f"es insuficiente para cubrir el peso neto de origen ({peso_neto_kg / Decimal('1000.0'):.2f} Tn)."
+        )
+
+    # 4. Procesar distribución del consumo de asignaciones por partida
+    movements_created = []
+    remanente_despacho_kg = peso_neto_kg
+    now_dt = datetime.now()
+
+    if allocations_breakdown:
+        for item in allocations_breakdown:
+            alloc_id = UUID(item["allocation_id"]) if isinstance(item["allocation_id"], str) else item["allocation_id"]
+            desp_kg = Decimal(str(item["despachar_kg"]))
+            alloc = next((a for a in allocations if a.id == alloc_id), None)
+            if not alloc:
+                raise ValueError(f"Asignación {alloc_id} no válida o no pertenece a la entrega.")
+            if desp_kg > alloc.cantidad_kg:
+                raise ValueError(f"La cantidad a despachar ({desp_kg} kg) supera la asignación ({alloc.cantidad_kg} kg).")
+            
+            bal = await get_stock_partida_balance(db, cliente_id, alloc.stock_partida_id)
+            if bal["saldo_fisico_kg"] < desp_kg:
+                raise ValueError(f"Stock físico insuficiente en la partida para despachar {desp_kg} kg.")
+
+            mov = StockMovement(
+                cliente_id=cliente_id,
+                stock_partida_id=alloc.stock_partida_id,
+                tipo="despacho_entrega",
+                cantidad_kg=-desp_kg,
+                fecha_movimiento=now_dt,
+                referencia_tipo="grain_delivery",
+                referencia_id=str(delivery_id),
+                grain_delivery_id=delivery_id,
+                grain_waybill_id=waybill_id,
+                stock_delivery_allocation_id=alloc.id,
+                motivo=f"Despacho Carta de Porte N° {waybill.numero_carta_porte or 'S/N'}",
+                observaciones=observaciones or f"Despacho físico confirmación de entrega {delivery.tracking_number}",
+                created_by_user_id=user_id,
+            )
+            db.add(mov)
+            await db.flush()
+
+            alloc.estado = "despachada"
+            alloc.despatched_at = now_dt
+            alloc.despatched_by_user_id = user_id
+            alloc.stock_movement_id = mov.id
+            movements_created.append(mov)
+    else:
+        for alloc in allocations:
+            if remanente_despacho_kg <= Decimal("0.0"):
+                break
+            desp_kg = min(alloc.cantidad_kg, remanente_despacho_kg)
+
+            bal = await get_stock_partida_balance(db, cliente_id, alloc.stock_partida_id)
+            if bal["saldo_fisico_kg"] < desp_kg:
+                raise ValueError(f"Stock físico insuficiente en la partida para despachar {desp_kg} kg.")
+
+            mov = StockMovement(
+                cliente_id=cliente_id,
+                stock_partida_id=alloc.stock_partida_id,
+                tipo="despacho_entrega",
+                cantidad_kg=-desp_kg,
+                fecha_movimiento=now_dt,
+                referencia_tipo="grain_delivery",
+                referencia_id=str(delivery_id),
+                grain_delivery_id=delivery_id,
+                grain_waybill_id=waybill_id,
+                stock_delivery_allocation_id=alloc.id,
+                motivo=f"Despacho Carta de Porte N° {waybill.numero_carta_porte or 'S/N'}",
+                observaciones=observaciones or f"Despacho físico confirmación de entrega {delivery.tracking_number}",
+                created_by_user_id=user_id,
+            )
+            db.add(mov)
+            await db.flush()
+
+            remanente_despacho_kg -= desp_kg
+            alloc.estado = "despachada"
+            alloc.despatched_at = now_dt
+            alloc.despatched_by_user_id = user_id
+            alloc.stock_movement_id = mov.id
+            movements_created.append(mov)
+
+    # 5. Actualizar Estados de Carta y Entrega
+    waybill.estado = "despachada"
+    waybill.despatched_at = now_dt
+    waybill.despatched_by_user_id = user_id
+
+    if delivery.estado == "planificada":
+        delivery.estado = "en_transito"
+    delivery.kg_neto_origen_total = peso_neto_kg
+
+    await db.commit()
+
+    return {
+        "delivery_id": str(delivery_id),
+        "waybill_id": str(waybill_id),
+        "peso_despachado_kg": peso_neto_kg,
+        "movimientos_creados": len(movements_created),
+        "nuevo_estado_entrega": delivery.estado,
+        "nuevo_estado_carta": waybill.estado,
+    }
+
+
+async def record_delivery_reception_and_reconciliation(
+    db: AsyncSession,
+    cliente_id: UUID,
+    user_id: Optional[UUID],
+    delivery_id: UUID,
+    waybill_id: UUID,
+    peso_recibido_destino_kg: Decimal,
+    observaciones: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Registra el peso recibido en destino y evalúa conciliación (Stock 1C).
+    NO genera salida física adicional de stock.
+    Calcula diferencia = recibido_destino - neto_origen.
+    Si supera umbral de política (1.0% o 300 kg), marca estado 'pendiente'.
+    Si está dentro de tolerancia, marca estado 'dentro_tolerancia'.
+    """
+    from app.models import GrainWaybill, StockWeightReconciliation, GrainDelivery
+
+    stmt_w = (
+        select(GrainWaybill)
+        .where(GrainWaybill.id == waybill_id, GrainWaybill.entrega_id == delivery_id, GrainWaybill.cliente_id == cliente_id)
+        .with_for_update()
+    )
+    res_w = await db.execute(stmt_w)
+    waybill = res_w.scalars().first()
+    if not waybill:
+        raise ValueError("Carta de porte no encontrada.")
+
+    stmt_d = (
+        select(GrainDelivery)
+        .where(GrainDelivery.id == delivery_id, GrainDelivery.cliente_id == cliente_id)
+        .with_for_update()
+    )
+    res_d = await db.execute(stmt_d)
+    delivery = res_d.scalars().first()
+    if not delivery:
+        raise ValueError("Entrega no encontrada.")
+
+    peso_origen_kg = waybill.peso_neto_origen_kg or Decimal("0.0")
+    if peso_origen_kg <= Decimal("0.0"):
+        raise ValueError("La carta de porte no cuenta con peso neto de origen para calcular la diferencia.")
+
+    diferencia_kg = peso_recibido_destino_kg - peso_origen_kg
+    diferencia_pct = (diferencia_kg / peso_origen_kg) * Decimal("100.0")
+
+    waybill.peso_recibido_destino_kg = peso_recibido_destino_kg
+    waybill.diferencia_kg = diferencia_kg
+    waybill.diferencia_pct = diferencia_pct.quantize(Decimal("0.01"))
+    waybill.estado = "recibida"
+    waybill.fecha_recepcion = datetime.now()
+
+    if delivery.estado in ["planificada", "en_transito"]:
+        delivery.estado = "recibida"
+    delivery.kg_recibido_total = peso_recibido_destino_kg
+    delivery.diferencia_total_kg = diferencia_kg
+    delivery.diferencia_total_pct = diferencia_pct.quantize(Decimal("0.01"))
+
+    abs_pct = abs(diferencia_pct)
+    abs_kg = abs(diferencia_kg)
+
+    threshold_pct = Decimal("1.0")
+    threshold_kg = Decimal("300.0")
+
+    if abs_pct <= threshold_pct or abs_kg <= threshold_kg:
+        estado_reconciliacion = "dentro_tolerancia"
+    else:
+        estado_reconciliacion = "pendiente"
+
+    stmt_rec = select(StockWeightReconciliation).where(
+        StockWeightReconciliation.cliente_id == cliente_id,
+        StockWeightReconciliation.grain_waybill_id == waybill_id,
+    ).with_for_update()
+    res_rec = await db.execute(stmt_rec)
+    reconciliation = res_rec.scalars().first()
+
+    if not reconciliation:
+        reconciliation = StockWeightReconciliation(
+            cliente_id=cliente_id,
+            grain_delivery_id=delivery_id,
+            grain_waybill_id=waybill_id,
+            peso_neto_origen_kg=peso_origen_kg,
+            peso_recibido_destino_kg=peso_recibido_destino_kg,
+            diferencia_kg=diferencia_kg,
+            diferencia_pct=diferencia_pct.quantize(Decimal("0.01")),
+            estado=estado_reconciliacion,
+            resolucion_observaciones=observaciones,
+        )
+        db.add(reconciliation)
+    else:
+        reconciliation.peso_neto_origen_kg = peso_origen_kg
+        reconciliation.peso_recibido_destino_kg = peso_recibido_destino_kg
+        reconciliation.diferencia_kg = diferencia_kg
+        reconciliation.diferencia_pct = diferencia_pct.quantize(Decimal("0.01"))
+        reconciliation.estado = estado_reconciliacion
+        if observaciones:
+            reconciliation.resolucion_observaciones = observaciones
+
+    await db.commit()
+
+    return {
+        "delivery_id": str(delivery_id),
+        "waybill_id": str(waybill_id),
+        "reconciliation_id": str(reconciliation.id),
+        "peso_recibido_destino_kg": peso_recibido_destino_kg,
+        "diferencia_kg": diferencia_kg,
+        "diferencia_pct": diferencia_pct.quantize(Decimal("0.01")),
+        "estado_reconciliacion": estado_reconciliacion,
+    }
+
+
+async def resolve_weight_reconciliation(
+    db: AsyncSession,
+    cliente_id: UUID,
+    user_id: Optional[UUID],
+    reconciliation_id: UUID,
+    resolucion_tipo: str,
+    observaciones: str,
+    ajuste_cantidad_valor: Optional[Decimal] = None,
+    stock_partida_id: Optional[UUID] = None,
+) -> Dict[str, Any]:
+    """
+    Resuelve explícitamente una conciliación de pesaje (Stock 1C).
+    Tipos de resolución:
+    - 'aceptada_sin_ajuste': No modifica stock físico. Marca estado 'resuelta'.
+    - 'ajuste_inventario': Crea un StockMovement explícito 'ajuste_diferencia_pesaje'. Valida saldo no negativo.
+    - 'diferencia_documentada': Documenta observaciones sin modificar físico. Marca 'resuelta'.
+    - 'anulada': Válida si la entrega fue anulada. Marca 'anulada'.
+    """
+    from app.models import StockWeightReconciliation
+
+    valid_types = ["aceptada_sin_ajuste", "ajuste_inventario", "diferencia_documentada", "anulada"]
+    if resolucion_tipo not in valid_types:
+        raise ValueError(f"Tipo de resolución '{resolucion_tipo}' no válido. Opciones: {', '.join(valid_types)}.")
+
+    if not observaciones or not observaciones.strip():
+        raise ValueError("Las observaciones de resolución son obligatorias.")
+
+    stmt_rec = (
+        select(StockWeightReconciliation)
+        .where(StockWeightReconciliation.id == reconciliation_id, StockWeightReconciliation.cliente_id == cliente_id)
+        .with_for_update()
+    )
+    res_rec = await db.execute(stmt_rec)
+    reconciliation = res_rec.scalars().first()
+    if not reconciliation:
+        raise ValueError("Registro de conciliación no encontrado o no autorizado.")
+
+    if reconciliation.estado in ["resuelta", "anulada"] and resolucion_tipo != "anulada":
+        raise ValueError(f"La conciliación ya fue resuelta anteriormente con estado '{reconciliation.estado}'.")
+
+    now_dt = datetime.now()
+    mov_created = None
+
+    if resolucion_tipo == "ajuste_inventario":
+        if not ajuste_cantidad_valor or ajuste_cantidad_valor == Decimal("0.0"):
+            raise ValueError("Para 'ajuste_inventario' debe indicar la cantidad de ajuste en kg (positiva o negativa).")
+        if not stock_partida_id:
+            raise ValueError("Para 'ajuste_inventario' debe especificar la partida física a ajustar.")
+
+        bal = await get_stock_partida_balance(db, cliente_id, stock_partida_id)
+        nuevo_saldo = bal["saldo_fisico_kg"] + ajuste_cantidad_valor
+        if nuevo_saldo < Decimal("0.0"):
+            raise ValueError(f"El ajuste propuesto ({ajuste_cantidad_valor} kg) dejaría la partida con saldo negativo.")
+
+        mov_created = StockMovement(
+            cliente_id=cliente_id,
+            stock_partida_id=stock_partida_id,
+            tipo="ajuste_diferencia_pesaje",
+            cantidad_kg=ajuste_cantidad_valor,
+            fecha_movimiento=now_dt,
+            referencia_tipo="weight_reconciliation",
+            referencia_id=str(reconciliation.id),
+            grain_delivery_id=reconciliation.grain_delivery_id,
+            grain_waybill_id=reconciliation.grain_waybill_id,
+            motivo=f"Ajuste por conciliación de pesaje ({reconciliation.diferencia_kg} kg)",
+            observaciones=observaciones,
+            created_by_user_id=user_id,
+        )
+        db.add(mov_created)
+        await db.flush()
+        reconciliation.stock_movement_id = mov_created.id
+
+    reconciliation.estado = "anulada" if resolucion_tipo == "anulada" else "resuelta"
+    reconciliation.resolucion_tipo = resolucion_tipo
+    reconciliation.resolucion_observaciones = observaciones
+    reconciliation.resolved_at = now_dt
+    reconciliation.resolved_by_user_id = user_id
+
+    await db.commit()
+
+    return {
+        "reconciliation_id": str(reconciliation.id),
+        "resolucion_tipo": resolucion_tipo,
+        "nuevo_estado": reconciliation.estado,
+        "movimiento_ajuste_id": str(mov_created.id) if mov_created else None,
+    }
+
+
+def formato_ar_decimal(val: Any) -> str:
+    """
+    Formatea un valor numérico a formato argentino con 2 decimales:
+    18.0 -> "18,00"
+    1234.56 -> "1.234,56"
+    """
+    if val is None:
+        return "0,00"
+    if isinstance(val, (float, int, str)):
+        try:
+            val = Decimal(str(val))
+        except Exception:
+            return "0,00"
+    if not isinstance(val, Decimal):
+        return "0,00"
+    val_quant = val.quantize(Decimal("0.01"))
+    parts = f"{val_quant:f}".split(".")
+    integer_part = parts[0]
+    decimal_part = parts[1] if len(parts) > 1 else "00"
+    negative = integer_part.startswith("-")
+    if negative:
+        integer_part = integer_part[1:]
+    
+    formatted_int = ""
+    for i, char in enumerate(reversed(integer_part)):
+        if i > 0 and i % 3 == 0:
+            formatted_int = "." + formatted_int
+        formatted_int = char + formatted_int
+    
+    if negative:
+        formatted_int = "-" + formatted_int
+        
+    return f"{formatted_int},{decimal_part}"
+
+
+def _format_vencimiento(venc: Any) -> str:
+    if not venc:
+        return "Sin vencimiento informado"
+    if isinstance(venc, (date, datetime)):
+        v_date = venc.date() if isinstance(venc, datetime) else venc
+        return f"Vence: {v_date.strftime('%d/%m/%Y')}"
+    if isinstance(venc, str):
+        venc_clean = venc.strip()
+        if not venc_clean:
+            return "Sin vencimiento informado"
+        try:
+            dt = datetime.strptime(venc_clean[:10], "%Y-%m-%d")
+            return f"Vence: {dt.strftime('%d/%m/%Y')}"
+        except ValueError:
+            return f"Vence: {venc_clean}"
+    return "Sin vencimiento informado"
+
+
+def build_commitment_display_label(
+    compromiso: Any,
+    *,
+    saldo_tn: Decimal | float | int | None = None,
+) -> str:
+    """
+    Construye una etiqueta descriptiva, única y consistente para compromisos comerciales.
+    Formato preferido: '[TIPO] · [CONTRAPARTE/BENEFICIARIO] · [REFERENCIA/CONCEPTO] · Saldo: [X,XX Tn] · Vence: [DD/MM/AAAA]'
+    Ejemplo: 'Canje · Murature · Semilla maíz 2026/27 · Saldo: 18,00 Tn · Vence: 30/09/2026'
+    Fallback robusto: 'Compromiso sin referencia · Saldo: 18,00 Tn · ID: ABCD'
+    """
+    if compromiso is None:
+        return "Compromiso no especificado"
+
+    def _get_val(attr: str, default: Any = None) -> Any:
+        if isinstance(compromiso, dict):
+            return compromiso.get(attr, default)
+        return getattr(compromiso, attr, default)
+
+    c_id = str(_get_val("id", ""))
+    short_id = c_id[-4:].upper() if len(c_id) >= 4 else "N/A"
+
+    tipo_raw = _get_val("tipo_compromiso")
+    if hasattr(tipo_raw, "value"):
+        tipo_str = str(tipo_raw.value)
+    else:
+        tipo_str = str(tipo_raw or "")
+
+    tipo_lower = tipo_str.lower()
+    if "alquiler" in tipo_lower or "arrendamiento" in tipo_lower:
+        tipo_lbl = "Alquiler"
+    elif "canje" in tipo_lower:
+        tipo_lbl = "Canje"
+    elif tipo_str.strip():
+        tipo_lbl = tipo_str.replace("_", " ").title()
+    else:
+        tipo_lbl = "Compromiso"
+
+    beneficiario = _get_val("beneficiario")
+    ben_has_value = bool(beneficiario and str(beneficiario).strip())
+    ben_str = str(beneficiario).strip() if ben_has_value else "Contraparte no informada"
+
+    concepto = _get_val("concepto")
+    conc_has_value = bool(concepto and str(concepto).strip())
+    conc_str = str(concepto).strip() if conc_has_value else "Sin referencia"
+
+    if saldo_tn is None:
+        st_val = _get_val("toneladas_comprometidas", Decimal("0.0"))
+        if st_val is not None:
+            try:
+                saldo_tn = Decimal(str(st_val))
+            except Exception:
+                saldo_tn = Decimal("0.0")
+        else:
+            saldo_tn = Decimal("0.0")
+    elif not isinstance(saldo_tn, Decimal):
+        try:
+            saldo_tn = Decimal(str(saldo_tn))
+        except Exception:
+            saldo_tn = Decimal("0.0")
+
+    saldo_fmt = formato_ar_decimal(saldo_tn)
+    saldo_lbl = f"Saldo: {saldo_fmt} Tn"
+
+    venc_val = _get_val("fecha_vencimiento")
+    venc_lbl = _format_vencimiento(venc_val)
+
+    cumplido = bool(_get_val("cumplido", False))
+
+    venc_date = None
+    if isinstance(venc_val, (date, datetime)):
+        venc_date = venc_val.date() if isinstance(venc_val, datetime) else venc_val
+    elif isinstance(venc_val, str) and venc_val.strip():
+        try:
+            venc_date = datetime.strptime(venc_val.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    estado_prefix = ""
+    if cumplido:
+        estado_prefix = "[Cumplido] "
+    elif venc_date and venc_date < date.today():
+        estado_prefix = "[Vencido] "
+
+    # Fallback robusto si faltan concepto y contraparte
+    if not ben_has_value and not conc_has_value:
+        return f"{estado_prefix}Compromiso sin referencia · {saldo_lbl} · ID: {short_id}"
+
+    return f"{estado_prefix}{tipo_lbl} · {ben_str} · {conc_str} · {saldo_lbl} · {venc_lbl}"
+
+
+async def get_compromisos_saldos_map(
+    db: AsyncSession,
+    cliente_id: UUID,
+) -> Dict[UUID, Decimal]:
+    """
+    Calcula de manera eficiente (sin N+1 queries) el saldo pendiente (no reservado)
+    de cada compromiso comercial perteneciente al cliente especificado.
+    """
+    stmt = select(CompromisoGrano.id, CompromisoGrano.toneladas_comprometidas).where(CompromisoGrano.cliente_id == cliente_id)
+    res = await db.execute(stmt)
+    saldos = {row.id: Decimal(str(row.toneladas_comprometidas or "0.0")) for row in res.all()}
+
+    if not saldos:
+        return {}
+
+    stmt_res = select(
+        StockReservation.compromiso_id,
+        func.coalesce(func.sum(StockReservation.cantidad_reserva_kg), Decimal("0.0")).label("res_kg")
+    ).where(
+        StockReservation.cliente_id == cliente_id,
+        StockReservation.estado.in_(["activa", "parcialmente_asignada"])
+    ).group_by(StockReservation.compromiso_id)
+
+    res_res = await db.execute(stmt_res)
+    for row in res_res.all():
+        if row.compromiso_id in saldos:
+            res_tn = Decimal(str(row.res_kg or "0.0")) / Decimal("1000.0")
+            saldos[row.compromiso_id] = max(Decimal("0.0"), saldos[row.compromiso_id] - res_tn)
+
+    return saldos
+
+
+def format_compromiso_dict(
+    compromiso: Any,
+    saldo_tn: Decimal | float | int | None = None,
+) -> Dict[str, Any]:
+    """
+    Formatea un objeto o diccionario de compromiso comercial a un diccionario estandarizado para Jinja context.
+    """
+    def _get_val(attr: str, default: Any = None) -> Any:
+        if isinstance(compromiso, dict):
+            return compromiso.get(attr, default)
+        return getattr(compromiso, attr, default)
+
+    c_id = _get_val("id", "")
+    c_cumplido = _get_val("cumplido", False)
+    c_cultivo = _get_val("cultivo", "")
+    c_venc = _get_val("fecha_vencimiento", None)
+    c_concepto = _get_val("concepto", "")
+    c_beneficiario = _get_val("beneficiario", "")
+    c_tn = _get_val("toneladas_comprometidas", Decimal("0.0"))
+
+    if saldo_tn is None:
+        saldo_tn = Decimal(str(c_tn)) if c_tn is not None else Decimal("0.0")
+    elif not isinstance(saldo_tn, Decimal):
+        try:
+            saldo_tn = Decimal(str(saldo_tn))
+        except Exception:
+            saldo_tn = Decimal("0.0")
+
+    label = build_commitment_display_label(compromiso, saldo_tn=saldo_tn)
+
+    venc_str = ""
+    if isinstance(c_venc, (date, datetime)):
+        venc_str = c_venc.strftime("%d/%m/%Y")
+    elif isinstance(c_venc, str):
+        venc_str = c_venc
+
+    return {
+        "id": str(c_id) if c_id else "",
+        "label": label,
+        "saldo_tn": float(saldo_tn),
+        "estado": "cumplido" if c_cumplido else "pendiente",
+        "cultivo": str(c_cultivo or ""),
+        "fecha_vencimiento": venc_str,
+        "concepto": str(c_concepto or ""),
+        "beneficiario": str(c_beneficiario or ""),
+        "toneladas_comprometidas": float(c_tn) if c_tn is not None else 0.0,
+    }
+

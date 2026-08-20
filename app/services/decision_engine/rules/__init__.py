@@ -49,6 +49,17 @@ from app.services.decision_engine.rules.delivery import (
     EntregaConDocumentacionPendienteRule,
 )
 
+from app.services.decision_engine.rules.stock_delivery import (
+    RuleDespachoSinAsignacionSuficiente,
+    RuleDespachoConfirmado,
+    RuleRecepcionConDiferenciaDePesaje,
+    RuleDiferenciaDePesajeDentroDeTolerancia,
+    RuleDiferenciaDePesajePendienteDeResolucion,
+    RuleEntregaDespachadaSinPesoDestino,
+    RuleAsignacionDespachada,
+    get_stock_delivery_rules,
+)
+
 __all__ = [
     "DecisionRule",
     "RuleTraceContext",
@@ -80,4 +91,12 @@ __all__ = [
     "FleteEstimadoPorEntregaRule",
     "EntregaAsociadaACompromisoRule",
     "EntregaConDocumentacionPendienteRule",
+    "RuleDespachoSinAsignacionSuficiente",
+    "RuleDespachoConfirmado",
+    "RuleRecepcionConDiferenciaDePesaje",
+    "RuleDiferenciaDePesajeDentroDeTolerancia",
+    "RuleDiferenciaDePesajePendienteDeResolucion",
+    "RuleEntregaDespachadaSinPesoDestino",
+    "RuleAsignacionDespachada",
+    "get_stock_delivery_rules",
 ]

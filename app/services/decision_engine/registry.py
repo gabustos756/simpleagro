@@ -142,5 +142,8 @@ def create_default_registry() -> RuleRegistry:
     from app.services.decision_engine.rules.stock import get_stock_rules
     for r in get_stock_rules():
         registry.register(r)
+    from app.services.decision_engine.rules.stock_delivery import get_stock_delivery_rules
+    for r in get_stock_delivery_rules():
+        registry.register(r)
 
     return registry

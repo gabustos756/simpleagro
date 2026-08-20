@@ -51,4 +51,11 @@ SYSTEM_BASE_DECISION_POLICY: Dict[str, Any] = {
         "require_waybill_for_completed_delivery": False,
         "default_final_destination_reference": "Rosario",
     },
+    "stock_delivery": {
+        "weight_difference_review_pct": 1.0,
+        "weight_difference_review_kg": 300,
+        "require_explicit_weight_difference_resolution": True,
+        "allow_dispatch_without_destination_weight": True,
+        "allow_stock_adjustment_for_weight_difference": True,
+    },
 }

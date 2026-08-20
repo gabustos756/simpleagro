@@ -58,6 +58,18 @@ async def init_db():
             await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS condicion_precio VARCHAR(50);"))
             await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS distancia_estimada_km NUMERIC(8, 2);"))
             await conn.execute(text("ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS detalle_cupo_turno VARCHAR(300);"))
+
+            # Stock 1C Columns
+            await conn.execute(text("ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS grain_delivery_id UUID REFERENCES grain_deliveries(id) ON DELETE SET NULL;"))
+            await conn.execute(text("ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS grain_waybill_id UUID REFERENCES grain_waybills(id) ON DELETE SET NULL;"))
+            await conn.execute(text("ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS stock_delivery_allocation_id UUID REFERENCES stock_delivery_allocations(id) ON DELETE SET NULL;"))
+
+            await conn.execute(text("ALTER TABLE stock_delivery_allocations ADD COLUMN IF NOT EXISTS despatched_at TIMESTAMP WITH TIME ZONE;"))
+            await conn.execute(text("ALTER TABLE stock_delivery_allocations ADD COLUMN IF NOT EXISTS despatched_by_user_id UUID;"))
+            await conn.execute(text("ALTER TABLE stock_delivery_allocations ADD COLUMN IF NOT EXISTS stock_movement_id UUID REFERENCES stock_movements(id) ON DELETE SET NULL;"))
+
+            await conn.execute(text("ALTER TABLE grain_waybills ADD COLUMN IF NOT EXISTS despatched_at TIMESTAMP WITH TIME ZONE;"))
+            await conn.execute(text("ALTER TABLE grain_waybills ADD COLUMN IF NOT EXISTS despatched_by_user_id UUID;"))
         except Exception:
             pass
 

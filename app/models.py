@@ -99,6 +99,9 @@ class Cliente(Base):
     stock_allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
         "StockDeliveryAllocation", back_populates="cliente", cascade="all, delete-orphan"
     )
+    stock_weight_reconciliations: Mapped[List["StockWeightReconciliation"]] = relationship(
+        "StockWeightReconciliation", back_populates="cliente", cascade="all, delete-orphan"
+    )
 
 
 class Campo(Base):
@@ -729,6 +732,12 @@ class GrainDelivery(Base):
     allocations: Mapped[List["StockDeliveryAllocation"]] = relationship(
         "StockDeliveryAllocation", back_populates="delivery", cascade="all, delete-orphan"
     )
+    reconciliations: Mapped[List["StockWeightReconciliation"]] = relationship(
+        "StockWeightReconciliation", back_populates="delivery", cascade="all, delete-orphan"
+    )
+    movements: Mapped[List["StockMovement"]] = relationship(
+        "StockMovement", foreign_keys="[StockMovement.grain_delivery_id]", back_populates="delivery"
+    )
 
 
 class GrainWaybill(Base):
@@ -762,6 +771,8 @@ class GrainWaybill(Base):
 
     fecha_carga: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     fecha_recepcion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    despatched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    despatched_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     referencia_ticket_origen: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     referencia_ticket_destino: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -776,6 +787,9 @@ class GrainWaybill(Base):
     )
 
     entrega: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="waybills")
+    reconciliations: Mapped[List["StockWeightReconciliation"]] = relationship(
+        "StockWeightReconciliation", back_populates="waybill", cascade="all, delete-orphan"
+    )
 
 
 class StorageLocation(Base):
@@ -910,6 +924,15 @@ class StockMovement(Base):
 
     referencia_tipo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     referencia_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    grain_delivery_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_deliveries.id", ondelete="SET NULL"), nullable=True
+    )
+    grain_waybill_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_waybills.id", ondelete="SET NULL"), nullable=True
+    )
+    stock_delivery_allocation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_delivery_allocations.id", ondelete="SET NULL"), nullable=True
+    )
     motivo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -919,6 +942,10 @@ class StockMovement(Base):
     )
 
     stock_partida: Mapped["StockPartida"] = relationship("StockPartida", back_populates="movements")
+    delivery: Mapped[Optional["GrainDelivery"]] = relationship("GrainDelivery", foreign_keys=[grain_delivery_id], back_populates="movements")
+    waybill: Mapped[Optional["GrainWaybill"]] = relationship("GrainWaybill", foreign_keys=[grain_waybill_id])
+    allocation: Mapped[Optional["StockDeliveryAllocation"]] = relationship("StockDeliveryAllocation", foreign_keys=[stock_delivery_allocation_id])
+    allocations: Mapped[List["StockDeliveryAllocation"]] = relationship("StockDeliveryAllocation", foreign_keys="[StockDeliveryAllocation.stock_movement_id]", back_populates="stock_movement")
 
 
 class StockQualityMeasurement(Base):
@@ -1041,10 +1068,15 @@ class StockDeliveryAllocation(Base):
     )
     fecha_cancelacion: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     motivo_cancelacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    despatched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     cancelled_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    despatched_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    stock_movement_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_movements.id", ondelete="SET NULL"), nullable=True
+    )
 
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -1058,6 +1090,60 @@ class StockDeliveryAllocation(Base):
     delivery: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="allocations")
     reservation: Mapped[Optional["StockReservation"]] = relationship("StockReservation", back_populates="allocations")
     compromiso: Mapped[Optional["CompromisoGrano"]] = relationship("CompromisoGrano")
+    stock_movement: Mapped[Optional["StockMovement"]] = relationship(
+        "StockMovement", foreign_keys=[stock_movement_id], back_populates="allocations"
+    )
+
+
+class StockWeightReconciliation(Base):
+    """Caso/Registro Auditado de Conciliación de Pesaje Origen vs Destino para Entrega / Carta de Porte."""
+    __tablename__ = "stock_weight_reconciliations"
+    __table_args__ = (
+        Index("ix_stock_reconciliations_cliente", "cliente_id"),
+        Index("ix_stock_reconciliations_delivery", "grain_delivery_id"),
+        Index("ix_stock_reconciliations_waybill", "grain_waybill_id"),
+        Index("ix_stock_reconciliations_estado", "estado"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    grain_delivery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_deliveries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    grain_waybill_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("grain_waybills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    peso_neto_origen_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    peso_recibido_destino_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    diferencia_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    diferencia_pct: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+
+    estado: Mapped[str] = mapped_column(String(50), default="pendiente", nullable=False)
+    resolucion_tipo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    resolucion_observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    stock_movement_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_movements.id", ondelete="SET NULL"), nullable=True
+    )
+
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="stock_weight_reconciliations")
+    delivery: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="reconciliations")
+    waybill: Mapped["GrainWaybill"] = relationship("GrainWaybill", back_populates="reconciliations")
+    stock_movement: Mapped[Optional["StockMovement"]] = relationship("StockMovement", foreign_keys=[stock_movement_id])
 
 
 
