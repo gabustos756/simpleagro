@@ -24,4 +24,5 @@ __pycache__/
 *.sqlite3
 *.log
 
+data/
 DEPLOYMENT.md
