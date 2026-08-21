@@ -42,8 +42,21 @@ class EstadoServicioInstaladoEnum(str, enum.Enum):
 class FrecuenciaPagoEnum(str, enum.Enum):
     MENSUAL = "mensual"
     BIMENSUAL = "bimensual"
+    TRIMESTRAL = "trimestral"
+    SEMESTRAL = "semestral"
     ANUAL = "anual"
+    DOS_ANIOS = "2_anios"
+    TRES_ANIOS = "3_anios"
     EVENTUAL = "eventual"
+
+
+class DocumentTypeEnum(str, enum.Enum):
+    FACTURA = "factura"
+    RECIBO = "recibo"
+    PRESUPUESTO = "presupuesto"
+    CONTRATO = "contrato"
+    COMPROBANTE_PAGO = "comprobante_pago"
+    OTRO = "otro"
 
 
 class TipoLabor(str, enum.Enum):

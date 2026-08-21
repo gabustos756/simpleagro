@@ -41,10 +41,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Generador de dependencias para inyectar la sesión asíncrona de BD en FastAPI."""
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session
 
 
 async def init_db():
@@ -70,6 +67,15 @@ async def init_db():
 
             await conn.execute(text("ALTER TABLE grain_waybills ADD COLUMN IF NOT EXISTS despatched_at TIMESTAMP WITH TIME ZONE;"))
             await conn.execute(text("ALTER TABLE grain_waybills ADD COLUMN IF NOT EXISTS despatched_by_user_id UUID;"))
+
+            # Servicios V1 DDL
+            await conn.execute(text("ALTER TABLE servicios_instalados ADD COLUMN IF NOT EXISTS payment_portal_url TEXT;"))
+            await conn.execute(text("ALTER TABLE servicios_instalados ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(200);"))
+
+            await conn.execute(text("ALTER TABLE servicios_vencimiento ADD COLUMN IF NOT EXISTS servicio_instalado_id UUID REFERENCES servicios_instalados(id) ON DELETE CASCADE;"))
+            await conn.execute(text("ALTER TABLE servicios_vencimiento ADD COLUMN IF NOT EXISTS payment_link TEXT;"))
+            await conn.execute(text("ALTER TABLE servicios_vencimiento ADD COLUMN IF NOT EXISTS periodo_referencia VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE servicios_vencimiento ADD COLUMN IF NOT EXISTS fecha_pago DATE;"))
         except Exception:
             pass
 

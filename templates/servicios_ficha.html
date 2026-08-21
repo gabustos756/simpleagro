@@ -27,32 +27,63 @@
 </head>
 <body class="min-h-full bg-slate-50 text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8">
 
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- MENSAJES FLASH Y ALERTAS -->
+    {% if mensaje %}
+    <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold rounded-2xl flex items-center justify-between shadow-sm">
+      <span>✓ {{ mensaje }}</span>
+      <button onclick="this.parentElement.remove()" class="text-emerald-600 hover:text-emerald-900 font-black">✕</button>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="p-4 bg-red-50 border border-red-200 text-red-800 text-sm font-bold rounded-2xl flex items-center justify-between shadow-sm">
+      <span>⚠️ {{ error }}</span>
+      <button onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-900 font-black">✕</button>
+    </div>
+    {% endif %}
 
     <!-- BOTÓN VOLVER & HEADER -->
     <div class="flex items-center justify-between">
-      <a href="/servicios" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm">
+      <a href="/servicios" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition-all">
         ← Volver al Listado de Servicios
       </a>
       <div class="flex items-center space-x-2">
-        <a href="/servicios/{{ servicio.id }}/editar" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm">
+        <a href="/servicios/{{ servicio.id }}/editar" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all">
           ✏️ Editar Servicio
         </a>
       </div>
     </div>
 
     <!-- TARJETA PRINCIPAL FICHA DE SERVICIO -->
-    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-8">
       
       <!-- Titular del Servicio -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{{ servicio.campo_nombre }} • {{ servicio.instalacion_nombre }}</span>
           <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{{ servicio.concepto }}</h1>
-          <p class="text-xs text-slate-500 mt-0.5">Proveedor: <strong class="text-slate-800 font-bold">{{ servicio.proveedor }}</strong></p>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Proveedor: <strong class="text-slate-800 font-bold">{{ servicio.proveedor }}</strong>
+            {% if servicio.payment_reference %}
+              • Ref/Contrato: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs">{{ servicio.payment_reference }}</code>
+            {% endif %}
+          </p>
         </div>
 
-        <div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.remove('hidden')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-all">
+            <span>💳 Registrar Pago del Período</span>
+          </button>
+
+          {% if servicio.payment_portal_url %}
+            <a href="{{ servicio.payment_portal_url }}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all">
+              <span>🌐 Abrir portal ({{ servicio.payment_portal_domain }})</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            </a>
+          {% endif %}
+
           {% if servicio.estado == 'al_dia' %}
             <span class="px-4 py-2 bg-agro-50 text-agro-700 border border-agro-200 rounded-full font-black text-sm inline-block">
               ✓ ESTADO: AL DÍA
@@ -80,7 +111,7 @@
           <strong class="text-2xl font-black text-amber-700">${{ servicio.monto_usd }} USD</strong>
         </div>
         <div>
-          <span class="text-xs uppercase font-bold text-slate-500 block">Fecha Vencimiento</span>
+          <span class="text-xs uppercase font-bold text-slate-500 block">Próximo Vencimiento</span>
           <strong class="text-xl font-black text-slate-900">{{ servicio.fecha_vencimiento }}</strong>
         </div>
         <div>
@@ -99,35 +130,271 @@
         </div>
       </div>
 
-      <!-- Previsualización de Comprobante / Factura Digital -->
-      <div class="space-y-3">
-        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Comprobante y Factura Digital</h3>
-        <div class="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 h-64 flex items-center justify-center relative shadow-inner">
-          <img
-            src="{{ servicio.comprobante_url or 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80' }}"
-            alt="Comprobante Digital"
-            class="object-cover w-full h-full opacity-80"
-          />
-          <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl text-xs font-bold text-slate-900 shadow-md">
-            📄 Factura / Comprobante Digitalizado
+      <!-- SECCIÓN DE HISTORIAL DE PERÍODOS PAGADOS Y COMPROBANTES -->
+      <div class="space-y-4 border-t border-slate-100 pt-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+              <span>💳</span> Historial de Períodos Pagados y Comprobantes
+            </h3>
+            <p class="text-xs text-slate-500">Filas de meses o períodos abonados con sus facturas/comprobantes digitales adjuntos</p>
           </div>
+          <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.remove('hidden')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+            <span>💳 Registrar Pago del Período</span>
+          </button>
         </div>
+
+        {% if servicio.vencimientos %}
+        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <tr>
+                <th class="p-3">Período / Mes</th>
+                <th class="p-3">Fecha de Pago</th>
+                <th class="p-3">Monto Pagado ($ARS)</th>
+                <th class="p-3">Monto ($USD)</th>
+                <th class="p-3">Factura / Comprobante</th>
+                <th class="p-3">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for v in servicio.vencimientos %}
+              <tr class="hover:bg-slate-50">
+                <td class="p-3 font-bold text-slate-900">
+                  {{ v.concepto }}
+                  {% if v.periodo_referencia and v.periodo_referencia != v.concepto %}
+                    <span class="text-slate-500 font-normal">({{ v.periodo_referencia }})</span>
+                  {% endif %}
+                </td>
+                <td class="p-3 text-slate-700 font-medium">
+                  {% if v.fecha_pago_fmt %}
+                    {{ v.fecha_pago_fmt }}
+                  {% else %}
+                    {{ v.fecha_vencimiento_fmt }}
+                  {% endif %}
+                </td>
+                <td class="p-3 font-bold text-slate-900">${{ "{:,.2f}".format(v.monto_ars) }}</td>
+                <td class="p-3 text-amber-700 font-bold">${{ v.monto_usd }} USD</td>
+                <td class="p-3 space-x-1">
+                  {% if v.documentos %}
+                    {% for doc in v.documentos %}
+                      <a href="{{ doc.download_url }}" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 border border-indigo-200">
+                        📥 {{ doc.original_filename }}
+                      </a>
+                    {% endfor %}
+                  {% else %}
+                    <button onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.remove('hidden')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[11px]">
+                      + Adjuntar Comprobante
+                    </button>
+                  {% endif %}
+                </td>
+                <td class="p-3">
+                  {% if v.estado == 'pagado' %}
+                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px] inline-flex items-center gap-1">
+                      ✓ PAGADO
+                    </span>
+                  {% elif v.estado == 'vencido' %}
+                    <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-full font-bold text-[10px]">⚠️ VENCIDO</span>
+                  {% else %}
+                    <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-bold text-[10px]">⌛ PENDIENTE</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-xs text-slate-500 space-y-2">
+          <div>Aún no hay filas de períodos pagados registradas para este servicio.</div>
+          <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.remove('hidden')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm inline-block">
+            💳 Registrar Pago de Período y Adjuntar Comprobante
+          </button>
+        </div>
+        {% endif %}
       </div>
 
-      <!-- Acciones de Pago -->
-      {% if servicio.estado != 'al_dia' %}
-      <div class="border-t border-slate-100 pt-4 flex justify-end">
-        <form method="POST" action="/servicios/{{ servicio.id }}/pagar">
-          <button type="submit" class="px-6 py-3 bg-agro-600 hover:bg-agro-700 text-white font-black text-sm rounded-xl shadow-md transition-all">
-            ✓ Marcar Servicio como PAGADO / AL DÍA
+      <!-- SECCIÓN DE DOCUMENTOS ADJUNTOS DIGITALES PRIVADOS (VPS STORAGE) -->
+      <div class="space-y-4 border-t border-slate-100 pt-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+              <span>🔒</span> Todos los Documentos Adjuntos Digitales
+            </h3>
+            <p class="text-xs text-slate-500">Facturas, recibos, contratos y comprobantes de pago almacenados de forma segura en VPS</p>
+          </div>
+          <button onclick="document.getElementById('modal-subir-documento').classList.remove('hidden')" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all">
+            + Adjuntar Documento General
           </button>
-        </form>
+        </div>
+
+        {% if servicio.documentos %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% for doc in servicio.documentos %}
+          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+            <div class="space-y-0.5 overflow-hidden">
+              <span class="text-[10px] font-black uppercase text-indigo-600 tracking-wider block">{{ doc.document_type_label }}</span>
+              <div class="font-bold text-slate-900 text-xs truncate" title="{{ doc.original_filename }}">{{ doc.original_filename }}</div>
+              <div class="text-[11px] text-slate-500">{{ doc.size_formatted }} • {{ doc.uploaded_at }}</div>
+              {% if doc.notes %}<div class="text-[11px] text-slate-600 italic">"{{ doc.notes }}"</div>{% endif %}
+            </div>
+            <div class="flex items-center space-x-1 shrink-0">
+              <a href="{{ doc.download_url }}" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-all">
+                📥 Descargar
+              </a>
+              <form method="POST" action="/servicios/documentos/{{ doc.id }}/eliminar" onsubmit="return confirm('¿Eliminar documento adjunto?');">
+                <button type="submit" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition-all">
+                  🗑️
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-xs text-slate-500">
+          No hay documentos adjuntos a este servicio. Puede cargar facturas PDF, imágenes JPG/PNG/WEBP (máx. 10 MB).
+        </div>
+        {% endif %}
       </div>
-      {% endif %}
 
     </div>
 
   </div>
+
+  <!-- MODAL: REGISTRAR PAGO DE PERÍODO Y ADJUNTAR COMPROBANTE -->
+  <div id="modal-registrar-pago-periodo" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-lg font-black text-slate-900">💳 Registrar Pago del Período</h3>
+          <p class="text-xs text-slate-500">Marque el período pagado y adjunte la factura o comprobante</p>
+        </div>
+        <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+      </div>
+
+      <form method="POST" action="/servicios/{{ servicio.id }}/pagar_periodo" enctype="multipart/form-data" class="space-y-4 text-xs">
+        
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Período o Mes Pagado *</label>
+          <input type="text" name="periodo_concepto" required value="{{ servicio.periodo_sugerido }}" placeholder="Ej: Agosto 2026 / Trimestre Q3 2026" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm" />
+          <span class="text-[10px] text-slate-500 block mt-1">Nombre del mes o período abonado.</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Monto Pagado ($ARS) *</label>
+            <input type="number" step="0.01" name="monto_ars" required value="{{ servicio.monto_real_ars }}" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Monto ($USD)</label>
+            <input type="number" step="0.01" name="monto_usd" value="{{ servicio.monto_usd }}" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Factura / Comprobante de Pago Digital (PDF, JPG, PNG, WEBP)</label>
+          <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+          <span class="text-[10px] text-slate-500 block mt-1">El archivo se guardará en almacenamiento privado seguro VPS.</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Link de Boleta / Portal (opcional)</label>
+          <input type="url" name="payment_link" value="{{ servicio.payment_portal_url }}" placeholder="https://autogestion.epec.com.ar" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Observaciones / Notas (opcional)</label>
+          <textarea name="observaciones" rows="2" placeholder="Detalles de transferencia o número de comprobante..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900"></textarea>
+        </div>
+
+        <!-- NOTA INFORMATIVA SOBRE EL AVANCE DE FECHA -->
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-[11px] text-emerald-900 flex items-start gap-2">
+          <span>📅</span>
+          <div>
+            <strong>Avance Automático de Vencimiento:</strong> Al confirmar este pago, el sistema actualizará automáticamente la fecha de próximo vencimiento sumando según la frecuencia <strong>{{ servicio.frecuencia_label }}</strong> y marcará el estado como <strong>AL DÍA</strong>.
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('modal-registrar-pago-periodo').classList.add('hidden')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+          <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition-all">Confirmar Pago y Adjuntar</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SUBIR DOCUMENTO GENERAL -->
+  <div id="modal-subir-documento" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900">Adjuntar Documento Digital General</h3>
+        <button onclick="document.getElementById('modal-subir-documento').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+      </div>
+      <form method="POST" action="/servicios/{{ servicio.id }}/documentos/subir" enctype="multipart/form-data" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Archivo Digital (PDF, JPG, PNG, WEBP, máx 10 MB) *</label>
+          <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Tipo de Documento *</label>
+          <select name="document_type" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
+            <option value="factura">📄 Factura</option>
+            <option value="recibo">🧾 Recibo</option>
+            <option value="presupuesto">📋 Presupuesto</option>
+            <option value="contrato">📜 Contrato / Póliza</option>
+            <option value="comprobante_pago">💳 Comprobante de Pago</option>
+            <option value="otro">📁 Otro Documento</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Notas u Observaciones (opcional)</label>
+          <textarea name="notes" rows="2" placeholder="Detalles o número de factura..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="document.getElementById('modal-subir-documento').classList.add('hidden')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm">Subir Documento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODALES DINÁMICOS SUBIR DOC VENCIMIENTO -->
+  {% if servicio.vencimientos %}
+    {% for v in servicio.vencimientos %}
+    <div id="modal-subir-doc-venc-{{ v.id }}" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div class="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-xl">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="text-lg font-black text-slate-900">Adjuntar Comprobante a Período</h3>
+          <button onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+        <form method="POST" action="/servicios/vencimientos/{{ v.id }}/documentos/subir" enctype="multipart/form-data" class="space-y-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Archivo Digital (PDF, JPG, PNG, WEBP, máx 10 MB) *</label>
+            <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Tipo de Documento *</label>
+            <select name="document_type" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
+              <option value="factura">📄 Factura / Boleta</option>
+              <option value="comprobante_pago">💳 Comprobante de Pago</option>
+              <option value="recibo">🧾 Recibo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Notas u Observaciones (opcional)</label>
+            <textarea name="notes" rows="2" placeholder="Detalles del comprobante..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.add('hidden')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm">Subir Documento</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
 
 </body>
 </html>

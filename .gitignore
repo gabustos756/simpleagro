@@ -23,3 +23,5 @@ __pycache__/
 # Archivos de base de datos local / logs
 *.sqlite3
 *.log
+
+DEPLOYMENT.md

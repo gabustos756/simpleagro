@@ -312,6 +312,9 @@ async def test_15_http_post_arrendamiento_endpoint():
     """
     from httpx import AsyncClient, ASGITransport
     from app.main import app
+    from app.database import engine
+
+    await engine.dispose()
 
     async with get_test_db() as db:
         c_id = uuid4()

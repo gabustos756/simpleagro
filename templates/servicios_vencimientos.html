@@ -44,7 +44,7 @@
             <span class="text-xs font-bold text-purple-800 bg-purple-100 border border-purple-200 px-2.5 py-0.5 rounded-full uppercase">Administración</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Calendario de Pagos y Compromisos de Servicios Rurales
+            Calendario de Pagos, Boletas Periódicas y Adjuntos Privados de Servicios
           </p>
         </div>
       </div>
@@ -61,12 +61,9 @@
     <section class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-xl font-black text-slate-900">Cronograma de Vencimientos (Mes de Agosto)</h2>
+          <h2 class="text-xl font-black text-slate-900">Cronograma General de Servicios y Boletas</h2>
           <p class="text-xs text-slate-500">Servicios e impuestos ordenados por fecha límite de pago</p>
         </div>
-        <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl border border-slate-200">
-          Hoy: 27 de Julio
-        </span>
       </div>
 
       <div class="space-y-4">
@@ -81,8 +78,18 @@
 
             <div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ s.campo_nombre }} • {{ s.instalacion_nombre }}</span>
-              <h3 class="font-bold text-slate-900 text-base mt-0.5">{{ s.concepto }}</h3>
+              <h3 class="font-bold text-slate-900 text-base mt-0.5">
+                <a href="/servicios/{{ s.id }}" class="hover:text-indigo-600 hover:underline">{{ s.concepto }}</a>
+              </h3>
               <p class="text-xs text-slate-500">Proveedor: <strong class="text-slate-800 font-bold">{{ s.proveedor }}</strong></p>
+              
+              {% if s.payment_portal_url %}
+                <div class="mt-1">
+                  <a href="{{ s.payment_portal_url }}" target="_blank" rel="noopener noreferrer" class="text-[11px] font-bold text-indigo-600 hover:underline inline-flex items-center gap-1">
+                    🌐 Portal ({{ s.payment_portal_domain }}) ↗
+                  </a>
+                </div>
+              {% endif %}
             </div>
           </div>
 
@@ -92,17 +99,22 @@
               <span class="text-amber-800 font-bold text-xs">${{ s.monto_usd }} USD</span>
             </div>
 
-            {% if s.estado != 'al_dia' %}
-            <form method="POST" action="/servicios/{{ s.id }}/pagar">
-              <button type="submit" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-sm">
-                Pagar
-              </button>
-            </form>
-            {% else %}
-            <span class="px-3 py-1 bg-agro-100 text-agro-700 rounded-full font-bold text-xs border border-agro-200">
-              ✓ Pagado
-            </span>
-            {% endif %}
+            <div class="flex items-center space-x-2">
+              <a href="/servicios/{{ s.id }}" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200">
+                Ver Ficha
+              </a>
+              {% if s.estado != 'al_dia' %}
+              <form method="POST" action="/servicios/{{ s.id }}/pagar">
+                <button type="submit" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white font-bold text-xs rounded-xl shadow-sm">
+                  Pagar
+                </button>
+              </form>
+              {% else %}
+              <span class="px-3 py-1 bg-agro-100 text-agro-700 rounded-full font-bold text-xs border border-agro-200">
+                ✓ Pagado
+              </span>
+              {% endif %}
+            </div>
           </div>
 
         </div>
@@ -110,7 +122,7 @@
       </div>
     </section>
 
-  </div>
+  </main>
 
 </body>
 </html>

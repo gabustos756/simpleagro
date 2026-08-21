@@ -98,9 +98,13 @@
           <div>
             <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Frecuencia de Pago</label>
             <select name="frecuencia_pago" required class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-800">
-              <option value="mensual" {% if servicio and servicio.frecuencia_pago == 'mensual' %}selected{% endif %}>Mensual</option>
-              <option value="bimensual" {% if servicio and servicio.frecuencia_pago == 'bimensual' %}selected{% endif %}>Bimensual</option>
-              <option value="anual" {% if servicio and servicio.frecuencia_pago == 'anual' %}selected{% endif %}>Anual</option>
+              <option value="mensual" {% if servicio and servicio.frecuencia_pago == 'mensual' %}selected{% endif %}>Mensual (cada 1 mes)</option>
+              <option value="trimestral" {% if servicio and servicio.frecuencia_pago == 'trimestral' %}selected{% endif %}>Trimestral (cada 3 meses)</option>
+              <option value="semestral" {% if servicio and servicio.frecuencia_pago == 'semestral' %}selected{% endif %}>Semestral (cada 6 meses)</option>
+              <option value="anual" {% if servicio and servicio.frecuencia_pago == 'anual' %}selected{% endif %}>Por 1 Año (Anual)</option>
+              <option value="2_anios" {% if servicio and servicio.frecuencia_pago == '2_anios' %}selected{% endif %}>Por 2 Años</option>
+              <option value="3_anios" {% if servicio and servicio.frecuencia_pago == '3_anios' %}selected{% endif %}>Por 3 Años</option>
+              <option value="bimensual" {% if servicio and servicio.frecuencia_pago == 'bimensual' %}selected{% endif %}>Bimensual (cada 2 meses)</option>
               <option value="eventual" {% if servicio and servicio.frecuencia_pago == 'eventual' %}selected{% endif %}>Eventual</option>
             </select>
           </div>
@@ -121,6 +125,20 @@
           <div>
             <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Fecha Vencimiento</label>
             <input type="date" name="fecha_vencimiento" required value="{{ servicio.fecha_vencimiento if servicio else '' }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+          </div>
+        </div>
+
+        <!-- Links de Pago y Referencias V1 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Portal de Pago / Autogestión del Proveedor (URL)</label>
+            <input type="url" name="payment_portal_url" value="{{ servicio.payment_portal_url if servicio else '' }}" placeholder="https://autogestion.epec.com.ar" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
+            <span class="text-[10px] text-slate-500 block mt-1">Sólo URLs http:// o https://. Se validarán reglas anti-SSRF.</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1.5">Número de Cliente / Referencia de Pago</label>
+            <input type="text" name="payment_reference" value="{{ servicio.payment_reference if servicio else '' }}" placeholder="Ej: Nro Cliente 489201-9" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-medium" />
           </div>
         </div>
 

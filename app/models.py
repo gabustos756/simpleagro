@@ -4,6 +4,7 @@ import uuid
 from typing import Optional, List
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.enums import (
+    DocumentTypeEnum,
     EstadoCartaDePorte,
     EstadoServicio,
     EstadoServicioInstaladoEnum,
@@ -202,11 +204,19 @@ class ServicioInstalado(Base):
         nullable=False,
     )
     comprobante_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_portal_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_reference: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     cliente: Mapped[Optional["Cliente"]] = relationship("Cliente", back_populates="servicios_instalados")
     campo: Mapped["Campo"] = relationship("Campo", back_populates="servicios_instalados")
     instalacion: Mapped[Optional["Instalacion"]] = relationship("Instalacion", back_populates="servicios")
+    vencimientos: Mapped[List["ServicioVencimiento"]] = relationship(
+        "ServicioVencimiento", back_populates="servicio_instalado", cascade="all, delete-orphan"
+    )
+    documentos: Mapped[List["ServiceDocument"]] = relationship(
+        "ServiceDocument", back_populates="servicio", cascade="all, delete-orphan"
+    )
 
 
 class Usuario(Base):
@@ -359,12 +369,19 @@ class RegistroLluvia(Base):
 
 class ServicioVencimiento(Base):
     __tablename__ = "servicios_vencimiento"
+    __table_args__ = (
+        Index("ix_servicios_vencimiento_cliente_fecha", "cliente_id", "fecha_vencimiento"),
+        Index("ix_servicios_vencimiento_servicio_id", "servicio_instalado_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     cliente_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=True
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    servicio_instalado_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("servicios_instalados.id", ondelete="CASCADE"), nullable=True
     )
     concepto: Mapped[str] = mapped_column(String(200), nullable=False)
     monto_ars: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
@@ -376,6 +393,64 @@ class ServicioVencimiento(Base):
         nullable=False,
     )
     comprobante_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_link: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    periodo_referencia: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    fecha_pago: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    cliente: Mapped[Optional["Cliente"]] = relationship("Cliente")
+    servicio_instalado: Mapped[Optional["ServicioInstalado"]] = relationship(
+        "ServicioInstalado", back_populates="vencimientos"
+    )
+    documentos: Mapped[List["ServiceDocument"]] = relationship(
+        "ServiceDocument", back_populates="servicio_vencimiento", cascade="all, delete-orphan"
+    )
+
+
+class ServiceDocument(Base):
+    """Metadatos de documentos digitales adjuntos a servicios o vencimientos."""
+    __tablename__ = "service_documents"
+    __table_args__ = (
+        Index("ix_service_documents_cliente_id", "cliente_id"),
+        Index("ix_service_documents_servicio_id", "servicio_id"),
+        Index("ix_service_documents_vencimiento_id", "servicio_vencimiento_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False
+    )
+    servicio_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("servicios_instalados.id", ondelete="CASCADE"), nullable=True
+    )
+    servicio_vencimiento_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("servicios_vencimiento.id", ondelete="CASCADE"), nullable=True
+    )
+    document_type: Mapped[DocumentTypeEnum] = mapped_column(
+        SQLEnum(DocumentTypeEnum, name="document_type_enum", native_enum=True),
+        default=DocumentTypeEnum.FACTURA,
+        nullable=False,
+    )
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    uploaded_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(String(20), default="activo", nullable=False)
+
+    cliente: Mapped["Cliente"] = relationship("Cliente")
+    servicio: Mapped[Optional["ServicioInstalado"]] = relationship("ServicioInstalado", back_populates="documentos")
+    servicio_vencimiento: Mapped[Optional["ServicioVencimiento"]] = relationship("ServicioVencimiento", back_populates="documentos")
+    uploaded_by: Mapped[Optional["Usuario"]] = relationship("Usuario")
 
 
 class CartaDePorte(Base):
