@@ -67,23 +67,8 @@
     </div>
 
     <!-- NAVEGACIÓN PRINCIPAL DE COMERCIAL -->
-    <div class="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
-        📊 Resumen Comercial
-      </a>
-      <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold bg-white text-amber-700 border border-slate-200 shadow-xs shrink-0">
-        🚜 Stock Físico V1
-      </a>
-      <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
-        📝 Contratos & Compromisos
-      </a>
-      <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
-        🚚 Fletes y destinos
-      </a>
-      <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-all shrink-0">
-        🚚 Entregas
-      </a>
-    </div>
+    {% set active_tab = 'stock' %}
+    {% include 'components/comercial_tabs.html' %}
 
     <!-- BANNERS DE FEEDBACK VISUAL -->
     {% if mensaje %}

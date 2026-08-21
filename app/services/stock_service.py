@@ -1040,6 +1040,8 @@ async def record_delivery_reception_and_reconciliation(
     waybill_id: UUID,
     peso_recibido_destino_kg: Decimal,
     observaciones: Optional[str] = None,
+    fecha_recepcion: Optional[datetime] = None,
+    referencia_ticket_destino: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Registra el peso recibido en destino y evalúa conciliación (Stock 1C).
@@ -1049,6 +1051,9 @@ async def record_delivery_reception_and_reconciliation(
     Si está dentro de tolerancia, marca estado 'dentro_tolerancia'.
     """
     from app.models import GrainWaybill, StockWeightReconciliation, GrainDelivery
+
+    if peso_recibido_destino_kg is None or peso_recibido_destino_kg <= Decimal("0.0"):
+        raise ValueError("El peso recibido en destino debe ser un valor numérico mayor a 0 kg.")
 
     stmt_w = (
         select(GrainWaybill)
@@ -1070,6 +1075,12 @@ async def record_delivery_reception_and_reconciliation(
     if not delivery:
         raise ValueError("Entrega no encontrada.")
 
+    if waybill.estado == "recibida" and waybill.peso_recibido_destino_kg is not None:
+        raise ValueError("La carta de porte ya cuenta con una recepción registrada. Usá la acción de conciliación de pesaje para ajustar diferencias.")
+
+    if waybill.estado not in ["despachada", "en_transito", "recibida"]:
+        raise ValueError("La carta de porte debe estar despachada antes de poder registrar la recepción en destino.")
+
     peso_origen_kg = waybill.peso_neto_origen_kg or Decimal("0.0")
     if peso_origen_kg <= Decimal("0.0"):
         raise ValueError("La carta de porte no cuenta con peso neto de origen para calcular la diferencia.")
@@ -1077,17 +1088,22 @@ async def record_delivery_reception_and_reconciliation(
     diferencia_kg = peso_recibido_destino_kg - peso_origen_kg
     diferencia_pct = (diferencia_kg / peso_origen_kg) * Decimal("100.0")
 
+    rec_dt = fecha_recepcion or datetime.now()
+
     waybill.peso_recibido_destino_kg = peso_recibido_destino_kg
     waybill.diferencia_kg = diferencia_kg
     waybill.diferencia_pct = diferencia_pct.quantize(Decimal("0.01"))
     waybill.estado = "recibida"
-    waybill.fecha_recepcion = datetime.now()
+    waybill.fecha_recepcion = rec_dt
+    if referencia_ticket_destino and referencia_ticket_destino.strip():
+        waybill.referencia_ticket_destino = referencia_ticket_destino.strip()
 
     if delivery.estado in ["planificada", "en_transito"]:
         delivery.estado = "recibida"
     delivery.kg_recibido_total = peso_recibido_destino_kg
     delivery.diferencia_total_kg = diferencia_kg
     delivery.diferencia_total_pct = diferencia_pct.quantize(Decimal("0.01"))
+    delivery.fecha_recepcion = rec_dt
 
     abs_pct = abs(diferencia_pct)
     abs_kg = abs(diferencia_kg)

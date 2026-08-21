@@ -53,37 +53,35 @@
     </div>
     {% endif %}
 
-    {# Encabezado Principal & Tabs #}
-    <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2 text-xs font-extrabold text-amber-700 uppercase tracking-wider mb-1">
-          <span>🚚 Módulo Comercial</span>
-          <span>•</span>
-          <span>Campaña {{ campania_activa }}</span>
+    {# CABECERA UNIFICADA DE SECCIÓN #}
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
+          📦
         </div>
-        <h1 class="text-2xl font-black text-slate-900">Entregas y Cartas de Porte</h1>
-        <p class="text-xs text-slate-500 mt-1">Planificación, seguimiento operativo y trazabilidad de pesaje desde origen hasta acopio/destino final.</p>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2 flex-wrap">
+            <span>Entregas & Cartas de Porte</span>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Operativo & Trazabilidad</span>
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre if user and user.cliente_nombre else 'Familia Matteuda' }}</strong> • Campaña Activa: <strong class="text-slate-800 font-bold">{{ campania_activa }}</strong>
+          </p>
+        </div>
       </div>
 
-      {# Navegación de Tabs #}
-      <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
-        <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
-          📊 Acopios & Resumen
-        </a>
-        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
-          🚜 Stock Físico
-        </a>
-        <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
-          📝 Compromisos
-        </a>
-        <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all text-slate-600 hover:bg-slate-200">
-          🚚 Fletes y destinos
-        </a>
-        <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado }}" class="px-4 py-2 rounded-xl text-xs font-extrabold transition-all bg-white text-amber-700 shadow-xs border border-slate-200">
-          🚚 Entregas
-        </a>
+      <!-- Selector de Cultivo -->
+      <div class="flex items-center gap-2">
+        <a href="/comercial/entregas?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌱 Soja</a>
+        <a href="/comercial/entregas?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌽 Maíz</a>
+        <a href="/comercial/entregas?cultivo=trigo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'trigo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌾 Trigo</a>
+        <a href="/comercial/entregas?cultivo=sorgo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'sorgo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🥣 Sorgo</a>
       </div>
     </div>
+
+    {# NAVEGACIÓN DE TABS UNIFICADA #}
+    {% set active_tab = 'entregas' %}
+    {% include 'components/comercial_tabs.html' %}
 
     {# Barra de Acción Primaria #}
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900 text-white p-4 rounded-3xl shadow-sm">
@@ -664,10 +662,7 @@
         <div>
           <label for="observaciones_resolucion" class="block text-xs font-extrabold text-slate-700 mb-1">Observaciones / Razón de Resolución *</label>
           <textarea id="observaciones_resolucion" name="observaciones" required rows="2" placeholder="Motivo o fundamentación de la resolución..." class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3"></textarea>
-        </div>
-
-        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-          <button type="button" onclick="cerrarModalResolverDiferencia()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl">
+            <button type="button" onclick="cerrarModalResolverDiferencia()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl">
             Cancelar
           </button>
           <button type="submit" class="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs">
@@ -678,8 +673,78 @@
     </div>
   </div>
 
+  {# MODAL REGISTRAR RECEPCIÓN EN DESTINO SOBRE CARTA EXISTENTE #}
+  <div id="modal-registrar-recepcion" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200 my-8">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <h3 id="recepcion-modal-title" class="text-base font-black text-slate-900">⚖️ Registrar Recepción en Destino</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Ingresá el pesaje recibido en balanza de destino sobre la carta de porte existente.</p>
+        </div>
+        <button type="button" onclick="cerrarModalRegistrarRecepcion()" class="text-slate-400 hover:text-slate-600 font-black text-xl p-1">✕</button>
+      </div>
+
+      <form id="form-registrar-recepcion" method="POST" action="" class="space-y-4">
+        <div class="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-1 text-xs text-amber-950">
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-amber-900">Carta de Porte:</span>
+            <span id="recepcion_cp_numero" class="font-mono font-black text-amber-900">S/N</span>
+          </div>
+          <div class="flex items-center justify-between pt-1 border-t border-amber-200/60">
+            <span class="font-bold text-amber-800">Peso Neto de Origen:</span>
+            <span id="recepcion_peso_origen_display" class="font-mono font-black text-amber-950 text-sm">0 kg</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label for="recepcion_peso_destino" class="block text-xs font-extrabold text-slate-700 mb-1">Peso Recibido en Destino (kg) *</label>
+            <input type="text" id="recepcion_peso_destino" name="peso_recibido_destino_kg" required inputmode="decimal" placeholder="Ej: 34850" oninput="recalcularPreviewRecepcion()" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2.5 px-3 focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="recepcion_fecha" class="block text-xs font-extrabold text-slate-700 mb-1">Fecha / Hora de Recepción *</label>
+              <input type="datetime-local" id="recepcion_fecha" name="fecha_recepcion" required class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3 focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div>
+              <label for="recepcion_ticket_destino" class="block text-xs font-extrabold text-slate-700 mb-1">Ticket / Balanza Destino</label>
+              <input type="text" id="recepcion_ticket_destino" name="referencia_ticket_destino" placeholder="Ej: T-98421 / Rosario" class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3 focus:ring-2 focus:ring-amber-500">
+            </div>
+          </div>
+
+          <div>
+            <label for="recepcion_observaciones" class="block text-xs font-extrabold text-slate-700 mb-1">Observaciones / Notas</label>
+            <textarea id="recepcion_observaciones" name="observaciones" rows="2" placeholder="Observaciones de recepción..." class="w-full text-xs font-bold rounded-xl border-slate-300 py-2 px-3"></textarea>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1 font-mono text-xs">
+          <div class="flex items-center justify-between text-slate-600 font-sans text-[11px] font-bold">
+            <span>Diferencia Estimada (Destino − Origen):</span>
+            <span id="preview_recepcion_diferencia" class="font-mono font-black text-slate-900">-</span>
+          </div>
+          <p class="text-[10.5px] font-sans text-slate-500 leading-snug pt-1 border-t border-slate-200/60">
+            ℹ️ Registrar la recepción no descuenta stock nuevamente. Se utilizará para evaluar la conciliación de pesaje y trazabilidad.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalRegistrarRecepcion()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button type="submit" class="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs">
+            Confirmar Peso Recibido
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const DELIVERIES_DATA = {{ deliveries_json | safe }};
+    let currentRecepcionNetoOrigenKg = 0;
 
     function abrirModalNuevaEntrega() {
       document.getElementById('modal-entrega-titulo').innerText = 'Registrar Entrega de Grano';
@@ -760,19 +825,15 @@
       const netPrev = document.getElementById('preview_neto_origen');
       const diffPrev = document.getElementById('preview_diferencia_kg');
 
-      let neto = null;
-      if (!isNaN(bruto) && !isNaN(tara)) {
-        if (bruto < tara) {
-          netPrev.innerHTML = '<span class="text-rose-600">Error: Bruto < Tara</span>';
-        } else {
-          neto = bruto - tara;
-          netPrev.innerText = neto.toLocaleString('es-AR') + ' kg';
-        }
+      if (!isNaN(bruto) && !isNaN(tara) && bruto >= tara) {
+        const neto = bruto - tara;
+        netPrev.innerText = neto.toLocaleString('es-AR') + ' kg';
       } else {
         netPrev.innerText = '-';
       }
 
-      if (neto !== null && !isNaN(rec)) {
+      if (!isNaN(bruto) && !isNaN(tara) && bruto >= tara && !isNaN(rec)) {
+        const neto = bruto - tara;
         const diff = rec - neto;
         const pct = (diff / neto) * 100;
         const color = diff < 0 ? 'text-rose-600' : (diff > 0 ? 'text-emerald-600' : 'text-slate-900');
@@ -791,21 +852,41 @@
 
       let waybillsHtml = '';
       if (del.waybills && del.waybills.length > 0) {
-        waybillsHtml = del.waybills.map(w => `
-          <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
-            <div class="flex items-center justify-between font-bold">
-              <span>📄 CPE: ${w.numero_carta_porte || 'Carta Pendiente'}</span>
-              <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-slate-200">${w.estado}</span>
+        waybillsHtml = del.waybills.map(w => {
+          let statusBadge = `<span class="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-slate-200">${w.estado}</span>`;
+          let actionArea = '';
+
+          if (w.estado === 'despachada' || !w.peso_recibido_destino_kg) {
+            actionArea = `
+              <div class="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <span class="text-xs font-extrabold text-amber-900 block">⚖️ Pendiente de balanza de destino</span>
+                  <span class="text-[11px] text-amber-700 font-medium">Completá el pesaje final ingresado en balanza de destino.</span>
+                </div>
+                <button type="button" onclick="abrirModalRegistrarRecepcion('${del.id}', '${del.tracking_number}', '${w.id}', '${w.numero_carta_porte || ''}', '${w.peso_neto_origen_kg || ''}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs transition-colors shrink-0 flex items-center gap-1">
+                  ⚖️ Registrar peso recibido
+                </button>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+              <div class="flex items-center justify-between font-bold">
+                <span>📄 CPE: ${w.numero_carta_porte || 'Carta Pendiente'}</span>
+                ${statusBadge}
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 font-mono pt-1">
+                <div>Bruto: ${w.peso_bruto_origen_kg ? w.peso_bruto_origen_kg.toLocaleString('es-AR') + ' kg' : '-'}</div>
+                <div>Tara: ${w.tara_kg ? w.tara_kg.toLocaleString('es-AR') + ' kg' : '-'}</div>
+                <div>Neto Origen: <strong>${w.peso_neto_origen_kg ? w.peso_neto_origen_kg.toLocaleString('es-AR') + ' kg' : '-'}</strong></div>
+                <div>Recibido Destino: <strong>${w.peso_recibido_destino_kg ? w.peso_recibido_destino_kg.toLocaleString('es-AR') + ' kg' : '-'}</strong></div>
+                <div class="col-span-2">Diferencia: <strong>${w.diferencia_kg !== null && w.diferencia_kg !== undefined ? w.diferencia_kg + ' kg (' + (w.diferencia_pct || '0') + '%)' : '-'}</strong></div>
+              </div>
+              ${actionArea}
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 font-mono pt-1">
-              <div>Bruto: ${w.peso_bruto_origen_kg || '-'} kg</div>
-              <div>Tara: ${w.tara_kg || '-'} kg</div>
-              <div>Neto Origen: <strong>${w.peso_neto_origen_kg || '-'} kg</strong></div>
-              <div>Recibido Destino: <strong>${w.peso_recibido_destino_kg || '-'} kg</strong></div>
-              <div class="col-span-2">Diferencia: <strong>${w.diferencia_kg ? w.diferencia_kg + ' kg (' + (w.diferencia_pct || '0') + '%)' : '-'}</strong></div>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } else {
         waybillsHtml = '<p class="text-slate-400 italic">No registra cartas de porte asociadas.</p>';
       }
@@ -821,9 +902,12 @@
         </div>
 
         <div class="space-y-2 pt-2">
-          <div class="flex items-center justify-between">
-            <h4 class="font-extrabold text-slate-800 uppercase text-[11px]">Cartas de Porte (${del.waybills ? del.waybills.length : 0})</h4>
-            <button type="button" onclick="cerrarDetalleYCrearCarta('${del.id}')" class="px-3 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[11px]">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <div>
+              <h4 class="font-extrabold text-slate-800 uppercase text-[11px]">Cartas de Porte (${del.waybills ? del.waybills.length : 0})</h4>
+              <p class="text-[10.5px] text-slate-500 font-medium">Usá <strong>“Agregar carta”</strong> sólo para registrar otro viaje o camión adicional. Para completar el peso final de esta carta, usá <strong>“Registrar peso recibido”</strong>.</p>
+            </div>
+            <button type="button" onclick="cerrarDetalleYCrearCarta('${del.id}')" class="px-3 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[11px] shrink-0 self-start sm:self-center">
               + Agregar carta
             </button>
           </div>
@@ -834,6 +918,50 @@
       `;
 
       document.getElementById('modal-detalle-entrega').classList.remove('hidden');
+    }
+
+    function abrirModalRegistrarRecepcion(deliveryId, tracking, waybillId, cpNumero, pesoNetoKg) {
+      document.getElementById('recepcion-modal-title').innerText = '⚖️ Registrar Recepción: ' + tracking;
+      document.getElementById('form-registrar-recepcion').action = '/comercial/entregas/cartas/' + waybillId + '/recepcion';
+      document.getElementById('recepcion_cp_numero').innerText = cpNumero || 'Carta Pendiente';
+
+      const floatKg = parseFloat(pesoNetoKg) || 0;
+      currentRecepcionNetoOrigenKg = floatKg;
+
+      const tn = (floatKg / 1000).toFixed(2).replace('.', ',');
+      document.getElementById('recepcion_peso_origen_display').innerText = floatKg.toLocaleString('es-AR') + ' kg (' + tn + ' Tn)';
+      document.getElementById('recepcion_peso_destino').value = '';
+      document.getElementById('recepcion_ticket_destino').value = '';
+      document.getElementById('recepcion_observaciones').value = '';
+
+      const nowStr = new Date().toISOString().slice(0, 16);
+      document.getElementById('recepcion_fecha').value = nowStr;
+
+      recalcularPreviewRecepcion();
+
+      const detailModal = document.getElementById('modal-detalle-entrega');
+      if (detailModal) detailModal.classList.add('hidden');
+
+      document.getElementById('modal-registrar-recepcion').classList.remove('hidden');
+    }
+
+    function cerrarModalRegistrarRecepcion() {
+      document.getElementById('modal-registrar-recepcion').classList.add('hidden');
+    }
+
+    function recalcularPreviewRecepcion() {
+      const recInput = document.getElementById('recepcion_peso_destino').value.replace(',', '.');
+      const recKg = parseFloat(recInput);
+      const diffElem = document.getElementById('preview_recepcion_diferencia');
+
+      if (!isNaN(recKg) && recKg > 0 && currentRecepcionNetoOrigenKg > 0) {
+        const diff = recKg - currentRecepcionNetoOrigenKg;
+        const pct = (diff / currentRecepcionNetoOrigenKg) * 100;
+        const color = diff < 0 ? 'text-rose-600' : (diff > 0 ? 'text-emerald-600' : 'text-slate-900');
+        diffElem.innerHTML = `<span class="${color}">${diff > 0 ? '+' : ''}${diff.toLocaleString('es-AR')} kg (${pct > 0 ? '+' : ''}${pct.toFixed(2)}%)</span>`;
+      } else {
+        diffElem.innerText = '-';
+      }
     }
 
     function cerrarDetalleYCrearCarta(deliveryId) {

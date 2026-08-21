@@ -533,6 +533,32 @@ class CompromisoGrano(Base):
     reservations: Mapped[List["StockReservation"]] = relationship(
         "StockReservation", back_populates="compromiso", cascade="all, delete-orphan"
     )
+    arrendamiento_terms: Mapped[Optional["ArrendamientoTerms"]] = relationship(
+        "ArrendamientoTerms", back_populates="compromiso", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class ArrendamientoTerms(Base):
+    """Términos específicos de un compromiso de arrendamiento pactado en qq/ha."""
+    __tablename__ = "arrendamiento_terms"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    compromiso_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("compromisos_grano.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    superficie_arrendada_ha: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    alquiler_qq_ha: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    base_valorizacion: Mapped[str] = mapped_column(String(50), default="rosario", nullable=False) # 'rosario' | 'acopio'
+    precio_referencia_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    fecha_precio_referencia: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fuente_precio: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    flete_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    comision_usd_tn: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    compromiso: Mapped["CompromisoGrano"] = relationship("CompromisoGrano", back_populates="arrendamiento_terms")
 
 
 class PrecioMercadoCache(Base):

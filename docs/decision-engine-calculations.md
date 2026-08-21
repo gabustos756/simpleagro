@@ -290,11 +290,47 @@ Se propone la siguiente estructura JSON estandarizada para exponer a futuro el d
 
 ---
 
-## 8. Roadmap Técnico Pre-Stock V1
+## 9. Arrendamientos V1 por Campo (Conversión qq/ha y Valuación Rosario vs Acopio)
 
-1. **Stock V1 y Movimientos Auditables:** Implementar entidades de depósitos/silos, movimientos de entrada/salida y conciliación física.
-2. **Asignación de Stock a Entregas:** Imputar entregas recibidas a lotes de stock físico sin duplicar movimientos.
-3. **Imputación Definitiva a Compromisos:** Descontar saldos de compromisos comerciales mediante confirmación explícita del usuario.
-4. **Adjuntos de Documentos a Cartas de Porte:** Permitir adjuntar fotos o PDFs de los tickets de balanza y cartas oficiales.
-5. **Migración a Alembic:** Configurar scripts de migración versionados para desinstalar la migración liviana en `init_db()`.
-6. **Calibración Agronómica y Comercial:** Ajustar las políticas base de secada, heladas y transitabilidad con asesores locales.
+### A. Conversión Determinística de Obligación Física
+La obligación contractual primaria de un contrato de arrendamiento se expresa en quintales por hectárea ($\mathrm{qq/ha}$) y se convierte a toneladas equivalentes:
+
+\[
+qq\_totales = superficie\_arrendada_{\mathrm{ha}} \times alquiler_{\mathrm{qq/ha}}
+\]
+
+\[
+toneladas\_equivalentes = \frac{qq\_totales}{10}
+\]
+
+- **Regla:** $1\ \mathrm{Tn} = 10\ \mathrm{qq}$.
+- La variable $toneladas\_equivalentes$ constituye la fuente única de verdad para el control de inventario y reservas de stock (`CompromisoGrano.toneladas_comprometidas`).
+
+### B. Valorización Informativa Estimada (USD)
+
+#### Base Rosario:
+El precio de referencia publicado en Pizarra Rosario (CAC/BCR) incluye flete y comisiones según la política familiar:
+
+\[
+precio\_neto\_rosario_{\mathrm{USD/Tn}} = precio\_referencia_{\mathrm{USD/Tn}}
+\]
+
+\[
+valor\_neto\_estimado_{\mathrm{USD}} = toneladas\_equivalentes \times precio\_neto\_rosario
+\]
+
+#### Base Acopio:
+El precio publicado por un acopio local requiere deducir los costos logísticos y de comercialización pactados para obtener el valor neto:
+
+\[
+precio\_neto\_acopio_{\mathrm{USD/Tn}} = precio\_referencia_{\mathrm{USD/Tn}} - flete_{\mathrm{USD/Tn}} - comision_{\mathrm{USD/Tn}}
+\]
+
+\[
+valor\_neto\_estimado_{\mathrm{USD}} = toneladas\_equivalentes \times precio\_neto\_acopio
+\]
+
+- **Reglas de Evaluación:**
+  - Si falta $precio\_referencia_{\mathrm{USD/Tn}}$, el estado de la valorización se clasifica como `not_evaluated`.
+  - Si la base es `acopio` y se ingresa el precio de referencia pero falta $flete_{\mathrm{USD/Tn}}$ o $comision_{\mathrm{USD/Tn}}$, el estado se clasifica como `partial` y no se asume cero de forma implícita.
+

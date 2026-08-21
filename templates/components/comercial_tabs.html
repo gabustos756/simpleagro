@@ -1,0 +1,23 @@
+<!-- NAVEGACIÓN PRINCIPAL UNIFICADA DEL MÓDULO COMERCIAL -->
+<div class="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+  <a href="/comercial?cultivo={{ cultivo_seleccionado|default('soja') }}"
+     class="px-4 py-2 rounded-xl text-sm font-bold shrink-0 transition-all {% if active_tab == 'resumen' %} bg-white text-amber-700 border border-slate-200 shadow-xs {% else %} text-slate-600 hover:bg-slate-200 {% endif %}">
+    📊 Resumen Comercial
+  </a>
+  <a href="/comercial/stock?cultivo={{ cultivo_seleccionado|default('soja') }}"
+     class="px-4 py-2 rounded-xl text-sm font-bold shrink-0 transition-all {% if active_tab == 'stock' %} bg-white text-amber-700 border border-slate-200 shadow-xs {% else %} text-slate-600 hover:bg-slate-200 {% endif %}">
+    🚜 Stock Físico V1
+  </a>
+  <a href="/comercial/contratos?cultivo={{ cultivo_seleccionado|default('soja') }}"
+     class="px-4 py-2 rounded-xl text-sm font-bold shrink-0 transition-all {% if active_tab == 'contratos' %} bg-white text-amber-700 border border-slate-200 shadow-xs {% else %} text-slate-600 hover:bg-slate-200 {% endif %}">
+    📝 Contratos & Compromisos
+  </a>
+  <a href="/comercial/fletes?cultivo={{ cultivo_seleccionado|default('soja') }}"
+     class="px-4 py-2 rounded-xl text-sm font-bold shrink-0 transition-all {% if active_tab == 'fletes' %} bg-white text-amber-700 border border-slate-200 shadow-xs {% else %} text-slate-600 hover:bg-slate-200 {% endif %}">
+    🚚 Fletes y destinos
+  </a>
+  <a href="/comercial/entregas?cultivo={{ cultivo_seleccionado|default('soja') }}"
+     class="px-4 py-2 rounded-xl text-sm font-bold shrink-0 transition-all {% if active_tab == 'entregas' %} bg-white text-amber-700 border border-slate-200 shadow-xs {% else %} text-slate-600 hover:bg-slate-200 {% endif %}">
+    🚚 Entregas
+  </a>
+</div>

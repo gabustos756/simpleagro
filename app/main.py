@@ -34,6 +34,7 @@ from app.models import (
     StockGrano,
     ContratoVentaGrano,
     CompromisoGrano,
+    ArrendamientoTerms,
     PrecioMercadoCache,
 )
 from app.services.comercial import calcular_posicion_comercial, obtener_campania_activa_para_cliente
@@ -2093,6 +2094,14 @@ async def read_comercial_resumen(
         camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
 
     cultivo_sel = (cultivo or "soja").strip().lower()
+    from app.services.commercial_dashboard_service import get_commercial_dashboard_summary
+    dashboard_summary = await get_commercial_dashboard_summary(
+        db=db,
+        cliente_id=cliente_id,
+        cultivo=cultivo_sel,
+        campania_id=camp_uuid,
+    )
+
     if camp_uuid:
         posicion = await calcular_posicion_comercial(db, cliente_id, camp_uuid, cultivo_sel)
     else:
@@ -2167,6 +2176,7 @@ async def read_comercial_resumen(
             "user": user,
             "campania_activa": camp_nombre,
             "cultivo_seleccionado": cultivo_sel,
+            "dashboard_summary": dashboard_summary,
             "posicion": posicion,
             "insights": insights,
             "precios_mercado": precios_mercado,
@@ -3439,6 +3449,118 @@ async def create_comercial_compromiso(
     await db.commit()
 
     msg = f"Compromiso '{concepto.strip()}' registrado exitosamente ({toneladas_comprometidas} Tn)."
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/contratos/arrendamientos/crear")
+async def create_comercial_arrendamiento(
+    request: Request,
+    campo_id: str = Form(...),
+    superficie_arrendada_ha: float = Form(...),
+    alquiler_qq_ha: float = Form(...),
+    beneficiario: str = Form(...),
+    concepto: Optional[str] = Form(None),
+    cultivo: str = Form("soja"),
+    base_valorizacion: str = Form("rosario"),
+    precio_referencia_usd_tn: Optional[float] = Form(None),
+    fecha_precio_referencia: Optional[str] = Form(None),
+    fuente_precio: Optional[str] = Form(None),
+    flete_usd_tn: Optional[float] = Form(None),
+    comision_usd_tn: Optional[float] = Form(None),
+    fecha_vencimiento: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alta de un compromiso de arrendamiento pactado en qq/ha con valorización Rosario o Acopio.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    camp_obj = await obtener_campania_activa_para_cliente(db, cliente_id)
+    if not camp_obj:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error=No+hay+campaña+activa",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    campo_uuid = get_uuid(campo_id)
+    stmt_c = select(Campo).where(Campo.id == campo_uuid, Campo.cliente_id == cliente_id)
+    res_c = await db.execute(stmt_c)
+    campo_obj = res_c.scalars().first()
+    if not campo_obj:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error=Campo+inválido+o+no+encontrado",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    from app.services.lease_calculator import calculate_field_lease_terms
+    try:
+        calc_res = calculate_field_lease_terms(
+            superficie_arrendada_ha=superficie_arrendada_ha,
+            alquiler_qq_ha=alquiler_qq_ha,
+            base_valorizacion=base_valorizacion,
+            precio_referencia_usd_tn=precio_referencia_usd_tn,
+            fecha_precio_referencia=date.fromisoformat(fecha_precio_referencia) if (fecha_precio_referencia and fecha_precio_referencia.strip()) else None,
+            fuente_precio=fuente_precio,
+            flete_usd_tn=flete_usd_tn,
+            comision_usd_tn=comision_usd_tn,
+        )
+    except ValueError as err:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cultivo.strip().lower()}&error={str(err)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    f_venc = None
+    if fecha_vencimiento:
+        try:
+            f_venc = date.fromisoformat(fecha_vencimiento)
+        except Exception:
+            f_venc = None
+
+    conc_final = concepto.strip() if (concepto and concepto.strip()) else f"Alquiler {campo_obj.nombre} ({superficie_arrendada_ha} ha × {alquiler_qq_ha} qq/ha)"
+
+    nuevo_compromiso = CompromisoGrano(
+        cliente_id=cliente_id,
+        campania_id=camp_obj.id,
+        campo_id=campo_uuid,
+        cultivo=cultivo.strip().lower(),
+        tipo_compromiso=TipoCompromisoEnum.ALQUILER_ARRENDAMIENTO,
+        concepto=conc_final,
+        beneficiario=beneficiario.strip(),
+        toneladas_comprometidas=calc_res.toneladas_equivalentes,
+        fecha_vencimiento=f_venc,
+        cumplido=False,
+    )
+    db.add(nuevo_compromiso)
+    await db.flush()
+
+    terms = ArrendamientoTerms(
+        compromiso_id=nuevo_compromiso.id,
+        superficie_arrendada_ha=calc_res.superficie_arrendada_ha,
+        alquiler_qq_ha=calc_res.alquiler_qq_ha,
+        base_valorizacion=calc_res.base_valorizacion,
+        precio_referencia_usd_tn=calc_res.precio_referencia_usd_tn,
+        fecha_precio_referencia=calc_res.fecha_precio_referencia,
+        fuente_precio=calc_res.fuente_precio,
+        flete_usd_tn=calc_res.flete_usd_tn,
+        comision_usd_tn=calc_res.comision_usd_tn,
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+    db.add(terms)
+    await db.commit()
+
+    msg = f"Arrendamiento registrado exitosamente: {calc_res.qq_totales} qq ({calc_res.toneladas_equivalentes} Tn) para {campo_obj.nombre}."
     return RedirectResponse(
         f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
         status_code=status.HTTP_303_SEE_OTHER,
@@ -4818,16 +4940,20 @@ async def dispatch_comercial_entrega(
 
 
 @app.post("/comercial/entregas/{delivery_id}/cartas/{waybill_id}/recepcion")
+@app.post("/comercial/entregas/cartas/{waybill_id}/recepcion")
 async def record_waybill_reception(
     request: Request,
-    delivery_id: str,
     waybill_id: str,
+    delivery_id: Optional[str] = None,
     peso_recibido_destino_kg: str = Form(...),
+    fecha_recepcion: Optional[str] = Form(None),
+    referencia_ticket_destino: Optional[str] = Form(None),
     observaciones: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Registra el peso recibido en destino y genera la evaluación de conciliación de pesaje (Stock 1C).
+    Soporta rutas con o sin delivery_id explícito en la URL.
     """
     user = await get_current_user_from_session(request, db)
     if not user:
@@ -4835,14 +4961,36 @@ async def record_waybill_reception(
 
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
     user_id = get_uuid(user.get("id"))
-    d_uuid = get_uuid(delivery_id)
     w_uuid = get_uuid(waybill_id)
 
     try:
+        # Si delivery_id no vino en la URL (ruta alias), lo buscamos a partir de la carta de porte
+        d_uuid = None
+        if delivery_id:
+            d_uuid = get_uuid(delivery_id)
+        else:
+            from app.models import GrainWaybill
+            stmt_w = select(GrainWaybill.entrega_id).where(GrainWaybill.id == w_uuid, GrainWaybill.cliente_id == cliente_id)
+            res_w = await db.execute(stmt_w)
+            d_uuid = res_w.scalar_one_or_none()
+            if not d_uuid:
+                return RedirectResponse("/comercial/entregas?error=Carta+de+porte+no+encontrada", status_code=status.HTTP_303_SEE_OTHER)
+
         from app.services.stock_service import parse_decimal_ar
         peso_destino = parse_decimal_ar(peso_recibido_destino_kg)
         if not peso_destino or peso_destino <= Decimal("0.0"):
             return RedirectResponse("/comercial/entregas?error=El+peso+recibido+en+destino+debe+ser+mayor+a+0", status_code=status.HTTP_303_SEE_OTHER)
+
+        parsed_fecha_rec = None
+        if fecha_recepcion and fecha_recepcion.strip():
+            f_str = fecha_recepcion.strip()
+            try:
+                if "T" in f_str:
+                    parsed_fecha_rec = datetime.strptime(f_str[:16], "%Y-%m-%dT%H:%M")
+                else:
+                    parsed_fecha_rec = datetime.strptime(f_str[:10], "%Y-%m-%d")
+            except ValueError:
+                pass
 
         from app.services.stock_service import record_delivery_reception_and_reconciliation
         res = await record_delivery_reception_and_reconciliation(
@@ -4853,6 +5001,8 @@ async def record_waybill_reception(
             waybill_id=w_uuid,
             peso_recibido_destino_kg=peso_destino,
             observaciones=observaciones,
+            fecha_recepcion=parsed_fecha_rec,
+            referencia_ticket_destino=referencia_ticket_destino,
         )
         msg = f"Peso de recepción registrado exitosamente ({peso_destino / Decimal('1000.0'):.2f} Tn). Conciliación: {res['estado_reconciliacion']}."
         return RedirectResponse(f"/comercial/entregas?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
