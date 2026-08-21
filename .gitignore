@@ -26,3 +26,5 @@ __pycache__/
 
 data/
 DEPLOYMENT.md
+
+docs/qa/qa-mock-cleanup-report-*.md

@@ -17,9 +17,9 @@ Este documento describe el procedimiento estándar para realizar despliegues (de
 
 ---
 
-## 🚀 Pasos para Realizar un Deploy (Rama `develop`)
+## 🚀 Pasos para Realizar un Deploy Obligatorio (Rama `develop`)
 
-Cada vez que realices cambios en el código y los subas a GitHub en la rama **`develop`**, sigue estos pasos en el servidor VPS:
+Cada vez que realices cambios en el código y los subas a GitHub en la rama **`develop`**, sigue estrictamente esta secuencia en la VPS:
 
 ### 1. Conectarse a la VPS por SSH
 ```bash
@@ -31,29 +31,46 @@ ssh gabi@vmi3481033
 cd /home/gabi/apps/eduagro
 ```
 
-### 3. Cambiar a la rama `develop` y obtener los últimos cambios
+### 3. Generar Copia de Seguridad Preventiva de PostgreSQL
 ```bash
-git checkout develop
-git pull origin develop
+mkdir -p ~/backups
+pg_dump -U eduagro_user eduagro | gzip > ~/backups/eduagro_pre_deploy_$(date +%Y%m%d_%H%M%S).sql.gz
 ```
 
-### 4. Activar el entorno virtual e instalar nuevas dependencias (si aplica)
+### 4. Obtener los últimos cambios de Git
+```bash
+git fetch origin develop
+git reset --hard origin/develop
+```
+
+### 5. Activar entorno virtual e instalar dependencias
 ```bash
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 5. Reiniciar el servicio de la aplicación
+### 6. Ejecutar Script de Migraciones Versionadas de Alembic
 ```bash
-uvicorn app.main:app --reload --port 8000
+./scripts/migrate.sh
+```
+> **⚠️ REGLA OBLIGATORIA DE SEGURIDAD:** Si `./scripts/migrate.sh` falla o devuelve exit code `1`, **ABORTAR INMEDIATAMENTE**. **NO REINICIAR UVICORN/SYSTEMD**.
+
+### 7. Ejecutar Smoke Tests y Verificación de Esquema
+```bash
+PYTHONPATH=. ./venv/bin/pytest tests/test_schema_drift_and_migrations.py -v
+```
+
+### 8. Reiniciar el Servicio de la Aplicación
+```bash
 sudo systemctl restart eduagro
 ```
 
-### 6. Verificar que la aplicación esté corriendo correctamente
+### 9. Health Check Final
 ```bash
-sudo systemctl status eduagro
+curl -I http://127.0.0.1:5051/
+sudo systemctl status eduagro --no-pager
 ```
-Debe mostrar el estado **`active (running)`**.
+Debe responder **`HTTP/1.1 200 OK`** (o 303 Redirect) y estado **`active (running)`**.
 
 ---
 
