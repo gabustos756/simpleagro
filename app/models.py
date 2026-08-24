@@ -6,6 +6,7 @@ from typing import Optional, List
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum as SQLEnum,
@@ -40,6 +41,10 @@ from app.enums import (
     EstadoRecepcionEnum,
     FuenteCotizacionFleteEnum,
     ConfianzaCotizacionEnum,
+    TipoEquipoEnum,
+    EstadoOperativoTrabajoEnum,
+    MedioPagoEnum,
+    InsumosAportadosEnum,
 )
 
 
@@ -1245,6 +1250,221 @@ class StockWeightReconciliation(Base):
     delivery: Mapped["GrainDelivery"] = relationship("GrainDelivery", back_populates="reconciliations")
     waybill: Mapped["GrainWaybill"] = relationship("GrainWaybill", back_populates="reconciliations")
     stock_movement: Mapped[Optional["StockMovement"]] = relationship("StockMovement", foreign_keys=[stock_movement_id])
+
+
+class EquipoMaquinaria(Base):
+    """Maquinaria y Equipos de la Empresa para Servicios a Terceros y Campo Propio."""
+    __tablename__ = "equipos_maquinaria"
+    __table_args__ = (
+        Index("ix_equipos_maquinaria_cliente", "cliente_id"),
+        Index("ix_equipos_maquinaria_tipo", "tipo_equipo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    tipo_equipo: Mapped[str] = mapped_column(
+        String(50), default=TipoEquipoEnum.PULVERIZADORA.value, nullable=False
+    )
+    marca_modelo: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    patente_serie: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    propiedad_empresa: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    servicios_prestados: Mapped[List["ServicioPrestado"]] = relationship(
+        "ServicioPrestado", back_populates="maquinaria"
+    )
+
+
+class ClienteTercero(Base):
+    """Clientes Terceros (Productores / Vecinos) que contratan servicios agrícolas."""
+    __tablename__ = "clientes_terceros"
+    __table_args__ = (
+        Index("ix_clientes_terceros_cliente", "cliente_id"),
+        Index("ix_clientes_terceros_nombre", "razon_social_nombre"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    razon_social_nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    cuit_dni: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    telefono: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    localidad_direccion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    servicios_prestados: Mapped[List["ServicioPrestado"]] = relationship(
+        "ServicioPrestado", back_populates="cliente_tercero"
+    )
+
+
+class ServicioPrestado(Base):
+    """Orden de Trabajo de Servicios Prestados a Terceros (Pulverización, Siembra, etc.)."""
+    __tablename__ = "servicios_prestados"
+    __table_args__ = (
+        Index("ix_servicios_prestados_cliente", "cliente_id"),
+        Index("ix_servicios_prestados_tercero", "cliente_tercero_id"),
+        Index("ix_servicios_prestados_maquina", "maquinaria_id"),
+        Index("ix_servicios_prestados_operador", "operador_id"),
+        Index("ix_servicios_prestados_estado", "estado_operativo"),
+        CheckConstraint("superficie_ha > 0", name="chk_superficie_positiva"),
+        CheckConstraint("monto_total_facturado >= 0", name="chk_monto_facturado_nn"),
+        CheckConstraint("pago_operador_negociado >= 0", name="chk_pago_operador_nn"),
+        CheckConstraint("imputacion_uso_maquinaria >= 0", name="chk_imputacion_maquina_nn"),
+        CheckConstraint("gastos_directos_informados >= 0", name="chk_gastos_informados_nn"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    cliente_tercero_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes_terceros.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    maquinaria_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("equipos_maquinaria.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    operador_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+
+    tipo_servicio: Mapped[str] = mapped_column(String(50), default="pulverizacion", nullable=False, index=True)
+    fecha_trabajo: Mapped[date] = mapped_column(Date, nullable=False)
+    establecimiento_lote_libre: Mapped[str] = mapped_column(String(255), nullable=False)
+    superficie_ha: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    precio_unitario_ha: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 2), nullable=True)
+    monto_total_facturado: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    pago_operador_negociado: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
+    imputacion_uso_maquinaria: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
+    gastos_directos_informados: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
+
+    estado_operativo: Mapped[str] = mapped_column(
+        String(50), default=EstadoOperativoTrabajoEnum.PRESUPUESTO.value, nullable=False, index=True
+    )
+
+    # Campos específicos de pulverización (MVP integrado)
+    tipo_aplicacion: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    volumen_caldo_lha: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    insumos_aportados_por: Mapped[Optional[str]] = mapped_column(
+        String(50), default=InsumosAportadosEnum.CLIENTE.value, nullable=True
+    )
+    datos_adicionales_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    # Trazabilidad y auditoría
+    creado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    actualizado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    cliente_tercero: Mapped["ClienteTercero"] = relationship("ClienteTercero", back_populates="servicios_prestados")
+    maquinaria: Mapped["EquipoMaquinaria"] = relationship("EquipoMaquinaria", back_populates="servicios_prestados")
+    cobros: Mapped[List["CobroServicioPrestado"]] = relationship("CobroServicioPrestado", back_populates="servicio_prestado")
+    pagos_operador: Mapped[List["PagoOperadorServicio"]] = relationship("PagoOperadorServicio", back_populates="servicio_prestado")
+
+
+class CobroServicioPrestado(Base):
+    """Registro de Cobros Recibidos de Clientes Terceros (Genera Ingreso Financiero)."""
+    __tablename__ = "cobros_servicios_prestados"
+    __table_args__ = (
+        Index("ix_cobros_servicios_cliente", "cliente_id"),
+        Index("ix_cobros_servicios_servicio", "servicio_prestado_id"),
+        Index("ix_cobros_servicios_idempotencia", "clave_idempotencia"),
+        CheckConstraint("monto_cobrado > 0", name="chk_monto_cobrado_positivo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    servicio_prestado_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("servicios_prestados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    transaccion_financiera_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("transacciones_financieras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    fecha_cobro: Mapped[date] = mapped_column(Date, nullable=False)
+    monto_cobrado: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    medio_pago: Mapped[str] = mapped_column(String(50), default=MedioPagoEnum.TRANSFERENCIA.value, nullable=False)
+    numero_comprobante: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    clave_idempotencia: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    registrado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    servicio_prestado: Mapped["ServicioPrestado"] = relationship("ServicioPrestado", back_populates="cobros")
+
+
+class PagoOperadorServicio(Base):
+    """Registro de Pagos Efectuados al Operador (Genera Egreso Financiero al Liquidarse)."""
+    __tablename__ = "pagos_operadores_servicios"
+    __table_args__ = (
+        Index("ix_pagos_operadores_cliente", "cliente_id"),
+        Index("ix_pagos_operadores_servicio", "servicio_prestado_id"),
+        Index("ix_pagos_operadores_idempotencia", "clave_idempotencia"),
+        CheckConstraint("monto_pagado > 0", name="chk_monto_pagado_positivo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    servicio_prestado_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("servicios_prestados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    transaccion_financiera_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("transacciones_financieras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    fecha_pago: Mapped[date] = mapped_column(Date, nullable=False)
+    monto_pagado: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    medio_pago: Mapped[str] = mapped_column(String(50), default=MedioPagoEnum.TRANSFERENCIA.value, nullable=False)
+    clave_idempotencia: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    registrado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    servicio_prestado: Mapped["ServicioPrestado"] = relationship("ServicioPrestado", back_populates="pagos_operador")
+
 
 
 

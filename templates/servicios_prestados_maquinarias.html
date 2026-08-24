@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maquinarias y Equipos - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+  {% include "components/header.html" %}
+
+  <main class="flex-grow py-8 px-4 sm:px-6 lg:px-8">
+<div class="max-w-5xl mx-auto space-y-6">
+
+  <!-- HEADER -->
+  <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
+    <div>
+      <a href="/servicios-prestados" class="text-3xs font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition flex items-center gap-1 mb-1">
+        ← Volver a Trabajos a Terceros
+      </a>
+      <h1 class="text-2xl font-black text-slate-900">Maquinarias y Equipos Propio</h1>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Pulverizadoras autopropulsadas, tractores y equipos de la empresa familiar para servicios a terceros.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- COLUMNA IZQUIERDA: FORMULARIO DE ALTA -->
+    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 h-fit">
+      <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2">➕ Registrar Nueva Maquinaria</h2>
+
+      <form method="POST" action="/servicios-prestados/maquinarias" class="space-y-3">
+        <div>
+          <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Nombre / Identificación *</label>
+          <input type="text" name="nombre" required placeholder="Ej: Pulverizadora Metalfor 3000L" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+        </div>
+
+        <div>
+          <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Tipo de Equipo *</label>
+          <select name="tipo_equipo" required class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+            <option value="pulverizadora">Pulverizadora Autopropulsada</option>
+            <option value="tractor">Tractor</option>
+            <option value="cosechadora">Cosechadora</option>
+            <option value="sembradora">Sembradora</option>
+            <option value="camion">Camión / Flete</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Marca / Modelo</label>
+          <input type="text" name="marca_modelo" placeholder="Ej: Metalfor Multiple 3200" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+        </div>
+
+        <div>
+          <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Patente / Serie</label>
+          <input type="text" name="patente_serie" placeholder="Ej: AA-123-BB" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+        </div>
+
+        <button type="submit" class="w-full py-2.5 bg-agro-600 hover:bg-agro-700 text-white font-extrabold text-xs rounded-xl transition shadow-sm">
+          Guardar Maquinaria
+        </button>
+      </form>
+    </div>
+
+    <!-- COLUMNA DERECHA: LISTADO -->
+    <div class="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+      <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2">Listado de Equipos Registrados</h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="text-3xs font-black uppercase text-slate-400 border-b border-slate-100 pb-2">
+              <th class="py-2.5 px-3">Maquinaria</th>
+              <th class="py-2.5 px-3">Tipo</th>
+              <th class="py-2.5 px-3">Marca / Modelo</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+            {% for m in maquinarias %}
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-3 px-3 font-extrabold text-slate-900">
+                🚜 {{ m.nombre }}
+                <div class="text-[10px] text-slate-400 font-normal">Patente: {{ m.patente_serie or '-' }}</div>
+              </td>
+              <td class="py-3 px-3 uppercase font-bold text-slate-600">{{ m.tipo_equipo }}</td>
+              <td class="py-3 px-3 text-slate-500">{{ m.marca_modelo or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="3" class="py-6 text-center text-slate-400 italic">No hay maquinarias registradas aún.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+  </main>
+</body>
+</html>

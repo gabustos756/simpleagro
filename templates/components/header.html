@@ -78,8 +78,12 @@
           <span>📈</span> <span>Comercial</span>
         </a>
 
-        <a href="/servicios/campos" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'servicios' or '/servicios' in request.url.path %}bg-purple-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+        <a href="/servicios/campos" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'servicios' or '/servicios/' in request.url.path %}bg-purple-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
           <span>⚡</span> <span>Servicios</span>
+        </a>
+
+        <a href="/servicios-prestados" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'servicios_prestados' or '/servicios-prestados' in request.url.path %}bg-emerald-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>🚜</span> <span>Trabajos a Terceros</span>
         </a>
 
         <a href="/campo" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'campo' or request.url.path == '/campo' %}bg-emerald-700 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}" title="Modo Campo: Carga de tareas, lluvias y trabajos offline">

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle Orden #{{ (orden.id | string)[:8] }} - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+  {% include "components/header.html" %}
+
+  <main class="flex-grow py-8 px-4 sm:px-6 lg:px-8">
+<div class="max-w-6xl mx-auto space-y-6">
+
+  <!-- HEADER Y NAVEGACIÓN -->
+  <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <a href="/servicios-prestados" class="text-3xs font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition">
+          ← Trabajos a Terceros
+        </a>
+        <span class="text-slate-300">•</span>
+        <span class="text-3xs font-extrabold uppercase text-agro-700 bg-agro-50 px-2 py-0.5 rounded">
+          {{ orden.tipo_servicio }}
+        </span>
+      </div>
+      <h1 class="text-2xl font-black text-slate-900 mt-1 flex items-center gap-2">
+        <span>Orden #{{ (orden.id | string)[:8] }}</span>
+        <span class="text-slate-400 font-normal">({{ orden.establecimiento_lote_libre }})</span>
+      </h1>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Cliente Tercero: <strong class="text-slate-900">{{ tercero.razon_social_nombre }}</strong>
+      </p>
+    </div>
+
+    <!-- BADGES DE ESTADO OPERATIVO Y COBRO -->
+    <div class="flex items-center gap-2 flex-wrap sm:justify-end">
+      {% if orden.estado_operativo == 'presupuesto' %}
+        <span class="px-3 py-1.5 bg-slate-100 text-slate-700 font-extrabold rounded-xl text-xs">Presupuesto</span>
+      {% elif orden.estado_operativo == 'programado' %}
+        <span class="px-3 py-1.5 bg-blue-100 text-blue-900 font-extrabold rounded-xl text-xs">Programado</span>
+      {% elif orden.estado_operativo == 'realizado' %}
+        <span class="px-3 py-1.5 bg-indigo-100 text-indigo-950 font-extrabold rounded-xl text-xs">Realizado en Campo</span>
+      {% elif orden.estado_operativo == 'liquidado_cerrado' %}
+        <span class="px-3 py-1.5 bg-emerald-100 text-emerald-950 font-extrabold rounded-xl text-xs">Liquidado / Cerrado</span>
+      {% elif orden.estado_operativo == 'cancelado' %}
+        <span class="px-3 py-1.5 bg-rose-100 text-rose-900 font-extrabold rounded-xl text-xs">Cancelado</span>
+      {% endif %}
+
+      {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+        {% if estado_cobro == 'cobrado' or estado_cobro == 'liquidado_cerrado' %}
+          <span class="px-3 py-1.5 bg-emerald-600 text-white font-black rounded-xl text-xs shadow-sm">💰 Cobrado</span>
+        {% elif estado_cobro == 'cobro_parcial' %}
+          <span class="px-3 py-1.5 bg-amber-500 text-white font-black rounded-xl text-xs shadow-sm">⏳ Cobro Parcial</span>
+        {% else %}
+          <span class="px-3 py-1.5 bg-slate-200 text-slate-700 font-black rounded-xl text-xs">❌ Sin Cobrar</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl text-xs font-bold flex items-center gap-2">
+    <span>⚠️</span>
+    <span>{{ error }}</span>
+  </div>
+  {% endif %}
+
+  <!-- GRID PRINCIPAL DETALLE & FINANZAS -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- COLUMNA IZQUIERDA (2 COLS): DATOS TÉCNICOS & RECURSOS -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- TARJETA TÉCNICA -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Ficha Técnica del Trabajo</h2>
+          <span class="text-xs text-slate-500 font-bold">📅 {{ orden.fecha_trabajo.strftime('%d/%m/%Y') if orden.fecha_trabajo else '-' }}</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Superficie Total</span>
+            <span class="text-xl font-black text-slate-900">{{ "{:,.1f}".format(orden.superficie_ha) }}</span> <span class="text-slate-500">Ha</span>
+          </div>
+
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Tipo Aplicación</span>
+            <span class="text-sm font-extrabold text-slate-800">{{ orden.tipo_aplicacion or 'No especificada' }}</span>
+          </div>
+
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Volumen Caldo</span>
+            <span class="text-sm font-extrabold text-slate-800">{{ orden.volumen_caldo_lha or '-' }} L/Ha</span>
+          </div>
+
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Maquinaria Usada</span>
+            <span class="text-xs font-extrabold text-slate-900">🚜 {{ maquina.nombre }}</span>
+          </div>
+
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Operador a Cargo</span>
+            <span class="text-xs font-extrabold text-slate-900">👤 {{ operador.nombre or operador.email }}</span>
+          </div>
+
+          <div>
+            <span class="text-3xs font-extrabold uppercase text-slate-400 block">Insumos Químicos</span>
+            <span class="text-xs font-bold text-slate-700 uppercase">Aportados por {{ orden.insumos_aportados_por or 'cliente' }}</span>
+          </div>
+        </div>
+
+        {% if orden.observaciones %}
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-xs">
+          <span class="text-3xs font-extrabold uppercase text-slate-400 block mb-0.5">Observaciones / Notas de Campo:</span>
+          <p class="text-slate-700 italic">{{ orden.observaciones }}</p>
+        </div>
+        {% endif %}
+
+        <!-- BOTÓN ACTUALIZACIÓN TÉCNICA OPERARIO -->
+        <div class="pt-2 flex justify-end">
+          <button onclick="document.getElementById('modal-tecnico').classList.remove('hidden')" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5">
+            <span>✏️</span> Actualizar Datos Técnicos de Campo
+          </button>
+        </div>
+      </div>
+
+      <!-- HISTORIAL DE COBROS Y PAGOS (SOLO ADMIN / FINANZAS) -->
+      {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+      
+      <!-- SECCIÓN DE COBROS PERCIBIDOS -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">Cobros Recibidos del Cliente</h2>
+            <p class="text-3xs text-slate-400">Total Facturado: ${{ "{:,.2f}".format(orden.monto_total_facturado) }}</p>
+          </div>
+          <button onclick="document.getElementById('modal-cobro').classList.remove('hidden')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition shadow-sm flex items-center gap-1">
+            <span>💵</span> Registrar Cobro
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="text-3xs font-black uppercase text-slate-400 border-b border-slate-100 pb-2">
+                <th class="py-2">Fecha</th>
+                <th class="py-2">Monto Cobrado</th>
+                <th class="py-2">Medio Pago</th>
+                <th class="py-2">Comprobante</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for c in cobros %}
+              <tr>
+                <td class="py-2.5 font-bold">{{ c.fecha_cobro.strftime('%d/%m/%Y') }}</td>
+                <td class="py-2.5 font-black text-emerald-700">${{ "{:,.2f}".format(c.monto_cobrado) }}</td>
+                <td class="py-2.5 uppercase font-bold text-slate-600">{{ c.medio_pago }}</td>
+                <td class="py-2.5 text-slate-500">{{ c.numero_comprobante or '-' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="py-4 text-center text-slate-400 italic">No hay cobros registrados aún.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECCIÓN DE LIQUIDACIÓN AL OPERADOR -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-xs font-extrabold uppercase tracking-wider text-amber-800">Liquidación a Andrés / Operador</h2>
+            <p class="text-3xs text-slate-400">Total Negociado: ${{ "{:,.2f}".format(orden.pago_operador_negociado) }}</p>
+          </div>
+          <button onclick="document.getElementById('modal-pago-operador').classList.remove('hidden')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl transition shadow-sm flex items-center gap-1">
+            <span>👤</span> Liquidar Pago
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="text-3xs font-black uppercase text-slate-400 border-b border-slate-100 pb-2">
+                <th class="py-2">Fecha Pago</th>
+                <th class="py-2">Monto Pagado</th>
+                <th class="py-2">Medio Pago</th>
+                <th class="py-2">Notas</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for p in pagos_operador %}
+              <tr>
+                <td class="py-2.5 font-bold">{{ p.fecha_pago.strftime('%d/%m/%Y') }}</td>
+                <td class="py-2.5 font-black text-amber-900">${{ "{:,.2f}".format(p.monto_pagado) }}</td>
+                <td class="py-2.5 uppercase font-bold text-slate-600">{{ p.medio_pago }}</td>
+                <td class="py-2.5 text-slate-500">{{ p.observaciones or '-' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="py-4 text-center text-slate-400 italic">Pendiente de liquidación. No hay pagos efectuados aún.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% endif %}
+
+    </div>
+
+    <!-- COLUMNA DERECHA (1 COL): DESGLOSE ECONÓMICO & ACCIONES -->
+    <div class="space-y-6">
+
+      {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+      <!-- PANEL FINANCIERO ANTI-DUPLICACIÓN -->
+      <div class="bg-slate-900 text-white p-6 rounded-3xl shadow-md space-y-4">
+        <h2 class="text-xs font-black uppercase tracking-wider text-slate-400">Desglose Económico de la Orden</h2>
+
+        <div class="space-y-3 text-xs border-b border-slate-800 pb-4">
+          <div class="flex justify-between items-center">
+            <span class="text-slate-300">Total Facturado Cliente</span>
+            <span class="text-base font-black text-white">${{ "{:,.2f}".format(orden.monto_total_facturado) }}</span>
+          </div>
+
+          <div class="flex justify-between items-center text-amber-300">
+            <span>(-) Pago Negociado Operador</span>
+            <span class="font-bold">-${{ "{:,.2f}".format(orden.pago_operador_negociado) }}</span>
+          </div>
+
+          <div class="flex justify-between items-center text-slate-300">
+            <span>(-) Gastos Informados</span>
+            <span class="font-bold">-${{ "{:,.2f}".format(orden.gastos_directos_informados) }}</span>
+          </div>
+        </div>
+
+        <div class="space-y-2 text-xs pt-1">
+          <div class="flex justify-between items-center text-blue-300">
+            <span>Fondo Maquinaria (Desgaste)</span>
+            <span class="font-black">${{ "{:,.2f}".format(orden.imputacion_uso_maquinaria) }}</span>
+          </div>
+          <p class="text-[10px] text-slate-400">Métrica de reserva interna (sin duplicación contable).</p>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800">
+          <div class="text-3xs uppercase font-extrabold text-slate-400">Resultado Neto Estimado</div>
+          <div class="text-2xl font-black text-agro-400">${{ "{:,.2f}".format(orden.monto_total_facturado - orden.pago_operador_negociado - orden.gastos_directos_informados) }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- CAMBIO DE ESTADO OPERATIVO Y CANCELACIÓN -->
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Control de Estado Operativo</h2>
+
+        <form method="POST" action="/servicios-prestados/{{ orden.id }}/estado" class="space-y-3">
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Estado Actual</label>
+            <select name="nuevo_estado" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 focus:ring-agro-500">
+              <option value="presupuesto" {% if orden.estado_operativo == 'presupuesto' %}selected{% endif %}>Presupuesto</option>
+              <option value="programado" {% if orden.estado_operativo == 'programado' %}selected{% endif %}>Programado</option>
+              <option value="realizado" {% if orden.estado_operativo == 'realizado' %}selected{% endif %}>Realizado en Campo</option>
+              {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+              <option value="liquidado_cerrado" {% if orden.estado_operativo == 'liquidado_cerrado' %}selected{% endif %}>Liquidado / Cerrado</option>
+              <option value="cancelado" {% if orden.estado_operativo == 'cancelado' %}selected{% endif %}>Cancelado</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Motivo / Notas de Cambio</label>
+            <input type="text" name="motivo_cambio" placeholder="Ej: Trabajo finalizado por Andrés" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+          </div>
+
+          <button type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition">
+            Actualizar Estado Operativo
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODALES INTERACTIVOS CON CLAVE DE IDEMPOTENCIA GENERADA                     -->
+<!-- ========================================================================= -->
+
+<!-- 1. MODAL REGISTRAR COBRO -->
+<div id="modal-cobro" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-900">Registrar Cobro Efectivo</h3>
+      <button onclick="document.getElementById('modal-cobro').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+    </div>
+
+    <form method="POST" action="/servicios-prestados/{{ orden.id }}/cobros" class="space-y-4">
+      <input type="hidden" name="clave_idempotencia" value="cobro_{{ orden.id }}_{{ hoy_ts }}">
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Fecha del Cobro *</label>
+        <input type="date" name="fecha_cobro" required value="{{ hoy }}" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Monto Cobrado ($) *</label>
+        <input type="number" step="0.01" min="0.01" name="monto_cobrado" required placeholder="0.00" class="w-full text-xs font-black rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 text-slate-900">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Medio de Pago *</label>
+        <select name="medio_pago" required class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+          <option value="transferencia">Transferencia Bancaria</option>
+          <option value="cheque">Cheque</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Número de Comprobante / Recibo</label>
+        <input type="text" name="numero_comprobante" placeholder="Ej: TR-984123" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div class="border-t border-slate-100 pt-3 space-y-2">
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+          <input type="checkbox" name="autorizacion_sobrepago" value="true" class="rounded border-slate-300 text-agro-600 focus:ring-agro-500">
+          <span>Autorizar sobrepago si supera el total facturado</span>
+        </label>
+        <input type="text" name="motivo_sobrepago" placeholder="Motivo explicativo de sobrepago (si aplica)" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3">
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('modal-cobro').classList.add('hidden')" class="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Cancelar</button>
+        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition">💾 Confirmar Cobro</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 2. MODAL LIQUIDAR PAGO A OPERADOR -->
+<div id="modal-pago-operador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-900">Liquidar Pago a Operador (Andrés)</h3>
+      <button onclick="document.getElementById('modal-pago-operador').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+    </div>
+
+    <form method="POST" action="/servicios-prestados/{{ orden.id }}/pagos-operador" class="space-y-4">
+      <input type="hidden" name="clave_idempotencia" value="pago_op_{{ orden.id }}_{{ hoy_ts }}">
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Fecha del Pago *</label>
+        <input type="date" name="fecha_pago" required value="{{ hoy }}" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Monto Liquidado ($) *</label>
+        <input type="number" step="0.01" min="0.01" name="monto_pagado" required value="{{ orden.pago_operador_negociado }}" class="w-full text-xs font-black rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3 text-slate-900">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Medio de Pago *</label>
+        <select name="medio_pago" required class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+          <option value="transferencia">Transferencia Bancaria</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="cheque">Cheque</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Notas / Observaciones</label>
+        <input type="text" name="observaciones" placeholder="Ej: Pago quincenal de fumigaciones" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div class="border-t border-slate-100 pt-3 space-y-2">
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+          <input type="checkbox" name="autorizacion_sobrepago" value="true" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+          <span>Autorizar pago superior al negociado</span>
+        </label>
+        <input type="text" name="motivo_sobrepago" placeholder="Motivo explicativo de sobrepago (si aplica)" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3">
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('modal-pago-operador').classList.add('hidden')" class="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Cancelar</button>
+        <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl transition">💾 Confirmar Pago</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 3. MODAL ACTUALIZACIÓN TÉCNICA OPERARIO -->
+<div id="modal-tecnico" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-900">Actualizar Datos Técnicos de Campo</h3>
+      <button onclick="document.getElementById('modal-tecnico').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+    </div>
+
+    <form method="POST" action="/servicios-prestados/{{ orden.id }}/actualizacion-tecnica" class="space-y-4">
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Superficie Real Aplicada (Ha) *</label>
+        <input type="number" step="0.01" min="0.01" name="superficie_ha" required value="{{ orden.superficie_ha }}" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Tipo de Aplicación</label>
+        <input type="text" name="tipo_aplicacion" value="{{ orden.tipo_aplicacion or '' }}" placeholder="Ej: Cobertura Total / Herbicida" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Volumen Caldo Real (L/Ha)</label>
+        <input type="number" step="0.1" name="volumen_caldo_lha" value="{{ orden.volumen_caldo_lha or '' }}" placeholder="Ej: 40.0" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2.5 px-3">
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Notas u Observaciones del Operario</label>
+        <textarea name="observaciones" rows="3" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 p-3">{{ orden.observaciones or '' }}</textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('modal-tecnico').classList.add('hidden')" class="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Cancelar</button>
+        <button type="submit" class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition">💾 Guardar Actualización</button>
+      </div>
+    </form>
+  </div>
+</div>
+  </main>
+</body>
+</html>

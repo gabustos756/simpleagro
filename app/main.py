@@ -1151,9 +1151,541 @@ async def delete_campo(
             if request.session.get("campo_activo_id") == campo_id:
                 request.session.pop("campo_activo_id", None)
     except Exception as e:
-        logger.error(f"Error al eliminar campo {campo_id}: {e}")
-
+        pass
     return RedirectResponse("/productivo/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ----------------------------------------------------------------------
+# Módulo de Servicios Prestados / Trabajos a Terceros (FastAPI Routes)
+# ----------------------------------------------------------------------
+
+from app.models import (
+    EquipoMaquinaria,
+    ClienteTercero,
+    ServicioPrestado,
+    CobroServicioPrestado,
+    PagoOperadorServicio,
+)
+from app.services.servicios_prestados_service import (
+    fetch_resumen_servicios_prestados,
+    create_servicio_prestado,
+    create_equipo_maquinaria,
+    create_cliente_tercero,
+    registrar_cobro_servicio,
+    registrar_pago_operador,
+    cancelar_servicio_prestado,
+    calcular_estado_cobro_dinamico,
+    validar_permisos_usuario,
+)
+
+
+@app.get("/servicios-prestados", response_class=HTMLResponse)
+async def servicios_prestados_list(
+    request: Request,
+    estado: Optional[str] = None,
+    cliente_tercero_id: Optional[str] = None,
+    maquinaria_id: Optional[str] = None,
+    operador_id: Optional[str] = None,
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/servicios-prestados", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    resumen = await fetch_resumen_servicios_prestados(db, cliente_id)
+
+    # Cargar relaciones y catálogos
+    res_terceros = await db.execute(select(ClienteTercero).where(ClienteTercero.cliente_id == cliente_id))
+    clientes_terceros = res_terceros.scalars().all()
+
+    res_maquinas = await db.execute(select(EquipoMaquinaria).where(EquipoMaquinaria.cliente_id == cliente_id))
+    maquinarias = res_maquinas.scalars().all()
+
+    res_ops = await db.execute(select(Usuario).where(Usuario.cliente_id == cliente_id))
+    operadores = res_ops.scalars().all()
+
+    # Query principal con filtros
+    query = select(ServicioPrestado).where(ServicioPrestado.cliente_id == cliente_id)
+    if estado:
+        query = query.where(ServicioPrestado.estado_operativo == estado)
+    if cliente_tercero_id:
+        try:
+            query = query.where(ServicioPrestado.cliente_tercero_id == uuid.UUID(cliente_tercero_id))
+        except ValueError:
+            pass
+    if maquinaria_id:
+        try:
+            query = query.where(ServicioPrestado.maquinaria_id == uuid.UUID(maquinaria_id))
+        except ValueError:
+            pass
+    if operador_id:
+        try:
+            query = query.where(ServicioPrestado.operador_id == uuid.UUID(operador_id))
+        except ValueError:
+            pass
+
+    query = query.order_by(ServicioPrestado.fecha_trabajo.desc())
+    res_sp = await db.execute(query)
+    servicios = res_sp.scalars().all()
+
+    items = []
+    for s in servicios:
+        tercero = next((t for t in clientes_terceros if t.id == s.cliente_tercero_id), None)
+        maquina = next((m for m in maquinarias if m.id == s.maquinaria_id), None)
+        operador = next((o for o in operadores if o.id == s.operador_id), None)
+
+        # Cobros acumulados
+        res_c = await db.execute(
+            select(func.coalesce(func.sum(CobroServicioPrestado.monto_cobrado), Decimal("0.00")))
+            .where(CobroServicioPrestado.servicio_prestado_id == s.id)
+        )
+        total_cobrado = res_c.scalar_one()
+
+        # Pagos a operador acumulados
+        res_p = await db.execute(
+            select(func.coalesce(func.sum(PagoOperadorServicio.monto_pagado), Decimal("0.00")))
+            .where(PagoOperadorServicio.servicio_prestado_id == s.id)
+        )
+        total_pagado_op = res_p.scalar_one()
+
+        est_cobro = calcular_estado_cobro_dinamico(
+            s.monto_total_facturado, total_cobrado, s.pago_operador_negociado, total_pagado_op
+        )
+
+        items.append({
+            "orden": s,
+            "tercero_nombre": tercero.razon_social_nombre if tercero else "Desconocido",
+            "maquina_nombre": maquina.nombre if maquina else "Desconocida",
+            "operador_nombre": operador.nombre if operador else (operador.email if operador else "Desconocido"),
+            "total_cobrado": float(total_cobrado),
+            "estado_cobro": est_cobro,
+        })
+
+    return templates.TemplateResponse(
+        "servicios_prestados_list.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "servicios_prestados",
+            "resumen": resumen,
+            "items": items,
+            "clientes_terceros": clientes_terceros,
+            "maquinarias": maquinarias,
+            "operadores": operadores,
+            "filtro_estado": estado,
+            "filtro_tercero": cliente_tercero_id,
+            "filtro_maquinaria": maquinaria_id,
+            "filtro_operador": operador_id,
+            "mensaje": mensaje,
+            "error": error,
+        },
+    )
+
+
+@app.get("/servicios-prestados/clientes-terceros", response_class=HTMLResponse)
+async def servicios_prestados_clientes_terceros_page(
+    request: Request, db: AsyncSession = Depends(get_db)
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/servicios-prestados", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    res_t = await db.execute(select(ClienteTercero).where(ClienteTercero.cliente_id == cliente_id))
+    clientes_terceros = res_t.scalars().all()
+
+    return templates.TemplateResponse(
+        "servicios_prestados_clientes_terceros.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "servicios_prestados",
+            "clientes_terceros": clientes_terceros,
+        },
+    )
+
+
+@app.post("/servicios-prestados/clientes-terceros")
+async def servicios_prestados_clientes_terceros_create(
+    request: Request,
+    razon_social_nombre: str = Form(...),
+    cuit_dni: Optional[str] = Form(None),
+    telefono: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    localidad_direccion: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    await create_cliente_tercero(
+        db, cliente_id, razon_social_nombre, cuit_dni, telefono, email, localidad_direccion
+    )
+    return RedirectResponse("/servicios-prestados/clientes-terceros", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/servicios-prestados/maquinarias", response_class=HTMLResponse)
+async def servicios_prestados_maquinarias_page(
+    request: Request, db: AsyncSession = Depends(get_db)
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/servicios-prestados", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    res_m = await db.execute(select(EquipoMaquinaria).where(EquipoMaquinaria.cliente_id == cliente_id))
+    maquinarias = res_m.scalars().all()
+
+    return templates.TemplateResponse(
+        "servicios_prestados_maquinarias.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "servicios_prestados",
+            "maquinarias": maquinarias,
+        },
+    )
+
+
+@app.post("/servicios-prestados/maquinarias")
+async def servicios_prestados_maquinarias_create(
+    request: Request,
+    nombre: str = Form(...),
+    tipo_equipo: str = Form("pulverizadora"),
+    marca_modelo: Optional[str] = Form(None),
+    patente_serie: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    await create_equipo_maquinaria(
+        db, cliente_id, nombre, tipo_equipo, marca_modelo, patente_serie
+    )
+    return RedirectResponse("/servicios-prestados/maquinarias", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/servicios-prestados/nuevo", response_class=HTMLResponse)
+async def servicios_prestados_nuevo_form(
+    request: Request, error: Optional[str] = None, db: AsyncSession = Depends(get_db)
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/servicios-prestados/nuevo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    res_t = await db.execute(select(ClienteTercero).where(ClienteTercero.cliente_id == cliente_id))
+    clientes_terceros = res_t.scalars().all()
+
+    res_m = await db.execute(select(EquipoMaquinaria).where(EquipoMaquinaria.cliente_id == cliente_id))
+    maquinarias = res_m.scalars().all()
+
+    res_u = await db.execute(select(Usuario).where(Usuario.cliente_id == cliente_id))
+    operadores = res_u.scalars().all()
+
+    return templates.TemplateResponse(
+        "servicios_prestados_form.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "servicios_prestados",
+            "clientes_terceros": clientes_terceros,
+            "maquinarias": maquinarias,
+            "operadores": operadores,
+            "hoy": date.today().isoformat(),
+            "error": error,
+        },
+    )
+
+
+@app.post("/servicios-prestados/nuevo")
+async def servicios_prestados_nuevo_post(
+    request: Request,
+    cliente_tercero_id: str = Form(...),
+    maquinaria_id: str = Form(...),
+    operador_id: str = Form(...),
+    fecha_trabajo: str = Form(...),
+    establecimiento_lote_libre: str = Form(...),
+    superficie_ha: str = Form(...),
+    monto_total_facturado: str = Form(...),
+    pago_operador_negociado: str = Form("0.00"),
+    imputacion_uso_maquinaria: str = Form("0.00"),
+    gastos_directos_informados: str = Form("0.00"),
+    tipo_aplicacion: Optional[str] = Form(None),
+    volumen_caldo_lha: Optional[str] = Form(None),
+    insumos_aportados_por: str = Form("cliente"),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    # Validar permisos
+    try:
+        validar_permisos_usuario(user.get("rol"), "modificar_economia")
+    except PermissionError as pe:
+        return RedirectResponse(f"/servicios-prestados?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        orden = await create_servicio_prestado(
+            db=db,
+            cliente_id=cliente_id,
+            cliente_tercero_id=uuid.UUID(cliente_tercero_id),
+            maquinaria_id=uuid.UUID(maquinaria_id),
+            operador_id=uuid.UUID(operador_id),
+            fecha_trabajo=date.fromisoformat(fecha_trabajo),
+            establecimiento_lote_libre=establecimiento_lote_libre,
+            superficie_ha=Decimal(superficie_ha),
+            monto_total_facturado=Decimal(monto_total_facturado),
+            pago_operador_negociado=Decimal(pago_operador_negociado),
+            imputacion_uso_maquinaria=Decimal(imputacion_uso_maquinaria),
+            gastos_directos_informados=Decimal(gastos_directos_informados),
+            tipo_aplicacion=tipo_aplicacion,
+            volumen_caldo_lha=Decimal(volumen_caldo_lha) if volumen_caldo_lha else None,
+            insumos_aportados_por=insumos_aportados_por,
+            observaciones=observaciones,
+            creado_por_usuario_id=uuid.UUID(user.get("id")) if user.get("id") else None,
+        )
+        return RedirectResponse(f"/servicios-prestados/{orden.id}", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ve:
+        return RedirectResponse(f"/servicios-prestados/nuevo?error={str(ve).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/servicios-prestados/nuevo?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/servicios-prestados/{servicio_id}", response_class=HTMLResponse)
+async def servicios_prestados_detail(
+    request: Request,
+    servicio_id: uuid.UUID,
+    error: Optional[str] = None,
+    mensaje: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/servicios-prestados", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    orden = await db.get(ServicioPrestado, servicio_id)
+    if not orden or orden.cliente_id != cliente_id:
+        return RedirectResponse("/servicios-prestados?error=Orden+no+encontrada", status_code=status.HTTP_303_SEE_OTHER)
+
+    tercero = await db.get(ClienteTercero, orden.cliente_tercero_id)
+    maquina = await db.get(EquipoMaquinaria, orden.maquinaria_id)
+    operador = await db.get(Usuario, orden.operador_id)
+
+    # Cobros y pagos
+    res_c = await db.execute(
+        select(CobroServicioPrestado).where(CobroServicioPrestado.servicio_prestado_id == servicio_id).order_by(CobroServicioPrestado.fecha_cobro.desc())
+    )
+    cobros = res_c.scalars().all()
+
+    res_p = await db.execute(
+        select(PagoOperadorServicio).where(PagoOperadorServicio.servicio_prestado_id == servicio_id).order_by(PagoOperadorServicio.fecha_pago.desc())
+    )
+    pagos_operador = res_p.scalars().all()
+
+    total_cobrado = sum(c.monto_cobrado for c in cobros)
+    total_pagado_op = sum(p.monto_pagado for p in pagos_operador)
+
+    est_cobro = calcular_estado_cobro_dinamico(
+        orden.monto_total_facturado, total_cobrado, orden.pago_operador_negociado, total_pagado_op
+    )
+
+    return templates.TemplateResponse(
+        "servicios_prestados_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "servicios_prestados",
+            "orden": orden,
+            "tercero": tercero,
+            "maquina": maquina,
+            "operador": operador,
+            "cobros": cobros,
+            "pagos_operador": pagos_operador,
+            "total_cobrado": float(total_cobrado),
+            "total_pagado_op": float(total_pagado_op),
+            "estado_cobro": est_cobro,
+            "hoy": date.today().isoformat(),
+            "hoy_ts": int(datetime.now().timestamp()),
+            "error": error,
+            "mensaje": mensaje,
+        },
+    )
+
+
+@app.post("/servicios-prestados/{servicio_id}/cobros")
+async def servicios_prestados_registrar_cobro_post(
+    request: Request,
+    servicio_id: uuid.UUID,
+    fecha_cobro: str = Form(...),
+    monto_cobrado: str = Form(...),
+    medio_pago: str = Form("transferencia"),
+    numero_comprobante: Optional[str] = Form(None),
+    clave_idempotencia: Optional[str] = Form(None),
+    autorizacion_sobrepago: bool = Form(False),
+    motivo_sobrepago: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    try:
+        validar_permisos_usuario(user.get("rol"), "registrar_cobro")
+    except PermissionError as pe:
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        await registrar_cobro_servicio(
+            db=db,
+            cliente_id=cliente_id,
+            servicio_prestado_id=servicio_id,
+            fecha_cobro=date.fromisoformat(fecha_cobro),
+            monto_cobrado=Decimal(monto_cobrado),
+            medio_pago=medio_pago,
+            numero_comprobante=numero_comprobante,
+            clave_idempotencia=clave_idempotencia,
+            registrado_por_usuario_id=uuid.UUID(user.get("id")) if user.get("id") else None,
+            autorizacion_sobrepago=autorizacion_sobrepago,
+            motivo_sobrepago=motivo_sobrepago,
+        )
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Cobro+registrado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/servicios-prestados/{servicio_id}/pagos-operador")
+async def servicios_prestados_registrar_pago_operador_post(
+    request: Request,
+    servicio_id: uuid.UUID,
+    fecha_pago: str = Form(...),
+    monto_pagado: str = Form(...),
+    medio_pago: str = Form("transferencia"),
+    observaciones: Optional[str] = Form(None),
+    clave_idempotencia: Optional[str] = Form(None),
+    autorizacion_sobrepago: bool = Form(False),
+    motivo_sobrepago: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    try:
+        validar_permisos_usuario(user.get("rol"), "registrar_pago_operador")
+    except PermissionError as pe:
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        await registrar_pago_operador(
+            db=db,
+            cliente_id=cliente_id,
+            servicio_prestado_id=servicio_id,
+            fecha_pago=date.fromisoformat(fecha_pago),
+            monto_pagado=Decimal(monto_pagado),
+            medio_pago=medio_pago,
+            observaciones=observaciones,
+            clave_idempotencia=clave_idempotencia,
+            registrado_por_usuario_id=uuid.UUID(user.get("id")) if user.get("id") else None,
+            autorizacion_sobrepago=autorizacion_sobrepago,
+            motivo_sobrepago=motivo_sobrepago,
+        )
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Pago+liquidado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/servicios-prestados/{servicio_id}?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/servicios-prestados/{servicio_id}/estado")
+async def servicios_prestados_cambiar_estado_post(
+    request: Request,
+    servicio_id: uuid.UUID,
+    nuevo_estado: str = Form(...),
+    motivo_cambio: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    if nuevo_estado == "cancelado":
+        try:
+            validar_permisos_usuario(user.get("rol"), "modificar_economia")
+            await cancelar_servicio_prestado(
+                db=db,
+                cliente_id=cliente_id,
+                servicio_prestado_id=servicio_id,
+                motivo_cancelacion=motivo_cambio or "Cancelado desde interfaz",
+                actualizado_por_usuario_id=uuid.UUID(user.get("id")) if user.get("id") else None,
+            )
+            return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Orden+cancelada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+        except Exception as e:
+            return RedirectResponse(f"/servicios-prestados/{servicio_id}?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    orden = await db.get(ServicioPrestado, servicio_id)
+    if not orden or orden.cliente_id != cliente_id:
+        return RedirectResponse("/servicios-prestados?error=Orden+no+encontrada", status_code=status.HTTP_303_SEE_OTHER)
+
+    orden.estado_operativo = nuevo_estado
+    if motivo_cambio:
+        orden.observaciones = f"{orden.observaciones or ''} [{nuevo_estado.upper()}: {motivo_cambio.strip()}]".strip()
+    orden.actualizado_por_usuario_id = uuid.UUID(user.get("id")) if user.get("id") else None
+
+    await db.commit()
+    return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Estado+actualizado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/servicios-prestados/{servicio_id}/actualizacion-tecnica")
+async def servicios_prestados_actualizacion_tecnica_post(
+    request: Request,
+    servicio_id: uuid.UUID,
+    superficie_ha: str = Form(...),
+    tipo_aplicacion: Optional[str] = Form(None),
+    volumen_caldo_lha: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+    orden = await db.get(ServicioPrestado, servicio_id)
+    if not orden or orden.cliente_id != cliente_id:
+        return RedirectResponse("/servicios-prestados?error=Orden+no+encontrada", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Permitido a operario_campo y admin por igual
+    validar_permisos_usuario(user.get("rol"), "actualizar_ejecucion")
+
+    orden.superficie_ha = Decimal(superficie_ha)
+    if tipo_aplicacion is not None:
+        orden.tipo_aplicacion = tipo_aplicacion.strip()
+    if volumen_caldo_lha:
+        orden.volumen_caldo_lha = Decimal(volumen_caldo_lha)
+    if observaciones is not None:
+        orden.observaciones = observaciones.strip()
+    orden.actualizado_por_usuario_id = uuid.UUID(user.get("id")) if user.get("id") else None
+
+    await db.commit()
+    return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Datos+técnicos+actualizados", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/lotes", response_class=HTMLResponse)

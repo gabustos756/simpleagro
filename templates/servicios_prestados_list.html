@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trabajos a Terceros - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+  {% include "components/header.html" %}
+
+  <main class="flex-grow py-8 px-4 sm:px-6 lg:px-8">
+<div class="max-w-7xl mx-auto space-y-6">
+
+  <!-- HEADER DE SECCIÓN -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 bg-agro-100 text-agro-800 rounded-lg text-3xs font-extrabold uppercase tracking-wider">
+          Servicios Prestados
+        </span>
+        <span class="text-xs text-slate-400 font-medium">Empresa Familiar</span>
+      </div>
+      <h1 class="text-2xl font-black text-slate-900 mt-1">Trabajos a Terceros</h1>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Gestión de pulverizaciones y servicios contratados por productores externos con maquinaria propia.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+      <a href="/servicios-prestados/clientes-terceros" class="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold rounded-xl transition border border-slate-200 flex items-center gap-1.5">
+        <span>👤</span> Clientes Terceros
+      </a>
+      <a href="/servicios-prestados/maquinarias" class="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold rounded-xl transition border border-slate-200 flex items-center gap-1.5">
+        <span>🚜</span> Maquinarias
+      </a>
+      <a href="/servicios-prestados/nuevo" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white text-xs font-bold rounded-xl transition shadow-md shadow-agro-600/20 flex items-center gap-1.5">
+        <span>➕</span> Nuevo Trabajo
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TARJETAS DE INDICADORES KPI (SOLO ROL ADMIN / FINANZAS) -->
+  {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+    
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-1">
+      <span class="text-3xs font-extrabold uppercase text-slate-400 tracking-wider">Total Facturado</span>
+      <div class="text-2xl font-black text-slate-900">${{ "{:,.2f}".format(resumen.total_facturado) }}</div>
+      <div class="text-[11px] text-slate-500 font-medium">{{ resumen.cantidad_trabajos }} orden(es) activas</div>
+    </div>
+
+    <div class="bg-emerald-50/60 border border-emerald-200 rounded-3xl p-5 shadow-sm space-y-1">
+      <span class="text-3xs font-extrabold uppercase text-emerald-700 tracking-wider">Total Cobrado</span>
+      <div class="text-2xl font-black text-emerald-900">${{ "{:,.2f}".format(resumen.total_cobrado) }}</div>
+      <div class="text-[11px] text-emerald-700 font-medium">Pendiente: ${{ "{:,.2f}".format(resumen.total_pendiente_cobro) }}</div>
+    </div>
+
+    <div class="bg-amber-50/60 border border-amber-200 rounded-3xl p-5 shadow-sm space-y-1">
+      <span class="text-3xs font-extrabold uppercase text-amber-800 tracking-wider">Pago a Operador</span>
+      <div class="text-2xl font-black text-amber-950">${{ "{:,.2f}".format(resumen.pago_operador_pagado) }}</div>
+      <div class="text-[11px] text-amber-800 font-medium">Pendiente Liq: ${{ "{:,.2f}".format(resumen.pago_operador_pendiente_liquidacion) }}</div>
+    </div>
+
+    <div class="bg-blue-50/60 border border-blue-200 rounded-3xl p-5 shadow-sm space-y-1">
+      <div class="flex items-center justify-between">
+        <span class="text-3xs font-extrabold uppercase text-blue-800 tracking-wider">Fondo Maquinaria</span>
+        <span class="text-[9px] bg-blue-200 text-blue-900 font-bold px-1.5 py-0.5 rounded">Interno</span>
+      </div>
+      <div class="text-2xl font-black text-blue-950">${{ "{:,.2f}".format(resumen.imputacion_uso_maquinaria) }}</div>
+      <div class="text-[11px] text-blue-700 font-medium">Uso y Desgaste Estimado</div>
+    </div>
+
+    <div class="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-1">
+      <span class="text-3xs font-extrabold uppercase text-slate-400 tracking-wider">Margen Neto Estimado</span>
+      <div class="text-2xl font-black text-agro-400">${{ "{:,.2f}".format(resumen.margen_neto_estimado) }}</div>
+      <div class="text-[11px] text-slate-400 font-medium">{{ "{:,.1f}".format(resumen.total_superficie_ha) }} Ha totales</div>
+    </div>
+
+  </div>
+  {% else %}
+  <div class="bg-slate-800 text-white rounded-3xl p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <span class="text-3xs font-extrabold uppercase text-slate-400 tracking-wider">Modo Técnico Operario</span>
+      <div class="text-xl font-bold">Vista de Ejecución en Campo</div>
+    </div>
+    <div class="text-right">
+      <span class="text-2xl font-black text-agro-400">{{ "{:,.1f}".format(resumen.total_superficie_ha) }} Ha</span>
+      <div class="text-xs text-slate-400">{{ resumen.cantidad_trabajos }} orden(es) asignadas</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- FORMULARIO DE FILTROS -->
+  <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+    <form method="GET" action="/servicios-prestados" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Estado Operativo</label>
+        <select name="estado" onchange="this.form.submit()" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+          <option value="">-- Todos los estados --</option>
+          <option value="presupuesto" {% if filtro_estado == 'presupuesto' %}selected{% endif %}>Presupuesto</option>
+          <option value="programado" {% if filtro_estado == 'programado' %}selected{% endif %}>Programado</option>
+          <option value="realizado" {% if filtro_estado == 'realizado' %}selected{% endif %}>Realizado</option>
+          <option value="liquidado_cerrado" {% if filtro_estado == 'liquidado_cerrado' %}selected{% endif %}>Liquidado / Cerrado</option>
+          <option value="cancelado" {% if filtro_estado == 'cancelado' %}selected{% endif %}>Cancelado</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Cliente Tercero</label>
+        <select name="cliente_tercero_id" onchange="this.form.submit()" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+          <option value="">-- Todos los clientes --</option>
+          {% for t in clientes_terceros %}
+          <option value="{{ t.id }}" {% if filtro_tercero == (t.id | string) %}selected{% endif %}>{{ t.razon_social_nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Maquinaria</label>
+        <select name="maquinaria_id" onchange="this.form.submit()" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+          <option value="">-- Todas las máquinas --</option>
+          {% for m in maquinarias %}
+          <option value="{{ m.id }}" {% if filtro_maquinaria == (m.id | string) %}selected{% endif %}>{{ m.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Operador</label>
+        <select name="operador_id" onchange="this.form.submit()" class="w-full text-xs font-bold rounded-xl border-slate-200 bg-slate-50 py-2 px-3 focus:ring-agro-500">
+          <option value="">-- Todos los operadores --</option>
+          {% for u in operadores %}
+          <option value="{{ u.id }}" {% if filtro_operador == (u.id | string) %}selected{% endif %}>{{ u.nombre or u.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex items-end">
+        <a href="/servicios-prestados" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl text-center transition">
+          Limpiar Filtros
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- TABLA DE ORDENES DE TRABAJO -->
+  <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-slate-50/80 border-b border-slate-200 text-3xs font-black uppercase text-slate-400 tracking-wider">
+            <th class="py-3.5 px-4">Fecha / Orden</th>
+            <th class="py-3.5 px-4">Cliente Tercero</th>
+            <th class="py-3.5 px-4">Establecimiento / Lote</th>
+            <th class="py-3.5 px-4">Superficie</th>
+            <th class="py-3.5 px-4">Recursos</th>
+            {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+            <th class="py-3.5 px-4 text-right">Facturado</th>
+            <th class="py-3.5 px-4 text-center">Estado Cobro</th>
+            {% endif %}
+            <th class="py-3.5 px-4 text-center">Estado Operativo</th>
+            <th class="py-3.5 px-4 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+          {% for item in items %}
+          {% set s = item.orden %}
+          <tr class="hover:bg-slate-50/50 transition">
+            
+            <td class="py-3.5 px-4">
+              <div class="font-bold text-slate-900">#{{ (s.id | string)[:8] }}</div>
+              <div class="text-[11px] text-slate-500">📅 {{ s.fecha_trabajo.strftime('%d/%m/%Y') if s.fecha_trabajo else '-' }}</div>
+            </td>
+
+            <td class="py-3.5 px-4 font-extrabold text-slate-900">
+              {{ item.tercero_nombre }}
+            </td>
+
+            <td class="py-3.5 px-4">
+              <div class="font-bold text-slate-800">{{ s.establecimiento_lote_libre }}</div>
+              <div class="text-[11px] text-slate-500 uppercase">{{ s.tipo_servicio }}</div>
+            </td>
+
+            <td class="py-3.5 px-4">
+              <span class="font-black text-slate-900">{{ "{:,.1f}".format(s.superficie_ha) }}</span> <span class="text-slate-400">Ha</span>
+              {% if s.volumen_caldo_lha %}
+              <div class="text-[10px] text-slate-500">{{ s.volumen_caldo_lha }} L/Ha</div>
+              {% endif %}
+            </td>
+
+            <td class="py-3.5 px-4 space-y-0.5">
+              <div class="text-[11px] font-bold text-slate-800">🚜 {{ item.maquina_nombre }}</div>
+              <div class="text-[11px] text-slate-500">👤 {{ item.operador_nombre }}</div>
+            </td>
+
+            {% if user.rol in ['admin', 'productor', 'administrador_finanzas'] %}
+            <td class="py-3.5 px-4 text-right font-black text-slate-900">
+              ${{ "{:,.2f}".format(s.monto_total_facturado) }}
+            </td>
+
+            <td class="py-3.5 px-4 text-center">
+              {% if item.estado_cobro == 'cobrado' or item.estado_cobro == 'liquidado_cerrado' %}
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-md text-[10px]">Cobrado</span>
+              {% elif item.estado_cobro == 'cobro_parcial' %}
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-extrabold rounded-md text-[10px]">Cobro Parcial</span>
+              {% else %}
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 font-extrabold rounded-md text-[10px]">Sin Cobrar</span>
+              {% endif %}
+            </td>
+            {% endif %}
+
+            <td class="py-3.5 px-4 text-center">
+              {% if s.estado_operativo == 'presupuesto' %}
+                <span class="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold rounded-lg text-[10px]">Presupuesto</span>
+              {% elif s.estado_operativo == 'programado' %}
+                <span class="px-2.5 py-1 bg-blue-100 text-blue-800 font-bold rounded-lg text-[10px]">Programado</span>
+              {% elif s.estado_operativo == 'realizado' %}
+                <span class="px-2.5 py-1 bg-indigo-100 text-indigo-900 font-bold rounded-lg text-[10px]">Realizado</span>
+              {% elif s.estado_operativo == 'liquidado_cerrado' %}
+                <span class="px-2.5 py-1 bg-emerald-100 text-emerald-900 font-bold rounded-lg text-[10px]">Cerrado</span>
+              {% elif s.estado_operativo == 'cancelado' %}
+                <span class="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-lg text-[10px]">Cancelado</span>
+              {% endif %}
+            </td>
+
+            <td class="py-3.5 px-4 text-right">
+              <a href="/servicios-prestados/{{ s.id }}" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-3xs rounded-xl transition inline-flex items-center gap-1">
+                Ver Detalle ➔
+              </a>
+            </td>
+
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="py-12 text-center text-slate-400">
+              <div class="text-3xl mb-2">🚜</div>
+              <div class="font-bold text-slate-700">No se encontraron trabajos a terceros registrados</div>
+              <p class="text-xs text-slate-400 mt-1">Podés registrar un nuevo trabajo o ajustar los filtros superiores.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+  </main>
+</body>
+</html>

@@ -175,4 +175,35 @@ class TipoCamionEnum(str, enum.Enum):
     OTRO = "otro"
 
 
+class TipoEquipoEnum(str, enum.Enum):
+    PULVERIZADORA = "pulverizadora"
+    TRACTOR = "tractor"
+    COSECHADORA = "cosechadora"
+    SEMBRADORA = "sembradora"
+    CAMION = "camion"
+    OTRO = "otro"
+
+
+class EstadoOperativoTrabajoEnum(str, enum.Enum):
+    PRESUPUESTO = "presupuesto"
+    PROGRAMADO = "programado"
+    REALIZADO = "realizado"
+    LIQUIDADO_CERRADO = "liquidado_cerrado"
+    CANCELADO = "cancelado"
+
+
+class MedioPagoEnum(str, enum.Enum):
+    TRANSFERENCIA = "transferencia"
+    CHEQUE = "cheque"
+    EFECTIVO = "efectivo"
+    OTRO = "otro"
+
+
+class InsumosAportadosEnum(str, enum.Enum):
+    CLIENTE = "cliente"
+    PROPIO = "propio"
+    MIXTO = "mixto"
+
+
+
 
