@@ -49,19 +49,13 @@
         </div>
       </div>
 
-      <!-- Selector de Cultivo en Pantalla -->
+      <!-- Selector de Cultivo en Pantalla (Soja y Maíz) -->
       <div class="flex items-center gap-2">
         <a href="/comercial/contratos?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌱 Soja
         </a>
         <a href="/comercial/contratos?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌽 Maíz
-        </a>
-        <a href="/comercial/contratos?cultivo=trigo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'trigo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
-          🌾 Trigo
-        </a>
-        <a href="/comercial/contratos?cultivo=sorgo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'sorgo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
-          🥣 Sorgo
         </a>
       </div>
     </div>
@@ -154,17 +148,25 @@
               {% endif %}
             </div>
 
-            <div class="text-right sm:self-center shrink-0 space-y-1">
-              <span class="text-2xl font-black text-slate-900 block">{{ c.toneladas | formato_ar }} Tn</span>
-              {% if c.tipo_precio == 'fijo' and c.precio_usd_tn %}
-              <span class="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 inline-block">
-                $ {{ c.precio_usd_tn | formato_ar }} USD/Tn
-              </span>
-              {% else %}
-              <span class="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
-                A Fijar Pizarra
-              </span>
-              {% endif %}
+            <div class="flex items-center gap-3 text-right sm:self-center shrink-0">
+              <div class="space-y-1">
+                <span class="text-2xl font-black text-slate-900 block">{{ c.toneladas | formato_ar }} Tn</span>
+                {% if c.tipo_precio == 'fijo' and c.precio_usd_tn %}
+                <span class="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 inline-block">
+                  $ {{ c.precio_usd_tn | formato_ar }} USD/Tn
+                </span>
+                {% else %}
+                <span class="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                  A Fijar Pizarra
+                </span>
+                {% endif %}
+              </div>
+              <form method="POST" action="/comercial/contratos/{{ c.id }}/eliminar" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este contrato de venta?');">
+                <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+                <button type="submit" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-transparent hover:border-red-200 transition-all cursor-pointer" title="Eliminar Contrato">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </form>
             </div>
           </div>
           {% endfor %}
@@ -278,7 +280,7 @@
               </p>
             </div>
 
-            <div class="flex items-center gap-4 text-right sm:self-center shrink-0">
+            <div class="flex items-center gap-3 text-right sm:self-center shrink-0">
               <div>
                 <span class="text-2xl font-black text-purple-900 block">{{ k.toneladas_comprometidas | formato_ar }} Tn</span>
                 <span class="text-[11px] font-bold text-slate-400">Retención/Entrega</span>
@@ -291,6 +293,12 @@
                 </button>
               </form>
               {% endif %}
+              <form method="POST" action="/comercial/compromisos/{{ k.id }}/eliminar" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este compromiso?');">
+                <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+                <button type="submit" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-transparent hover:border-red-200 transition-all cursor-pointer" title="Eliminar Compromiso">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </form>
             </div>
           </div>
           {% endfor %}

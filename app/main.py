@@ -4065,6 +4065,101 @@ async def create_comercial_compromiso(
     )
 
 
+@app.post("/comercial/contratos/{contrato_id}/eliminar")
+async def delete_comercial_contrato(
+    request: Request,
+    contrato_id: str,
+    cultivo: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Eliminación de un contrato de venta de grano por el usuario.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    contrato_uuid = get_uuid(contrato_id)
+
+    stmt = select(ContratoVentaGrano).where(
+        ContratoVentaGrano.id == contrato_uuid,
+        ContratoVentaGrano.cliente_id == cliente_id,
+    )
+    res = await db.execute(stmt)
+    contrato = res.scalars().first()
+
+    cult_redir = (cultivo or (contrato.cultivo if contrato else "soja")).strip().lower()
+
+    if not contrato:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cult_redir}&error=Contrato+no+encontrado",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    num_ref = contrato.numero_contrato or contrato.comprador_acopio
+    await db.delete(contrato)
+    await db.commit()
+
+    msg = f"Contrato '{num_ref}' eliminado exitosamente."
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cult_redir}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/compromisos/{compromiso_id}/eliminar")
+async def delete_comercial_compromiso(
+    request: Request,
+    compromiso_id: str,
+    cultivo: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Eliminación de un compromiso de grano (Alquiler o Canje) por el usuario.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/contratos", status_code=status.HTTP_303_SEE_OTHER)
+
+    rol_user = user.get("rol")
+    if rol_user == RolUsuario.OPERARIO_CAMPO:
+        return RedirectResponse("/modo-campo", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    compromiso_uuid = get_uuid(compromiso_id)
+
+    stmt = select(CompromisoGrano).where(
+        CompromisoGrano.id == compromiso_uuid,
+        CompromisoGrano.cliente_id == cliente_id,
+    )
+    res = await db.execute(stmt)
+    compromiso = res.scalars().first()
+
+    cult_redir = (cultivo or (compromiso.cultivo if compromiso else "soja")).strip().lower()
+
+    if not compromiso:
+        return RedirectResponse(
+            f"/comercial/contratos?cultivo={cult_redir}&error=Compromiso+no+encontrado",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    conc_ref = compromiso.concepto
+    await db.delete(compromiso)
+    await db.commit()
+
+    msg = f"Compromiso '{conc_ref}' eliminado exitosamente."
+    return RedirectResponse(
+        f"/comercial/contratos?cultivo={cult_redir}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+
 @app.post("/comercial/contratos/arrendamientos/crear")
 async def create_comercial_arrendamiento(
     request: Request,

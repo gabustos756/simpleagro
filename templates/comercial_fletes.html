@@ -70,12 +70,10 @@
         </div>
       </div>
 
-      <!-- Selector de Cultivo -->
+      <!-- Selector de Cultivo (Soja y Maíz) -->
       <div class="flex items-center gap-2">
         <a href="/comercial/fletes?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌱 Soja</a>
         <a href="/comercial/fletes?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌽 Maíz</a>
-        <a href="/comercial/fletes?cultivo=trigo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'trigo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🌾 Trigo</a>
-        <a href="/comercial/fletes?cultivo=sorgo" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'sorgo' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">🥣 Sorgo</a>
       </div>
     </div>
 
@@ -134,10 +132,8 @@
           <div class="flex items-center gap-2">
             <label class="text-xs font-bold text-slate-700">Cultivo:</label>
             <select name="cultivo" class="text-xs font-extrabold rounded-xl border-slate-300 py-1.5 px-3 bg-white shadow-2xs">
+              <option value="soja" {% if cultivo_seleccionado == 'soja' or cultivo_seleccionado != 'maiz' %}selected{% endif %}>🫛 Soja</option>
               <option value="maiz" {% if cultivo_seleccionado == 'maiz' %}selected{% endif %}>🌽 Maíz</option>
-              <option value="soja" {% if cultivo_seleccionado == 'soja' %}selected{% endif %}>🫛 Soja</option>
-              <option value="trigo" {% if cultivo_seleccionado == 'trigo' %}selected{% endif %}>🌾 Trigo</option>
-              <option value="sorgo" {% if cultivo_seleccionado == 'sorgo' %}selected{% endif %}>🥣 Sorgo</option>
             </select>
           </div>
           <div class="flex items-center gap-2">
@@ -464,8 +460,6 @@
                 <option value="no_especificado" selected>No especificado</option>
                 <option value="soja">🫛 Soja</option>
                 <option value="maiz">🌽 Maíz</option>
-                <option value="trigo">🌾 Trigo</option>
-                <option value="sorgo">🥣 Sorgo</option>
               </select>
             </div>
 

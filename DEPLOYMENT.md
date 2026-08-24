@@ -2,6 +2,16 @@
 
 Este documento describe el procedimiento estándar para realizar despliegues (deploys) en el servidor VPS de producción/staging para la aplicación **EduAgro**.
 
+## Flujo obligatorio de deploy
+
+1. Backup de PostgreSQL.
+2. Actualizar código desde la rama de deploy.
+3. Reconstruir/actualizar dependencias si cambió requirements.txt.
+4. Ejecutar migraciones: ./scripts/migrate.sh.
+5. Ejecutar tests o smoke tests contra una base de testing.
+6. Reiniciar systemd.
+7. Verificar health check y módulos afectados.
+
 ---
 
 ## 📌 Datos de la Infraestructura

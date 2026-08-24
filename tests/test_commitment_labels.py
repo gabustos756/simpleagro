@@ -213,7 +213,9 @@ async def test_7_http_endpoints_render_formatted_commitment_labels():
     """
     from httpx import AsyncClient, ASGITransport
     from app.main import app
+    from app.database import engine
 
+    await engine.dispose()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
         # Autenticación de usuario
         res_login = await client.post("/login", data={"email": "andres@eduagro.com.ar", "password": "andres123"})
