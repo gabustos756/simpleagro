@@ -54,8 +54,30 @@
       </span>
     </div>
 
-    <!-- TARJETAS DE ALERTAS OPERATIVAS DESTACADAS -->
+    {# EVALUACIÓN DINÁMICA DE ALERTAS OPERATIVAS SEGÚN DATOS GEOLOCALIZADOS REALES #}
+    {% set campos_viento = [] %}
+    {% set campos_lluvia = [] %}
+    {% set campos_helada = [] %}
+
+    {% for item in campos_clima %}
+      {% set c = item.campo %}
+      {% set w = item.weather %}
+      {% if w.alerta_viento or (w.viento_kmh and w.viento_kmh > 15.0) %}
+        {% set _ = campos_viento.append(item) %}
+      {% endif %}
+      {% if w.alerta_lluvia or (w.get('lluvia_72h') and w.get('lluvia_72h') >= 10.0) %}
+        {% set _ = campos_lluvia.append(item) %}
+      {% endif %}
+      {% if w.alerta_helada or (w.get('tmin_72h') is not none and w.get('tmin_72h') < 4.0) %}
+        {% set _ = campos_helada.append(item) %}
+      {% endif %}
+    {% endfor %}
+
+    <!-- TARJETAS DE ALERTAS OPERATIVAS DESTACADAS (DINÁMICAS EN TIEMPO REAL) -->
     <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      
+      <!-- CARD 1: ALERTA PULVERIZACIÓN (VIENTO) -->
+      {% if campos_viento %}
       <div class="bg-amber-50/80 border border-amber-200 rounded-3xl p-5 shadow-sm space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
@@ -65,10 +87,26 @@
         </div>
         <div class="text-2xl font-black text-amber-950">Viento Alto Detectado</div>
         <p class="text-xs text-amber-800">
-          Supera los 15 km/h en Río Cuarto. Se recomienda reprogramar aplicaciones de fitosanitarios para evitar deriva.
+          Viento elevado detectado en <strong>{% for item in campos_viento %}{{ item.campo.nombre }} ({{ item.weather.viento_kmh|default(16) }} km/h){% if not loop.last %}, {% endif %}{% endfor %}</strong>. Se recomienda reprogramar aplicaciones de fitosanitarios para evitar deriva.
         </p>
       </div>
+      {% else %}
+      <div class="bg-emerald-50/80 border border-emerald-200 rounded-3xl p-5 shadow-sm space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+            <span>💨</span> Pulverización Apta
+          </span>
+          <span class="px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-md font-bold text-[10px]">Viento ≤ 15 km/h</span>
+        </div>
+        <div class="text-2xl font-black text-emerald-950">Vientos en Rango Seguro</div>
+        <p class="text-xs text-emerald-800">
+          Vientos bajo el umbral de 15 km/h en todos los establecimientos. Condición apta para aplicaciones de fitosanitarios.
+        </p>
+      </div>
+      {% endif %}
 
+      <!-- CARD 2: ALERTA PRECIPITACIÓN -->
+      {% if campos_lluvia %}
       <div class="bg-blue-50/80 border border-blue-200 rounded-3xl p-5 shadow-sm space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-bold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
@@ -76,24 +114,69 @@
           </span>
           <span class="px-2 py-0.5 bg-blue-200 text-blue-900 rounded-md font-bold text-[10px]">Lluvia Próxima</span>
         </div>
-        <div class="text-2xl font-black text-blue-950">14.5 mm Estimados</div>
+        <div class="text-2xl font-black text-blue-950">
+          {% set lluvias = [] %}
+          {% for item in campos_lluvia %}
+            {% if item.weather.get('lluvia_72h') is not none %}
+              {% set _ = lluvias.append(item.weather.get('lluvia_72h')) %}
+            {% endif %}
+          {% endfor %}
+          {{ (lluvias | max) if lluvias else '> 10' }} mm Estimados
+        </div>
         <p class="text-xs text-blue-800">
-          Precipitación importante prevista para las próximas 48 horas. Afectará acceso a lotes de cosecha.
+          Precipitación prevista para <strong>{% for item in campos_lluvia %}{{ item.campo.nombre }}{% if not loop.last %}, {% endif %}{% endfor %}</strong>. Precaución con el tránsito de maquinaria y acceso a lotes.
         </p>
       </div>
+      {% else %}
+      <div class="bg-slate-100/80 border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <span>☀️</span> Ventana Seca
+          </span>
+          <span class="px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md font-bold text-[10px]">Sin Lluvias Críticas</span>
+        </div>
+        <div class="text-2xl font-black text-slate-900">Labores de Campo Aptas</div>
+        <p class="text-xs text-slate-600">
+          Sin acumulados significativos previstos para las próximas 72 horas en los campos en producción.
+        </p>
+      </div>
+      {% endif %}
 
+      <!-- CARD 3: RIESGO DE HELADA -->
+      {% if campos_helada %}
       <div class="bg-purple-50/80 border border-purple-200 rounded-3xl p-5 shadow-sm space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
             <span>❄️</span> Riesgo de Helada
           </span>
-          <span class="px-2 py-0.5 bg-purple-200 text-purple-900 rounded-md font-bold text-[10px]">T. Mínima 3.2°C</span>
+          {% set min_temps = [] %}
+          {% for item in campos_helada %}
+            {% if item.weather.get('tmin_72h') is not none %}
+              {% set _ = min_temps.append(item.weather.get('tmin_72h')) %}
+            {% endif %}
+          {% endfor %}
+          <span class="px-2 py-0.5 bg-purple-200 text-purple-900 rounded-md font-bold text-[10px]">T. Mínima {{ (min_temps | min) if min_temps else '< 4' }}°C</span>
         </div>
         <div class="text-2xl font-black text-purple-950">Riesgo Térmico Nocturno</div>
         <p class="text-xs text-purple-800">
-          Descenso de temperatura previsto para el jueves de madrugada. Monitorear cultivos de invierno.
+          Descenso de temperatura estimado en <strong>{% for item in campos_helada %}{{ item.campo.nombre }}{% if not loop.last %}, {% endif %}{% endfor %}</strong>. Monitorear cultivos sensibles.
         </p>
       </div>
+      {% else %}
+      <div class="bg-slate-100/80 border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <span>🌱</span> Sin Heladas
+          </span>
+          <span class="px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md font-bold text-[10px]">T. Mínima > 4°C</span>
+        </div>
+        <div class="text-2xl font-black text-slate-900">Temperaturas Estables</div>
+        <p class="text-xs text-slate-600">
+          Sin riesgo térmico nocturno previsto en los próximos días para los establecimientos.
+        </p>
+      </div>
+      {% endif %}
+
     </section>
 
     <!-- LISTADO DE CAMPOS CON SU ESTADO CLIMÁTICO REAL -->

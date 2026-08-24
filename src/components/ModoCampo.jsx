@@ -247,7 +247,7 @@ export default function ModoCampo() {
         <section className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700 shadow-lg space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
             <span className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400" /> Zona Río Cuarto, Córdoba
+              <MapPin className="w-3.5 h-3.5 text-emerald-400" /> Zona de Producción
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-slate-400" /> Actualizado 10:45 hs

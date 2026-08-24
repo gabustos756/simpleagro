@@ -397,8 +397,11 @@ def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Campo General", 
     }
 
 
-async def fetch_campos_dicts(db: AsyncSession) -> List[dict]:
-    res_c = await db.execute(select(Campo))
+async def fetch_campos_dicts(db: AsyncSession, cliente_id: Optional[uuid.UUID] = None) -> List[dict]:
+    stmt = select(Campo)
+    if cliente_id:
+        stmt = stmt.where(Campo.cliente_id == cliente_id)
+    res_c = await db.execute(stmt)
     campos = res_c.scalars().all()
     if not campos:
         return []
@@ -2316,7 +2319,7 @@ async def clima_resumen_campos(request: Request, db: AsyncSession = Depends(get_
 
     from app.services.clima import obtener_clima_para_campo_async
     campo_activo = await get_campo_activo_db(request, db)
-    campos = await fetch_campos_dicts(db)
+    campos = await fetch_campos_dicts(db, cliente_id=user.get("cliente_id"))
 
     async def _fetch_single_clima(c):
         w_info = await obtener_clima_para_campo_async(

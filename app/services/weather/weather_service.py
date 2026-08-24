@@ -3,6 +3,7 @@ Orquestador Principal del Servicio Meteorológico Asíncrono (EduAgro).
 Coordina caché, proveedores primarios y secundarios, consenso, fallbacks resilientes y persistencia en DB.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any
@@ -29,8 +30,8 @@ logger = logging.getLogger("eduagro.weather.service")
 # Instancias singleton globales de caché y cliente HTTP con connection pool
 _GLOBAL_WEATHER_CACHE = MemoryWeatherCache(default_ttl_seconds=900)
 _GLOBAL_HTTP_CLIENT = httpx.AsyncClient(
-    timeout=httpx.Timeout(5.0),
-    limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+    timeout=httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=15.0),
+    limits=httpx.Limits(max_keepalive_connections=30, max_connections=100),
 )
 
 
@@ -59,6 +60,14 @@ class WeatherService:
                 max_retries=self.settings.http_max_retries,
             ),
         }
+        # Deduplicación de solicitudes concurrentes en vuelo (Single-flight / Request Coalescing)
+        self._in_flight: Dict[str, asyncio.Future] = {}
+        self._in_flight_lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._in_flight_lock is None:
+            self._in_flight_lock = asyncio.Lock()
+        return self._in_flight_lock
 
     async def get_weather(
         self,
@@ -70,7 +79,7 @@ class WeatherService:
         db: Optional[AsyncSession] = None,
     ) -> Tuple[NormalizedWeatherSnapshot, WeatherConsensus]:
         """
-        Obtiene el reporte climático normalizado con soporte para failover, caché y consenso.
+        Obtiene el reporte climático normalizado con soporte para failover, caché, consenso y deduplicación in-flight.
         """
         now = datetime.now()
 
@@ -99,6 +108,63 @@ class WeatherService:
             logger.info(f"[WEATHER SERVICE] HIT Caché fresco ({primary_name}) lat={latitude}, lon={longitude}")
             consensus = WeatherConsensus(enabled=False, primary_provider=primary_name)
             return cached_snap, consensus
+
+        # 3. Deduplicación de solicitudes concurrentes en vuelo para la misma coordenada
+        flight_key = f"{round(latitude, 4)}:{round(longitude, 4)}:{timezone.lower()}"
+        lock = self._get_lock()
+        async with lock:
+            if flight_key in self._in_flight:
+                logger.debug(f"[WEATHER SERVICE] Petición duplicada en vuelo unificada para lat={latitude}, lon={longitude}")
+                fut = self._in_flight[flight_key]
+                try:
+                    return await asyncio.shield(fut)
+                except Exception:
+                    pass
+
+            loop = asyncio.get_running_loop()
+            fut = loop.create_future()
+            self._in_flight[flight_key] = fut
+
+        try:
+            res = await self._fetch_weather_uncached(
+                latitude=latitude,
+                longitude=longitude,
+                timezone=timezone,
+                campo_id=campo_id,
+                lote_id=lote_id,
+                db=db,
+                primary_name=primary_name,
+                secondary_name=secondary_name,
+                cached_snap=cached_snap,
+                cache_status=cache_status,
+                now=now,
+            )
+            if not fut.done():
+                fut.set_result(res)
+            return res
+        except Exception as err:
+            if not fut.done():
+                fut.set_exception(err)
+            raise
+        finally:
+            async with self._get_lock():
+                if self._in_flight.get(flight_key) is fut:
+                    del self._in_flight[flight_key]
+
+    async def _fetch_weather_uncached(
+        self,
+        latitude: float,
+        longitude: float,
+        timezone: str,
+        campo_id: Optional[uuid.UUID],
+        lote_id: Optional[uuid.UUID],
+        db: Optional[AsyncSession],
+        primary_name: str,
+        secondary_name: str,
+        cached_snap: Optional[NormalizedWeatherSnapshot],
+        cache_status: Optional[str],
+        now: datetime,
+    ) -> Tuple[NormalizedWeatherSnapshot, WeatherConsensus]:
 
         # 3. Intentar Proveedor Primario
         primary_snap: Optional[NormalizedWeatherSnapshot] = None
@@ -218,14 +284,15 @@ class WeatherService:
 
     async def _persist_snapshot(
         self,
-        db: AsyncSession,
+        db: Optional[AsyncSession],
         snapshot: NormalizedWeatherSnapshot,
         campo_id: Optional[uuid.UUID] = None,
         lote_id: Optional[uuid.UUID] = None,
     ) -> None:
-        """Guarda asíncronamente el snapshot en la tabla weather_snapshots de PostgreSQL."""
+        """Guarda asíncronamente el snapshot en la tabla weather_snapshots de PostgreSQL utilizando una sesión aislada."""
         try:
             from app.models import WeatherSnapshot
+            from app.database import AsyncSessionLocal
 
             db_obj = WeatherSnapshot(
                 id=uuid.uuid4(),
@@ -243,9 +310,9 @@ class WeatherService:
                 normalized_payload=snapshot.model_dump(mode="json"),
                 data_quality=snapshot.data_quality.model_dump(mode="json"),
             )
-            db.add(db_obj)
-            await db.commit()
+            async with AsyncSessionLocal() as bg_db:
+                bg_db.add(db_obj)
+                await bg_db.commit()
             logger.debug(f"[WEATHER SERVICE] Snapshot guardado en BD id={db_obj.id}")
         except Exception as e:
             logger.error(f"[WEATHER SERVICE] Error al persistir snapshot en BD: {e}")
-            await db.rollback()

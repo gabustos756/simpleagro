@@ -136,11 +136,16 @@ class WeatherProvider(ABC):
 
         for attempt in range(1 + max_retries):
             try:
+                timeout_val = (
+                    timeout
+                    if isinstance(timeout, httpx.Timeout)
+                    else httpx.Timeout(connect=5.0, read=timeout if isinstance(timeout, (int, float)) else 5.0, write=5.0, pool=30.0)
+                )
                 response = await client.get(
                     url,
                     params=params,
                     headers=headers,
-                    timeout=httpx.Timeout(timeout),
+                    timeout=timeout_val,
                 )
                 if response.status_code == 200:
                     return response.json()

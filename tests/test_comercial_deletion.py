@@ -20,7 +20,6 @@ async def test_delete_contrato_venta_success():
     """
     Verifica que el usuario pueda eliminar un contrato de venta existente.
     """
-    await engine.dispose()
     async with AsyncSessionLocal() as session:
         res_cli = await session.execute(select(Cliente).limit(1))
         cliente = res_cli.scalars().first()
@@ -42,6 +41,7 @@ async def test_delete_contrato_venta_success():
         await session.commit()
         await session.refresh(contrato)
         contrato_id = str(contrato.id)
+        await session.close()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -53,7 +53,6 @@ async def test_delete_contrato_venta_success():
         assert response.status_code == 303
         assert "/comercial/contratos" in response.headers["location"]
 
-    await engine.dispose()
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(ContratoVentaGrano).where(ContratoVentaGrano.id == contrato.id))
         deleted_c = res.scalars().first()
@@ -65,7 +64,6 @@ async def test_delete_compromiso_grano_success():
     """
     Verifica que el usuario pueda eliminar un compromiso de grano existente.
     """
-    await engine.dispose()
     async with AsyncSessionLocal() as session:
         res_cli = await session.execute(select(Cliente).limit(1))
         cliente = res_cli.scalars().first()
@@ -86,6 +84,7 @@ async def test_delete_compromiso_grano_success():
         await session.commit()
         await session.refresh(compromiso)
         compromiso_id = str(compromiso.id)
+        await session.close()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -97,7 +96,6 @@ async def test_delete_compromiso_grano_success():
         assert response.status_code == 303
         assert "/comercial/contratos" in response.headers["location"]
 
-    await engine.dispose()
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(CompromisoGrano).where(CompromisoGrano.id == compromiso.id))
         deleted_k = res.scalars().first()
