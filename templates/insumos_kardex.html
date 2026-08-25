@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kardex de Movimientos - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+
+  {% set active_page = "insumos" %}
+  {% include "components/header.html" %}
+
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full">
+
+    <!-- CABECERA DE NAVEGACIÓN -->
+    <div class="flex items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2">
+          <a href="/insumos" class="text-slate-500 hover:text-slate-800 transition-colors font-medium">📦 Insumos</a>
+          <span class="text-slate-400">/</span>
+          <h1 class="text-2xl font-black text-slate-900 tracking-tight">Kardex e Historial de Movimientos</h1>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Registro inmutable bimoneda de compras, consumos, transferencias y recuentos.</p>
+      </div>
+
+      <a href="/insumos" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all">
+        ← Volver al Dashboard
+      </a>
+    </div>
+
+    <!-- TABLA DE MOVIMIENTOS KARDEX -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700">
+          <thead class="bg-slate-50 text-slate-500 uppercase text-3xs font-extrabold tracking-wider border-b border-slate-200">
+            <tr>
+              <th class="py-3.5 px-4">Fecha</th>
+              <th class="py-3.5 px-4">Tipo Movimiento</th>
+              <th class="py-3.5 px-4">Insumo</th>
+              <th class="py-3.5 px-4 text-right">Cantidad</th>
+              <th class="py-3.5 px-4 text-right">Costo Unit. (USD)</th>
+              <th class="py-3.5 px-4 text-right">Costo Total (USD)</th>
+              <th class="py-3.5 px-4 text-right">Costo Total (ARS)</th>
+              <th class="py-3.5 px-4">Clave Idempotencia</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% if movimientos and movimientos | length > 0 %}
+              {% for m in movimientos %}
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 font-mono text-slate-500">
+                  {{ m.fecha_movimiento.strftime('%Y-%m-%d %H:%M') if m.fecha_movimiento else 'S/D' }}
+                </td>
+                <td class="py-3.5 px-4 font-bold">
+                  <span class="px-2.5 py-1 rounded-full text-3xs font-black uppercase
+                    {% if 'compra' in m.tipo_movimiento.value %}bg-emerald-50 text-emerald-800 border border-emerald-200
+                    {% elif 'consumo' in m.tipo_movimiento.value %}bg-amber-50 text-amber-800 border border-amber-200
+                    {% elif 'transferencia' in m.tipo_movimiento.value %}bg-indigo-50 text-indigo-800 border border-indigo-200
+                    {% else %}bg-purple-50 text-purple-800 border border-purple-200{% endif %}">
+                    {{ m.tipo_movimiento.value }}
+                  </span>
+                </td>
+                <td class="py-3.5 px-4 font-bold text-slate-900">
+                  {{ m.insumo.nombre if m.insumo else 'Insumo' }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                  {{ m.cantidad | formato_ar }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-slate-700">
+                  ${{ m.costo_unitario_usd | formato_ar }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-slate-900 font-bold">
+                  ${{ m.costo_total_usd | formato_ar }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-slate-600">
+                  ${{ m.costo_total_ars | formato_ar }}
+                </td>
+                <td class="py-3.5 px-4 font-mono text-3xs text-slate-400">
+                  {{ m.clave_idempotencia or '—' }}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="8" class="py-8 text-center text-slate-400">
+                  No hay movimientos registrados en el Kardex.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Insumos y Abastecimiento - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+
+  {% set active_page = "insumos" %}
+  {% include "components/header.html" %}
+
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full">
+
+    <!-- MENSAJES FLASH -->
+    {% if mensaje %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2"><span>✅</span> <span>{{ mensaje }}</span></div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2"><span>⚠️</span> <span>{{ error }}</span></div>
+    </div>
+    {% endif %}
+
+    <!-- CABECERA Y ACCIONES OPERATIVAS -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 bg-agro-100 text-agro-800 rounded-lg text-3xs font-extrabold uppercase tracking-wider">
+            Insumos & Abastecimiento
+          </span>
+          <span class="text-xs text-slate-400 font-medium">Empresa Familiar</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tracking-tight">Gestión Operativa de Insumos</h1>
+        <p class="text-xs text-slate-500 mt-1">
+          Stock real por galpón y tanque, compras, cargas iniciales, reservas para labores y consumos confirmados.
+        </p>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN (CON DESHABILITACIÓN INTELIGENTE) -->
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="/insumos/catalogo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all flex items-center gap-1.5 shadow-xs">
+          <span>🏷️</span> Catálogo Maestro
+        </a>
+
+        <a href="/insumos/kardex" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all flex items-center gap-1.5 shadow-xs">
+          <span>📜</span> Historial / Kardex
+        </a>
+
+        {% if user and user.rol in ['administracion', 'finanzas', 'admin', 'productor', 'administrador_finanzas'] %}
+        
+          {% if total_insumos > 0 %}
+          <button onclick="document.getElementById('modal-stock-inicial').classList.remove('hidden')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5">
+            <span>📦</span> Cargar Stock Inicial
+          </button>
+
+          <button onclick="document.getElementById('modal-compra').classList.remove('hidden')" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white text-xs font-bold rounded-xl shadow-md shadow-agro-600/20 transition-all flex items-center gap-1.5">
+            <span>🛒</span> Registrar Compra
+          </button>
+          {% else %}
+          <a href="/insumos/catalogo/nuevo" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5">
+            <span>🌱</span> Crear Primer Insumo
+          </a>
+          {% endif %}
+
+          {% if total_stock_fisico > 0 %}
+          <button onclick="document.getElementById('modal-transferencia').classList.remove('hidden')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5">
+            <span>🔄</span> Transferir Stock
+          </button>
+
+          <button onclick="document.getElementById('modal-recuento').classList.remove('hidden')" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5">
+            <span>📋</span> Recuento Físico
+          </button>
+
+          <button onclick="document.getElementById('modal-reserva').classList.remove('hidden')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md shadow-purple-600/20 transition-all flex items-center gap-1.5">
+            <span>📌</span> Crear Reserva
+          </button>
+          {% else %}
+          <button disabled title="Primero carga stock inicial o una compra para transferir, recontar o reservar stock." class="px-3.5 py-2 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl border border-slate-200 cursor-not-allowed flex items-center gap-1.5">
+            <span>🔒</span> Acciones de Stock (Carga stock primero)
+          </button>
+          {% endif %}
+
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- GUÍA PASO A PASO / ESTADO INICIAL SI NO HAY INSUMOS O STOCK -->
+    {% if total_insumos == 0 %}
+    <div class="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 space-y-3 shadow-sm text-center">
+      <span class="text-4xl block">🌱</span>
+      <h3 class="text-lg font-black text-slate-900">Primer Paso: Crea tu primer insumo en el catálogo</h3>
+      <p class="text-xs text-slate-600 max-w-xl mx-auto">
+        Para poder registrar stock en tus galpones o tanques (gasoil, semillas, fertilizantes), primero debes definir el producto en el catálogo maestro.
+      </p>
+      <div class="pt-2">
+        <a href="/insumos/catalogo/nuevo" class="px-5 py-2.5 bg-agro-600 hover:bg-agro-700 text-white text-xs font-bold rounded-xl shadow-md shadow-agro-600/20 transition inline-flex items-center gap-2">
+          <span>🌱</span> Crear Insumo en el Catálogo
+        </a>
+      </div>
+    </div>
+    {% elif total_stock_fisico == 0 %}
+    <div class="bg-sky-50 border border-sky-200 rounded-3xl p-5 space-y-2 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">📦</span>
+        <div>
+          <h4 class="text-sm font-bold text-sky-900">Tienes {{ total_insumos }} insumo(s) en el catálogo pero aún no registraste stock físico</h4>
+          <p class="text-xs text-sky-700">Utiliza 'Cargar Stock Inicial' si ya tienes existencias en galpón o tanque, o 'Registrar Compra' para nuevos ingresos.</p>
+        </div>
+      </div>
+      <button onclick="document.getElementById('modal-stock-inicial').classList.remove('hidden')" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition shrink-0">
+        📦 Cargar Stock Inicial
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- BANNER DE ALERTAS -->
+    {% if alertas and alertas | length > 0 %}
+    <div class="bg-amber-50 border border-amber-200 rounded-3xl p-4 space-y-2 shadow-xs">
+      <div class="flex items-center gap-2 text-amber-900 font-extrabold text-sm">
+        <span>⚠️</span> <span>Alertas de Abastecimiento &amp; Stock Mínimo ({{ alertas | length }})</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+        {% for a in alertas %}
+        <div class="bg-white p-3 rounded-2xl border border-amber-200 flex items-center justify-between shadow-xs">
+          <div>
+            <span class="font-bold text-slate-900">{{ a.insumo }}</span>
+            <p class="text-3xs text-amber-800">{{ a.motivo }}</p>
+          </div>
+          <span class="px-2 py-0.5 rounded text-3xs font-black bg-amber-100 text-amber-900 uppercase border border-amber-300">{{ a.tipo }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- KPI CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-3xs uppercase font-extrabold text-slate-400 tracking-wider">Catálogo Activo</p>
+          <h3 class="text-2xl font-black text-slate-900 mt-1">{{ total_insumos }}</h3>
+          <span class="text-3xs text-slate-500">Insumos registrados</span>
+        </div>
+        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-2xl text-xl border border-emerald-100">🏷️</div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-3xs uppercase font-extrabold text-slate-400 tracking-wider">Ubicaciones</p>
+          <h3 class="text-2xl font-black text-slate-900 mt-1">{{ total_ubicaciones }}</h3>
+          <span class="text-3xs text-slate-500">Galpones / Tanques</span>
+        </div>
+        <div class="p-3 bg-sky-50 text-sky-600 rounded-2xl text-xl border border-sky-100">🏛️</div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-3xs uppercase font-extrabold text-slate-400 tracking-wider">Reservas Activas</p>
+          <h3 class="text-2xl font-black text-purple-700 mt-1">{{ total_reservas_activas }}</h3>
+          <span class="text-3xs text-slate-500">Apartados pre-labor</span>
+        </div>
+        <div class="p-3 bg-purple-50 text-purple-600 rounded-2xl text-xl border border-purple-100">📌</div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-3xs uppercase font-extrabold text-slate-400 tracking-wider">Alertas Activas</p>
+          <h3 class="text-2xl font-black {% if alertas | length > 0 %}text-amber-600{% else %}text-emerald-600{% endif %} mt-1">{{ alertas | length }}</h3>
+          <span class="text-3xs text-slate-500">Stock Mínimo</span>
+        </div>
+        <div class="p-3 bg-amber-50 text-amber-600 rounded-2xl text-xl border border-amber-100">⚠️</div>
+      </div>
+    </div>
+
+    <!-- TABLA PRINCIPAL DE EXISTENCIAS Y DISPONIBILIDAD NETA -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>📊</span> Inventario Físico &amp; Disponibilidad Neta
+          </h2>
+          <p class="text-xs text-slate-500">Stock real en depósito, apartado para labores y disponible neto para operar.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input type="text" id="filter-input" onkeyup="filtrarTabla()" placeholder="Buscar insumo..." class="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-agro-500">
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700" id="insumos-table">
+          <thead class="bg-slate-50 text-slate-500 uppercase text-3xs font-extrabold tracking-wider border-b border-slate-200">
+            <tr>
+              <th class="py-3.5 px-4">Insumo</th>
+              <th class="py-3.5 px-4">Categoría</th>
+              <th class="py-3.5 px-4 text-right">Stock Físico Real</th>
+              <th class="py-3.5 px-4 text-right">Apartado / Reservado</th>
+              <th class="py-3.5 px-4 text-right">Disponible Neto</th>
+              <th class="py-3.5 px-4 text-right">Valuación PPP (USD)</th>
+              <th class="py-3.5 px-4 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% if existencias and existencias | length > 0 %}
+              {% for item in existencias %}
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
+                  <span>
+                    {% if item.categoria == 'semilla' %}🌱{% elif item.categoria == 'combustible' %}⛽{% elif item.categoria == 'fertilizante' %}🧪{% else %}💧{% endif %}
+                  </span>
+                  <div>
+                    <div>{{ item.nombre }}</div>
+                    <span class="text-3xs text-slate-400 font-normal">Min alerta: {{ item.punto_pedido_minimo }} {{ item.unidad }}</span>
+                  </div>
+                </td>
+                <td class="py-3.5 px-4">
+                  <span class="px-2.5 py-1 rounded-full text-3xs font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                    {{ item.categoria }}
+                  </span>
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                  {{ item.stock_fisico | formato_ar }} {{ item.unidad }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-purple-700 font-bold">
+                  {{ item.stock_reservado | formato_ar }} {{ item.unidad }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono font-black {% if item.disponible_neto <= 0 %}text-red-600{% else %}text-emerald-700{% endif %}">
+                  {{ item.disponible_neto | formato_ar }} {{ item.unidad }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono font-bold text-slate-700">
+                  ${{ item.costo_ppp_usd | formato_ar }} / {{ item.unidad }}
+                </td>
+                <td class="py-3.5 px-4 text-center">
+                  {% if item.disponible_neto > 0 %}
+                  <button onclick="abrirModalConsumo('{{ item.id }}', '{{ item.nombre }}')" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-3xs font-black border border-emerald-200 transition-all shadow-2xs">
+                    ⚡ Consumo Real
+                  </button>
+                  {% else %}
+                  <button disabled title="Sin disponible neto para registrar consumos" class="px-2.5 py-1 bg-slate-100 text-slate-400 rounded-lg text-3xs font-bold border border-slate-200 cursor-not-allowed">
+                    ⚡ Sin Disponible
+                  </button>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="py-12 text-center text-slate-500 space-y-3">
+                  <span class="text-4xl block">🌱</span>
+                  <h4 class="text-base font-bold text-slate-800">El catálogo o existencias están vacíos</h4>
+                  <p class="text-xs text-slate-500 max-w-md mx-auto">Para comenzar a gestionar stock, primero registra insumos en el catálogo y luego carga su stock inicial o compras.</p>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL STOCK INICIAL (SIN EGRESO FINANCIERO) -->
+  <div id="modal-stock-inicial" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-xl p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">📦 Cargar Stock Inicial</h3>
+          <p class="text-3xs text-slate-500">Carga existencias iniciales sin registrar egresos ni movimientos financieros.</p>
+        </div>
+        <button onclick="document.getElementById('modal-stock-inicial').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/stock-inicial" method="POST" class="space-y-3">
+        <input type="hidden" name="clave_idempotencia" value="stk_init_{{ range(10000, 99999) | random }}">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo *</label>
+            <select name="insumo_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for ins in existencias %}
+              <option value="{{ ins.id }}">{{ ins.nombre }} ({{ ins.unidad }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación Destino *</label>
+            <select name="storage_location_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }} ({{ loc.tipo }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad Inicial *</label>
+            <input type="number" step="0.0001" name="cantidad" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Valuación USD/Unit (Opcional)</label>
+            <input type="number" step="0.0001" name="costo_unitario_usd" placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">N° Lote (Opcional)</label>
+            <input type="text" name="numero_lote" placeholder="Lote N°" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Observaciones / Motivo</label>
+          <input type="text" name="observaciones" placeholder="Inventario inicial de arranque piloto" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-stock-inicial').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar la carga de stock inicial sin egreso financiero?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20">Confirmar Carga Inicial</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL COMPRA -->
+  <div id="modal-compra" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-xl p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">🛒 Registrar Compra e Ingreso de Insumo</h3>
+        <button onclick="document.getElementById('modal-compra').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/compra" method="POST" class="space-y-3">
+        <input type="hidden" name="clave_idempotencia" value="compra_{{ range(10000, 99999) | random }}">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo *</label>
+            <select name="insumo_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for ins in existencias %}
+              <option value="{{ ins.id }}">{{ ins.nombre }} ({{ ins.unidad }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación Destino *</label>
+            <select name="storage_location_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }} ({{ loc.tipo }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad *</label>
+            <input type="number" step="0.0001" name="cantidad" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Monto Unitario *</label>
+            <input type="number" step="0.0001" name="monto_unitario" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Moneda *</label>
+            <select name="moneda_origen" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              <option value="USD">USD</option>
+              <option value="ARS">ARS</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Proveedor *</label>
+            <input type="text" name="proveedor_nombre" required placeholder="AgroSur S.A." class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cotización USD/ARS *</label>
+            <input type="number" step="0.01" name="cotizacion_usd_ars" value="1000.00" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-compra').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar la compra e ingreso físico de stock?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-agro-600 hover:bg-agro-700 text-white shadow-md shadow-agro-600/20">Confirmar Compra</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL TRANSFERENCIA -->
+  <div id="modal-transferencia" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">🔄 Transferir Stock entre Ubicaciones</h3>
+        <button onclick="document.getElementById('modal-transferencia').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/transferencia" method="POST" class="space-y-3">
+        <input type="hidden" name="clave_idempotencia" value="transf_{{ range(10000, 99999) | random }}">
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo a Transferir *</label>
+          <select name="insumo_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+            {% for ins in existencias %}
+            <option value="{{ ins.id }}">{{ ins.nombre }} (Disponible: {{ ins.disponible_neto }} {{ ins.unidad }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación Origen *</label>
+            <select name="storage_location_origen_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación Destino *</label>
+            <select name="storage_location_destino_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad a Transferir *</label>
+          <input type="number" step="0.0001" name="cantidad" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Observaciones</label>
+          <input type="text" name="observaciones" placeholder="Traslado entre galpones" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-transferencia').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar la transferencia atómica de stock entre ubicaciones?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20">Confirmar Transferencia</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL RECUENTO FÍSICO -->
+  <div id="modal-recuento" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">📋 Recuento Físico e Inventario</h3>
+        <button onclick="document.getElementById('modal-recuento').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/recuento" method="POST" class="space-y-3">
+        <input type="hidden" name="clave_idempotencia" value="recuento_{{ range(10000, 99999) | random }}">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo *</label>
+            <select name="insumo_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for ins in existencias %}
+              <option value="{{ ins.id }}">{{ ins.nombre }} ({{ ins.unidad }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación *</label>
+            <select name="storage_location_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad Física Observada *</label>
+          <input type="number" step="0.0001" name="cantidad_observada" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Motivo Explicativo *</label>
+          <input type="text" name="motivo" required placeholder="Inventario mensual / Ajuste por derrame o medición" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-recuento').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar el recuento físico de inventario?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20">Confirmar Recuento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL CREAR RESERVA -->
+  <div id="modal-reserva" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">📌 Apartar Reserva para Labor o Servicio</h3>
+        <button onclick="document.getElementById('modal-reserva').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/reserva" method="POST" class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo *</label>
+            <select name="insumo_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for ins in existencias %}
+              <option value="{{ ins.id }}">{{ ins.nombre }} (Disponible: {{ ins.disponible_neto }} {{ ins.unidad }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación *</label>
+            <select name="storage_location_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad a Reservar *</label>
+            <input type="number" step="0.0001" name="cantidad_reservada" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Fecha Expiración (Opcional)</label>
+            <input type="date" name="fecha_expiracion" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Tipo de Destino *</label>
+            <select name="destino_tipo" id="reserva-destino-tipo" onchange="toggleDestinoOptions()" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              <option value="labor">Labor de Campo Propia</option>
+              <option value="servicio">Servicio Prestado a Terceros</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Destino Específico *</label>
+            <select name="destino_id" id="reserva-destino-id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% if labores %}
+                {% for l in labores %}
+                <option value="{{ l.id }}" class="opt-labor">Labor: {% if l.tipo_labor.value is defined %}{{ l.tipo_labor.value }}{% else %}{{ l.tipo_labor }}{% endif %}</option>
+                {% endfor %}
+              {% endif %}
+              {% if servicios %}
+                {% for s in servicios %}
+                <option value="{{ s.id }}" class="opt-servicio hidden">Servicio N° {{ s.id }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-reserva').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar la reserva de insumos?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20">Confirmar Reserva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL CONSUMO -->
+  <div id="modal-consumo" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">⚡ Confirmar Consumo Real</h3>
+        <button onclick="document.getElementById('modal-consumo').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      </div>
+
+      <form action="/insumos/consumo" method="POST" class="space-y-3">
+        <input type="hidden" name="clave_idempotencia" value="consumo_{{ range(10000, 99999) | random }}">
+        <input type="hidden" id="consumo-insumo-id" name="insumo_id">
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Insumo Seleccionado</label>
+          <input type="text" id="consumo-insumo-nombre" readonly class="w-full bg-slate-100 border border-slate-200 text-agro-800 font-bold rounded-xl p-2.5 text-xs">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Ubicación Origen *</label>
+            <select name="storage_location_id" required class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for loc in ubicaciones %}
+              <option value="{{ loc.id }}">{{ loc.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Cantidad Real Consumida *</label>
+            <input type="number" step="0.0001" name="cantidad_real" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-3xs font-bold text-slate-600 uppercase mb-1">Modalidad de Insumos *</label>
+          <select name="insumos_aportados_por" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+            <option value="propio">Propio (Descuenta Stock e Imputa Costo PPP)</option>
+            <option value="cliente">Cliente (No descuenta stock propio)</option>
+          </select>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('modal-consumo').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" onclick="return confirm('¿Confirmar el consumo real del insumo?')" class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20">Confirmar Consumo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  function abrirModalConsumo(insumoId, insumoNombre) {
+    document.getElementById('consumo-insumo-id').value = insumoId;
+    document.getElementById('consumo-insumo-nombre').value = insumoNombre;
+    document.getElementById('modal-consumo').classList.remove('hidden');
+  }
+
+  function toggleDestinoOptions() {
+    var tipo = document.getElementById('reserva-destino-tipo').value;
+    var labs = document.querySelectorAll('.opt-labor');
+    var servs = document.querySelectorAll('.opt-servicio');
+
+    if (tipo === 'labor') {
+      labs.forEach(el => el.classList.remove('hidden'));
+      servs.forEach(el => el.classList.add('hidden'));
+    } else {
+      labs.forEach(el => el.classList.add('hidden'));
+      servs.forEach(el => el.classList.remove('hidden'));
+    }
+  }
+
+  function filtrarTabla() {
+    var input = document.getElementById("filter-input");
+    var filter = input.value.toUpperCase();
+    var table = document.getElementById("insumos-table");
+    var tr = table.getElementsByTagName("tr");
+
+    for (var i = 1; i < tr.length; i++) {
+      var td = tr[i].getElementsByTagName("td")[0];
+      if (td) {
+        var txtValue = td.textContent || td.innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+          tr[i].style.display = "";
+        } else {
+          tr[i].style.display = "none";
+        }
+      }
+    }
+  }
+  </script>
+</body>
+</html>

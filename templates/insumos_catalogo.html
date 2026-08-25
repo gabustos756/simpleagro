@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo de Insumos - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+
+  {% set active_page = "insumos" %}
+  {% include "components/header.html" %}
+
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full">
+
+    <!-- MENSAJES FLASH -->
+    {% if mensaje %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2"><span>✅</span> <span>{{ mensaje }}</span></div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2"><span>⚠️</span> <span>{{ error }}</span></div>
+    </div>
+    {% endif %}
+
+    <!-- CABECERA Y NAVEGACIÓN -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2">
+          <a href="/insumos" class="text-slate-500 hover:text-slate-800 transition-colors font-medium">📦 Insumos</a>
+          <span class="text-slate-400">/</span>
+          <h1 class="text-2xl font-black text-slate-900 tracking-tight">Catálogo Maestro de Insumos</h1>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Gestión y especificaciones técnicas de insumos agrícolas por tenant.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="/insumos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all">
+          ← Volver al Dashboard
+        </a>
+
+        {% if user and user.rol in ['administracion', 'finanzas', 'admin', 'productor', 'administrador_finanzas'] %}
+        <a href="/insumos/catalogo/nuevo" class="px-4 py-2 bg-agro-600 hover:bg-agro-700 text-white text-xs font-bold rounded-xl shadow-md shadow-agro-600/20 transition-all flex items-center gap-1.5">
+          <span>➕</span> Nuevo Insumo
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- TABLA Y FILTROS DEL CATÁLOGO -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
+      <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <form method="GET" action="/insumos/catalogo" class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <input type="text" name="q" value="{{ filtro_q or '' }}" placeholder="Buscar insumo..." class="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 w-full sm:w-64 focus:ring-2 focus:ring-agro-500">
+          
+          <select name="cat" class="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-agro-500">
+            <option value="">Todas las Categorías</option>
+            {% for c in categorias %}
+            <option value="{{ c.value }}" {% if filtro_cat == c.value %}selected{% endif %}>{{ c.value | capitalize }}</option>
+            {% endfor %}
+          </select>
+
+          <button type="submit" class="px-3.5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition">Filtrar</button>
+        </form>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700">
+          <thead class="bg-slate-50 text-slate-500 uppercase text-3xs font-extrabold tracking-wider border-b border-slate-200">
+            <tr>
+              <th class="py-3.5 px-4">Nombre del Insumo</th>
+              <th class="py-3.5 px-4">Categoría</th>
+              <th class="py-3.5 px-4">Unidad</th>
+              <th class="py-3.5 px-4">Principio Activo / Fórmula</th>
+              <th class="py-3.5 px-4 text-right">Pedido Mínimo</th>
+              <th class="py-3.5 px-4 text-center">Lotes</th>
+              <th class="py-3.5 px-4 text-center">Estado</th>
+              {% if user and user.rol in ['administracion', 'finanzas', 'admin', 'productor', 'administrador_finanzas'] %}
+              <th class="py-3.5 px-4 text-center">Acciones</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% if insumos and insumos | length > 0 %}
+              {% for ins in insumos %}
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 font-bold text-slate-900">
+                  <div class="flex items-center gap-2">
+                    <span>
+                      {% if ins.categoria.value == 'semilla' %}🌱{% elif ins.categoria.value == 'combustible' %}⛽{% elif ins.categoria.value == 'fertilizante' %}🧪{% else %}💧{% endif %}
+                    </span>
+                    <div>
+                      <div>{{ ins.nombre }}</div>
+                      {% if ins.unidad_empaque %}
+                      <span class="text-3xs text-slate-400 font-normal">Empaque: {{ ins.unidad_empaque }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td class="py-3.5 px-4">
+                  <span class="px-2.5 py-1 rounded-full text-3xs font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                    {{ ins.categoria.value }}
+                  </span>
+                </td>
+                <td class="py-3.5 px-4 font-mono font-bold text-slate-700">
+                  {{ ins.unidad_medida.value }}
+                </td>
+                <td class="py-3.5 px-4 text-slate-600">
+                  {{ ins.principio_activo_formula or '—' }}
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-slate-800 font-bold">
+                  {{ ins.punto_pedido_minimo | formato_ar }} {{ ins.unidad_medida.value }}
+                </td>
+                <td class="py-3.5 px-4 text-center font-mono font-bold text-slate-700">
+                  {{ ins.lotes_count }}
+                </td>
+                <td class="py-3.5 px-4 text-center">
+                  {% if ins.activo %}
+                  <span class="px-2.5 py-1 rounded-full text-3xs font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">Activo</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-full text-3xs font-black uppercase bg-slate-100 text-slate-500 border border-slate-300">Inactivo</span>
+                  {% endif %}
+                </td>
+                {% if user and user.rol in ['administracion', 'finanzas', 'admin', 'productor', 'administrador_finanzas'] %}
+                <td class="py-3.5 px-4 text-center space-x-1">
+                  <a href="/insumos/catalogo/{{ ins.id }}/editar" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-3xs font-bold border border-slate-200 transition">Editar</a>
+                  
+                  <form action="/insumos/catalogo/{{ ins.id }}/desactivar" method="POST" class="inline">
+                    {% if ins.activo %}
+                    <button type="submit" onclick="return confirm('¿Desactivar este insumo? No aparecerá para nuevas compras ni consumos.')" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-3xs font-bold border border-amber-200 transition">Desactivar</button>
+                    {% else %}
+                    <button type="submit" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-3xs font-bold border border-emerald-200 transition">Activar</button>
+                    {% endif %}
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="8" class="py-8 text-center text-slate-400">
+                  No se encontraron insumos en el catálogo. Utiliza el botón "+ Nuevo Insumo" para registrar el primero.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>

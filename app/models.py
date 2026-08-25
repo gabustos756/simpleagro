@@ -45,6 +45,10 @@ from app.enums import (
     EstadoOperativoTrabajoEnum,
     MedioPagoEnum,
     InsumosAportadosEnum,
+    CategoriaInsumoEnum,
+    UnidadMedidaInsumoEnum,
+    TipoMovimientoInsumoEnum,
+    MonedaEnum,
 )
 
 
@@ -1466,8 +1470,259 @@ class PagoOperadorServicio(Base):
     servicio_prestado: Mapped["ServicioPrestado"] = relationship("ServicioPrestado", back_populates="pagos_operador")
 
 
+# ======================================================================
+# MÓDULO DE INSUMOS Y ABASTECIMIENTO (EduAgro V3)
+# ======================================================================
+
+class Insumo(Base):
+    """Catálogo maestro de insumos agrícolas por tenant."""
+    __tablename__ = "insumos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    categoria: Mapped[CategoriaInsumoEnum] = mapped_column(SQLEnum(CategoriaInsumoEnum), nullable=False, index=True)
+    unidad_medida: Mapped[UnidadMedidaInsumoEnum] = mapped_column(SQLEnum(UnidadMedidaInsumoEnum), nullable=False)
+
+    principio_activo_formula: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    concentracion: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    unidad_empaque: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    punto_pedido_minimo: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "nombre", name="uq_insumo_nombre_cliente"),
+        Index("idx_insumo_cliente_cat", "cliente_id", "categoria"),
+        CheckConstraint("punto_pedido_minimo >= 0", name="chk_insumo_minimo_no_negativo"),
+    )
 
 
+class InsumoLote(Base):
+    """Partidas y lotes específicos (Semillas, Fitosanitarios, Vencimientos, SENASA)."""
+    __tablename__ = "insumo_lotes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    numero_lote: Mapped[str] = mapped_column(String(100), nullable=False)
+    fecha_vencimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
+    proveedor_origen: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    registro_senasa: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    cultivo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    hibrido_variedad: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    tratamiento_semilla: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    poder_germinativo_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    peso_mil_granos_gr: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    fecha_registro: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "insumo_id", "numero_lote", name="uq_insumo_lote_cliente"),
+    )
 
 
+class InsumoSaldoUbicacion(Base):
+    """Saldo total acumulado y valuación PPP por insumo y ubicación física."""
+    __tablename__ = "insumo_saldos_ubicacion"
 
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    storage_location_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    cantidad_disponible: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    # Valuación Promedio Ponderado Móvil (PPP) Bimoneda
+    costo_ppp_usd: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    costo_ppp_ars: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    ultima_actualizacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "insumo_id", "storage_location_id", name="uq_insumo_saldo_loc"),
+        CheckConstraint("cantidad_disponible >= 0", name="chk_insumo_saldo_no_negativo"),
+        CheckConstraint("costo_ppp_usd >= 0 AND costo_ppp_ars >= 0", name="chk_insumo_costo_ppp_no_negativo"),
+    )
+
+
+class InsumoLoteSaldoUbicacion(Base):
+    """Saldo físico por lote específico en cada ubicación física (Trazabilidad)."""
+    __tablename__ = "insumo_lote_saldos_ubicacion"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_lote_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumo_lotes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    storage_location_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    cantidad_disponible: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    ultima_actualizacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "insumo_id", "insumo_lote_id", "storage_location_id", name="uq_insumo_lote_saldo_loc"),
+        CheckConstraint("cantidad_disponible >= 0", name="chk_insumo_lote_saldo_no_negativo"),
+    )
+
+
+class InsumoMovimiento(Base):
+    """Kardex inmutable bimoneda con idempotencia compuesta por tenant."""
+    __tablename__ = "insumo_movimientos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("insumo_lotes.id", ondelete="RESTRICT"), nullable=True)
+
+    tipo_movimiento: Mapped[TipoMovimientoInsumoEnum] = mapped_column(SQLEnum(TipoMovimientoInsumoEnum), nullable=False, index=True)
+    fecha_movimiento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+    ubicacion_origen_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=True)
+    ubicacion_destino_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=True)
+
+    cantidad: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+
+    # Bimoneda coherente
+    moneda_origen: Mapped[MonedaEnum] = mapped_column(SQLEnum(MonedaEnum), nullable=False, default=MonedaEnum.USD)
+    cotizacion_usd_ars: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("1.0000"))
+
+    costo_unitario_usd: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    costo_total_usd: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    costo_unitario_ars: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    costo_total_ars: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    # Agrupación de transferencias atómicas
+    grupo_transferencia_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+
+    # Imputación productiva y financiera
+    transaccion_financiera_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("transacciones_financieras.id", ondelete="SET NULL"), nullable=True)
+    labor_campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("labores_campo.id", ondelete="SET NULL"), nullable=True)
+    servicio_prestado_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("servicios_prestados.id", ondelete="SET NULL"), nullable=True)
+    campania_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="RESTRICT"), nullable=True)
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="RESTRICT"), nullable=True)
+
+    clave_idempotencia: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    registrado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    insumo: Mapped["Insumo"] = relationship("Insumo")
+
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "tipo_movimiento", "clave_idempotencia", name="uq_insumo_mov_tenant_idempotencia"),
+        CheckConstraint("cantidad > 0", name="chk_insumo_mov_cantidad_positiva"),
+        CheckConstraint("cotizacion_usd_ars > 0", name="chk_insumo_mov_cotizacion_positiva"),
+        CheckConstraint("costo_unitario_usd >= 0 AND costo_total_usd >= 0", name="chk_insumo_mov_costo_usd_no_negativo"),
+        CheckConstraint("costo_unitario_ars >= 0 AND costo_total_ars >= 0", name="chk_insumo_mov_costo_ars_no_negativo"),
+        Index("idx_insumo_mov_tenant_fecha", "cliente_id", "fecha_movimiento"),
+    )
+
+
+class InsumoCompra(Base):
+    """Encabezado de recepción y factura de insumos comprados."""
+    __tablename__ = "insumo_compras"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    transaccion_financiera_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("transacciones_financieras.id", ondelete="SET NULL"), nullable=True)
+
+    proveedor_nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    proveedor_cuit: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    numero_factura_remito: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    fecha_compra: Mapped[date] = mapped_column(Date, nullable=False)
+
+    moneda: Mapped[MonedaEnum] = mapped_column(SQLEnum(MonedaEnum), nullable=False, default=MonedaEnum.USD)
+    monto_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    cotizacion_dolar: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False, default=Decimal("1.0000"))
+
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    registrado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("monto_total >= 0", name="chk_insumo_compra_monto_no_negativo"),
+        CheckConstraint("cotizacion_dolar > 0", name="chk_insumo_compra_cotizacion_positiva"),
+    )
+
+
+class InsumoRecuento(Base):
+    """Auditoría de inventario físico y diferencias con motivo obligatorio."""
+    __tablename__ = "insumo_recuentos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("insumo_lotes.id", ondelete="RESTRICT"), nullable=True)
+    storage_location_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    fecha_recuento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cantidad_sistema: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    cantidad_fisica: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    diferencia: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+
+    motivo_ajuste: Mapped[str] = mapped_column(Text, nullable=False)
+    estado_recuento: Mapped[str] = mapped_column(String(30), default="aprobado", nullable=False)
+    movimiento_ajuste_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("insumo_movimientos.id", ondelete="SET NULL"), nullable=True)
+
+    usuario_contador_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    usuario_aprobador_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("cantidad_sistema >= 0 AND cantidad_fisica >= 0", name="chk_insumo_recuento_cantidades_no_negativas"),
+    )
+
+
+class InsumoNecesidadPlan(Base):
+    """Cálculo de demanda e insumos requeridos antes de sembrar, fertilizar o pulverizar."""
+    __tablename__ = "insumo_necesidades_plan"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    campania_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="RESTRICT"), nullable=False, index=True)
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="RESTRICT"), nullable=True)
+
+    superficie_ha: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    dosis_por_ha: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    cantidad_total_requerida: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+
+    completado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("superficie_ha > 0 AND dosis_por_ha > 0 AND cantidad_total_requerida > 0", name="chk_insumo_plan_cantidades_positivas"),
+    )
+
+
+class InsumoReserva(Base):
+    """Reserva opcional de insumos para labores planificadas o servicios a terceros sin descuento físico de stock."""
+    __tablename__ = "insumo_reservas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    insumo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("insumos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    storage_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=True, index=True)
+    insumo_lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("insumo_lotes.id", ondelete="RESTRICT"), nullable=True)
+
+    labor_campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("labores_campo.id", ondelete="SET NULL"), nullable=True)
+    servicio_prestado_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("servicios_prestados.id", ondelete="SET NULL"), nullable=True)
+
+    cantidad_reservada: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    estado_reserva: Mapped[str] = mapped_column(String(30), default="activa", nullable=False)  # activa, consumida, liberada, cancelada
+
+    fecha_reserva: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fecha_expiracion: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    registrado_por_usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("cantidad_reservada > 0", name="chk_insumo_reserva_cantidad_positiva"),
+        Index("idx_insumo_reserva_tenant_insumo", "cliente_id", "insumo_id", "estado_reserva"),
+    )

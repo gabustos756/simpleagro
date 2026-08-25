@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.main import app
 from app.database import engine, get_db, AsyncSessionLocal
-from app.models import ContratoVentaGrano, CompromisoGrano, Cliente, Campania
+from app.models import ContratoVentaGrano, CompromisoGrano, Cliente, Campania, Usuario
 from app.enums import TipoPrecioEnum, TipoCompromisoEnum, RolUsuario
 
 
@@ -25,6 +25,8 @@ async def test_delete_contrato_venta_success():
         cliente = res_cli.scalars().first()
         res_camp = await session.execute(select(Campania).where(Campania.cliente_id == cliente.id).limit(1))
         campania = res_camp.scalars().first()
+        res_u = await session.execute(select(Usuario).where(Usuario.cliente_id == cliente.id).limit(1))
+        user = res_u.scalars().first()
 
         contrato = ContratoVentaGrano(
             cliente_id=cliente.id,
@@ -41,13 +43,13 @@ async def test_delete_contrato_venta_success():
         await session.commit()
         await session.refresh(contrato)
         contrato_id = str(contrato.id)
-        await session.close()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/comercial/contratos/{contrato_id}/eliminar",
             data={"cultivo": "soja"},
+            headers={"x-user-id": str(user.id)},
             follow_redirects=False,
         )
         assert response.status_code == 303
@@ -69,6 +71,8 @@ async def test_delete_compromiso_grano_success():
         cliente = res_cli.scalars().first()
         res_camp = await session.execute(select(Campania).where(Campania.cliente_id == cliente.id).limit(1))
         campania = res_camp.scalars().first()
+        res_u = await session.execute(select(Usuario).where(Usuario.cliente_id == cliente.id).limit(1))
+        user = res_u.scalars().first()
 
         compromiso = CompromisoGrano(
             cliente_id=cliente.id,
@@ -84,13 +88,13 @@ async def test_delete_compromiso_grano_success():
         await session.commit()
         await session.refresh(compromiso)
         compromiso_id = str(compromiso.id)
-        await session.close()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/comercial/compromisos/{compromiso_id}/eliminar",
             data={"cultivo": "maiz"},
+            headers={"x-user-id": str(user.id)},
             follow_redirects=False,
         )
         assert response.status_code == 303

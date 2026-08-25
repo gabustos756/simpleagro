@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if insumo %}Editar Insumo{% else %}Nuevo Insumo{% endif %} - EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-50">
+
+  {% set active_page = "insumos" %}
+  {% include "components/header.html" %}
+
+  <main class="flex-grow max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full">
+
+    <!-- MENSAJES FLASH -->
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2"><span>⚠️</span> <span>{{ error }}</span></div>
+    </div>
+    {% endif %}
+
+    <!-- CABECERA -->
+    <div class="flex items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2">
+          <a href="/insumos/catalogo" class="text-slate-500 hover:text-slate-800 transition-colors font-medium">Catálogo</a>
+          <span class="text-slate-400">/</span>
+          <h1 class="text-2xl font-black text-slate-900 tracking-tight">
+            {% if insumo %}Editar Insumo: {{ insumo.nombre }}{% else %}Registrar Nuevo Insumo{% endif %}
+          </h1>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Definición maestra y parámetros técnicos para compras y saldos.</p>
+      </div>
+
+      <a href="/insumos/catalogo" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all">
+        ← Cancelar
+      </a>
+    </div>
+
+    <!-- FORMULARIO DE ALTA / EDICIÓN -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <form method="POST" action="{% if insumo %}/insumos/catalogo/{{ insumo.id }}/editar{% else %}/insumos/catalogo/nuevo{% endif %}" class="space-y-4">
+
+        {% if has_movements %}
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 flex items-center gap-2">
+          <span>🔒</span>
+          <span>Este insumo ya posee movimientos o saldos registrados. La categoría y unidad de medida están bloqueadas para preservar la auditabilidad.</span>
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nombre del Insumo *</label>
+            <input type="text" name="nombre" value="{{ insumo.nombre if insumo else '' }}" required placeholder="Ej: Glifosato 48% / Atrazina / Gasoil Grado 3" class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Categoría *</label>
+            <select name="categoria" required {% if has_movements %}disabled{% endif %} class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for cat in categorias %}
+              <option value="{{ cat.value }}" {% if insumo and insumo.categoria.value == cat.value %}selected{% endif %}>{{ cat.value | capitalize }}</option>
+              {% endfor %}
+            </select>
+            {% if has_movements %}
+            <input type="hidden" name="categoria" value="{{ insumo.categoria.value }}">
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Unidad de Medida *</label>
+            <select name="unidad_medida" required {% if has_movements %}disabled{% endif %} class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+              {% for u in unidades %}
+              <option value="{{ u.value }}" {% if insumo and insumo.unidad_medida.value == u.value %}selected{% endif %}>{{ u.value | upper }}</option>
+              {% endfor %}
+            </select>
+            {% if has_movements %}
+            <input type="hidden" name="unidad_medida" value="{{ insumo.unidad_medida.value }}">
+            {% endif %}
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Punto de Pedido Mínimo (Opcional)</label>
+            <input type="number" step="0.0001" name="punto_pedido_minimo" value="{{ insumo.punto_pedido_minimo if insumo else '0.00' }}" placeholder="0.00" class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+            <span class="text-3xs text-slate-400">Genera alertas cuando el disponible neto sea menor o igual.</span>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Principio Activo / Fórmula</label>
+            <input type="text" name="principio_activo_formula" value="{{ insumo.principio_activo_formula if (insumo and insumo.principio_activo_formula) else '' }}" placeholder="Ej: Glifosato sal amonio" class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Concentración</label>
+            <input type="text" name="concentracion" value="{{ insumo.concentracion if (insumo and insumo.concentracion) else '' }}" placeholder="Ej: 480 g/L" class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Unidad de Empaque / Presentación</label>
+            <input type="text" name="unidad_empaque" value="{{ insumo.unidad_empaque if (insumo and insumo.unidad_empaque) else '' }}" placeholder="Ej: Bidón 20 L / Bolsa 80.000 semillas" class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+          <a href="/insumos/catalogo" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition">Cancelar</a>
+          <button type="submit" class="px-5 py-2 bg-agro-600 hover:bg-agro-700 text-white text-xs font-bold rounded-xl shadow-md shadow-agro-600/20 transition">
+            {% if insumo %}Guardar Cambios{% else %}Crear Insumo{% endif %}
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </main>
+
+  <script>
+  var unidadesValidas = {
+    'semilla': ['bolsa', 'kg'],
+    'combustible': ['litro'],
+    'fertilizante': ['kg', 'bolsa'],
+    'fitosanitario': ['litro', 'kg', 'unidad'],
+    'repuesto': ['unidad'],
+    'otro': ['unidad', 'kg', 'litro']
+  };
+
+  function actualizarUnidades() {
+    var catSelect = document.querySelector('select[name="categoria"]');
+    var uSelect = document.querySelector('select[name="unidad_medida"]');
+    if (!catSelect || !uSelect || uSelect.disabled) return;
+
+    var cat = catSelect.value;
+    var permitidas = unidadesValidas[cat] || ['unidad', 'kg', 'litro'];
+    var currentVal = uSelect.value;
+
+    for (var i = 0; i < uSelect.options.length; i++) {
+      var opt = uSelect.options[i];
+      if (permitidas.includes(opt.value)) {
+        opt.disabled = false;
+        opt.hidden = false;
+      } else {
+        opt.disabled = true;
+        opt.hidden = true;
+      }
+    }
+
+    if (!permitidas.includes(currentVal)) {
+      uSelect.value = permitidas[0];
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var catSelect = document.querySelector('select[name="categoria"]');
+    if (catSelect) {
+      catSelect.addEventListener('change', actualizarUnidades);
+      actualizarUnidades();
+    }
+  });
+  </script>
+</body>
+</html>

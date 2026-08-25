@@ -21,9 +21,14 @@ from app.services.servicios_prestados_service import create_equipo_maquinaria, c
 
 @pytest.mark.asyncio
 async def test_1_get_servicios_prestados_list_renders_ok():
-    """Verifica que /servicios-prestados responda HTTP 200 OK."""
+    """Verifica que /servicios-prestados responda HTTP 200 OK para un usuario autenticado."""
+    async with AsyncSessionLocal() as db:
+        res_u = await db.execute(select(Usuario).limit(1))
+        usuario = res_u.scalars().first()
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get("/servicios-prestados")
+        headers = {"x-user-id": str(usuario.id)} if usuario else {}
+        response = await ac.get("/servicios-prestados", headers=headers)
         assert response.status_code == 200
         assert "Trabajos a Terceros" in response.text
 

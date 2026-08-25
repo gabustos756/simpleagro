@@ -205,5 +205,55 @@ class InsumosAportadosEnum(str, enum.Enum):
     MIXTO = "mixto"
 
 
+class CategoriaInsumoEnum(str, enum.Enum):
+    SEMILLA = "semilla"
+    COMBUSTIBLE = "combustible"
+    FERTILIZANTE = "fertilizante"
+    FITOSANITARIO = "fitosanitario"
+    REPUESTO = "repuesto"
+    OTRO = "otro"
+
+
+class UnidadMedidaInsumoEnum(str, enum.Enum):
+    LITRO = "litro"
+    KG = "kg"
+    BOLSA = "bolsa"
+    DOSIS = "dosis"
+    UNIDAD = "unidad"
+    METRO = "metro"
+
+
+class TipoMovimientoInsumoEnum(str, enum.Enum):
+    COMPRA_INGRESO = "compra_ingreso"
+    CONSUMO_LABOR = "consumo_labor"
+    CONSUMO_SERVICIO_TERCERO = "consumo_servicio_tercero"
+    TRANSFERENCIA_SALIDA = "transferencia_salida"
+    TRANSFERENCIA_ENTRADA = "transferencia_entrada"
+    AJUSTE_RECUENTO_POSITIVO = "ajuste_recuento_positivo"
+    AJUSTE_RECUENTO_NEGATIVO = "ajuste_recuento_negativo"
+    MERMA_DESPERDICIO = "merma_desperdicio"
+    DEVOLUCION_PROVEEDOR = "devolucion_proveedor"
+
+
+class MonedaEnum(str, enum.Enum):
+    USD = "USD"
+    ARS = "ARS"
+
+
+class EstadoReservaInsumoEnum(str, enum.Enum):
+    ACTIVA = "activa"
+    CONSUMIDA = "consumida"
+    LIBERADA = "liberada"
+    CANCELADA = "cancelada"
+    VENCIDA = "vencida"
+
+
+class EstadoRecuentoInsumoEnum(str, enum.Enum):
+    PENDIENTE = "pendiente"
+    APROBADO = "aprobado"
+    RECHAZADO = "rechazado"
+
+
+
 
 

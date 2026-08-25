@@ -461,20 +461,11 @@ async def get_current_user_from_session(request: Request, db: AsyncSession) -> O
     if hasattr(request.state, "user") and request.state.user is not None:
         return request.state.user
 
-    user_id_raw = request.session.get("user_id") or request.headers.get("x-user-id")
-    default_user = {
-        "id": "usr-admin-demo",
-        "nombre": "Gabriel Bustos",
-        "email": "admin@eduagro.com",
-        "rol": "admin",
-        "rol_label": "Administrador",
-        "cliente_id": DEMO_CLIENTE["id"],
-        "cliente_nombre": DEMO_CLIENTE["nombre"],
-    }
+    user_id_raw = request.session.get("user_id") or request.headers.get("x-user-id") or request.cookies.get("session_user_id")
 
     if not user_id_raw:
-        request.state.user = default_user
-        return default_user
+        request.state.user = None
+        return None
 
     user_obj = None
     try:
@@ -485,8 +476,8 @@ async def get_current_user_from_session(request: Request, db: AsyncSession) -> O
         user_obj = None
 
     if not user_obj:
-        request.state.user = default_user
-        return default_user
+        request.state.user = None
+        return None
 
     user_dict = {
         "id": str(user_obj.id),
@@ -596,7 +587,6 @@ async def login_page(
             "next_url": next or "/",
             "error": None,
             "demo_cliente": DEMO_CLIENTE,
-            "demo_usuarios": DEMO_USUARIOS,
         },
     )
 
@@ -621,7 +611,6 @@ async def login_submit(
                 "error": "Credenciales inválidas. Por favor intenta de nuevo.",
                 "email": email,
                 "demo_cliente": DEMO_CLIENTE,
-                "demo_usuarios": DEMO_USUARIOS,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -1686,6 +1675,674 @@ async def servicios_prestados_actualizacion_tecnica_post(
 
     await db.commit()
     return RedirectResponse(f"/servicios-prestados/{servicio_id}?mensaje=Datos+técnicos+actualizados", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ==============================================================================
+# RUTAS DE INSUMOS Y ABASTECIMIENTO (EDUAGRO V3)
+# ==============================================================================
+from app.models import Insumo, InsumoLote, InsumoSaldoUbicacion, InsumoMovimiento, InsumoRecuento, InsumoReserva, StorageLocation, LaborCampo, ServicioPrestado
+from app.enums import MonedaEnum, CategoriaInsumoEnum, UnidadMedidaInsumoEnum
+from app.services.insumos_service import (
+    registrar_compra_ingreso,
+    registrar_stock_inicial,
+    registrar_consumo_labor,
+    registrar_consumo_servicio_prestado,
+    registrar_transferencia_ubicaciones,
+    registrar_recuento_inventario,
+    aprobar_recuento_fisico,
+    crear_reserva_insumo,
+    liberar_reserva_insumo,
+    verificar_disponibilidad_insumos,
+    validar_permisos_insumos,
+    crear_insumo_catalogo,
+    editar_insumo_catalogo,
+    cambiar_estado_insumo_catalogo,
+)
+
+
+# ------------------------------------------------------------------------------
+# ABM CATÁLOGO DE INSUMOS
+# ------------------------------------------------------------------------------
+
+@app.get("/insumos/catalogo", response_class=HTMLResponse)
+async def insumos_catalogo_list_get(
+    request: Request,
+    q: Optional[str] = None,
+    cat: Optional[str] = None,
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    query = select(Insumo).where(Insumo.cliente_id == cliente_id).order_by(Insumo.nombre)
+
+    if q and q.strip():
+        query = query.where(Insumo.nombre.ilike(f"%{q.strip()}%"))
+    if cat and cat.strip():
+        try:
+            cat_enum = CategoriaInsumoEnum(cat.strip())
+            query = query.where(Insumo.categoria == cat_enum)
+        except Exception:
+            pass
+
+    res = await db.execute(query)
+    insumos_raw = res.scalars().all()
+
+    insumos_list = []
+    for ins in insumos_raw:
+        res_lotes = await db.execute(
+            select(func.count(InsumoLote.id)).where(InsumoLote.insumo_id == ins.id)
+        )
+        lotes_cnt = res_lotes.scalar_one() or 0
+
+        insumos_list.append({
+            "id": str(ins.id),
+            "nombre": ins.nombre,
+            "categoria": ins.categoria,
+            "unidad_medida": ins.unidad_medida,
+            "principio_activo_formula": ins.principio_activo_formula,
+            "unidad_empaque": ins.unidad_empaque,
+            "punto_pedido_minimo": float(ins.punto_pedido_minimo or 0),
+            "activo": ins.activo,
+            "lotes_count": lotes_cnt,
+        })
+
+    return templates.TemplateResponse(
+        "insumos_catalogo.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "insumos",
+            "insumos": insumos_list,
+            "categorias": list(CategoriaInsumoEnum),
+            "filtro_q": q,
+            "filtro_cat": cat,
+            "mensaje": mensaje,
+            "error": error,
+        },
+    )
+
+
+@app.get("/insumos/catalogo/nuevo", response_class=HTMLResponse)
+async def insumos_catalogo_nuevo_get(
+    request: Request,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "crear_catalogo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos/catalogo?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        "insumos_catalogo_form.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "insumos",
+            "insumo": None,
+            "categorias": list(CategoriaInsumoEnum),
+            "unidades": list(UnidadMedidaInsumoEnum),
+            "has_movements": False,
+            "error": error,
+        },
+    )
+
+
+@app.post("/insumos/catalogo/nuevo")
+async def insumos_catalogo_nuevo_post(
+    request: Request,
+    nombre: str = Form(...),
+    categoria: str = Form(...),
+    unidad_medida: str = Form(...),
+    principio_activo_formula: Optional[str] = Form(None),
+    concentracion: Optional[str] = Form(None),
+    unidad_empaque: Optional[str] = Form(None),
+    punto_pedido_minimo: str = Form("0.00"),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "crear_catalogo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos/catalogo?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        ins = await crear_insumo_catalogo(
+            db=db,
+            cliente_id=cliente_id,
+            nombre=nombre,
+            categoria=CategoriaInsumoEnum(categoria),
+            unidad_medida=UnidadMedidaInsumoEnum(unidad_medida),
+            principio_activo_formula=principio_activo_formula,
+            concentracion=concentracion,
+            unidad_empaque=unidad_empaque,
+            punto_pedido_minimo=Decimal(punto_pedido_minimo) if punto_pedido_minimo else Decimal("0.0000"),
+            usuario_rol=user.get("rol"),
+        )
+        return RedirectResponse(f"/insumos/catalogo?mensaje=Insumo+'{ins.nombre}'+creado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos/catalogo/nuevo?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/insumos/catalogo/{insumo_id}/editar", response_class=HTMLResponse)
+async def insumos_catalogo_editar_get(
+    request: Request,
+    insumo_id: uuid.UUID,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "modificar_catalogo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos/catalogo?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    insumo = await db.get(Insumo, insumo_id)
+    if not insumo or insumo.cliente_id != cliente_id:
+        return RedirectResponse("/insumos/catalogo?error=Insumo+no+encontrado", status_code=status.HTTP_303_SEE_OTHER)
+
+    res_mov = await db.execute(
+        select(func.count(InsumoMovimiento.id)).where(InsumoMovimiento.cliente_id == cliente_id, InsumoMovimiento.insumo_id == insumo_id)
+    )
+    has_movements = (res_mov.scalar_one() or 0) > 0
+
+    return templates.TemplateResponse(
+        "insumos_catalogo_form.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "insumos",
+            "insumo": insumo,
+            "categorias": list(CategoriaInsumoEnum),
+            "unidades": list(UnidadMedidaInsumoEnum),
+            "has_movements": has_movements,
+            "error": error,
+        },
+    )
+
+
+@app.post("/insumos/catalogo/{insumo_id}/editar")
+async def insumos_catalogo_editar_post(
+    request: Request,
+    insumo_id: uuid.UUID,
+    nombre: str = Form(...),
+    categoria: str = Form(...),
+    unidad_medida: str = Form(...),
+    principio_activo_formula: Optional[str] = Form(None),
+    concentracion: Optional[str] = Form(None),
+    unidad_empaque: Optional[str] = Form(None),
+    punto_pedido_minimo: str = Form("0.00"),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "modificar_catalogo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos/catalogo?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        ins = await editar_insumo_catalogo(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            nombre=nombre,
+            categoria=CategoriaInsumoEnum(categoria),
+            unidad_medida=UnidadMedidaInsumoEnum(unidad_medida),
+            principio_activo_formula=principio_activo_formula,
+            concentracion=concentracion,
+            unidad_empaque=unidad_empaque,
+            punto_pedido_minimo=Decimal(punto_pedido_minimo) if punto_pedido_minimo else Decimal("0.0000"),
+            usuario_rol=user.get("rol"),
+        )
+        return RedirectResponse(f"/insumos/catalogo?mensaje=Insumo+'{ins.nombre}'+actualizado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos/catalogo/{insumo_id}/editar?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/catalogo/{insumo_id}/desactivar")
+async def insumos_catalogo_desactivar_post(
+    request: Request,
+    insumo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "desactivar_catalogo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos/catalogo?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        ins = await cambiar_estado_insumo_catalogo(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            nuevo_estado_activo=None,  # Toggle
+            usuario_rol=user.get("rol"),
+        )
+        st_label = "activado" if ins.activo else "desactivado"
+        return RedirectResponse(f"/insumos/catalogo?mensaje=Insumo+'{ins.nombre}'+{st_label}+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos/catalogo?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/stock-inicial")
+async def insumos_stock_inicial_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_id: uuid.UUID = Form(...),
+    cantidad: str = Form(...),
+    costo_unitario_usd: Optional[str] = Form(None),
+    cotizacion_usd_ars: str = Form("1000.00"),
+    numero_lote: Optional[str] = Form(None),
+    fecha_vencimiento: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    clave_idempotencia: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "registrar_compra")
+        f_venc = date.fromisoformat(fecha_vencimiento) if fecha_vencimiento and fecha_vencimiento.strip() else None
+        c_usd = Decimal(costo_unitario_usd) if costo_unitario_usd and costo_unitario_usd.strip() else Decimal("0.0000")
+
+        await registrar_stock_inicial(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_id=storage_location_id,
+            cantidad=Decimal(cantidad),
+            costo_unitario_usd=c_usd,
+            cotizacion_usd_ars=Decimal(cotizacion_usd_ars) if cotizacion_usd_ars else Decimal("1000.00"),
+            numero_lote=numero_lote,
+            fecha_vencimiento=f_venc,
+            observaciones=observaciones,
+            clave_idempotencia=clave_idempotencia or f"stk_init_{uuid.uuid4().hex[:6]}",
+            usuario_rol=user.get("rol"),
+        )
+        return RedirectResponse("/insumos?mensaje=Stock+inicial+cargado+exitosamente+(sin+generar+egreso+financiero)", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/transferencia")
+async def insumos_transferencia_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_origen_id: uuid.UUID = Form(...),
+    storage_location_destino_id: uuid.UUID = Form(...),
+    cantidad: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    clave_idempotencia: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "transferir_stock")
+        await registrar_transferencia_ubicaciones(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_origen_id=storage_location_origen_id,
+            storage_location_destino_id=storage_location_destino_id,
+            cantidad=Decimal(cantidad),
+            observaciones=observaciones,
+            clave_idempotencia=clave_idempotencia or f"transf_{uuid.uuid4().hex[:6]}",
+            usuario_rol=user.get("rol"),
+        )
+        return RedirectResponse("/insumos?mensaje=Transferencia+de+stock+registrada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/recuento")
+async def insumos_recuento_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_id: uuid.UUID = Form(...),
+    cantidad_observada: str = Form(...),
+    motivo: str = Form(...),
+    clave_idempotencia: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        rec = await registrar_recuento_inventario(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_id=storage_location_id,
+            cantidad_observada=Decimal(cantidad_observada),
+            motivo=motivo,
+            clave_idempotencia=clave_idempotencia or f"recuento_{uuid.uuid4().hex[:6]}",
+            usuario_rol=user.get("rol"),
+        )
+        if user.get("rol") in ["admin", "administracion", "finanzas", "administrador_finanzas", "productor"]:
+            await aprobar_recuento_fisico(db=db, cliente_id=cliente_id, recuento_id=rec.id, usuario_rol=user.get("rol"))
+            return RedirectResponse("/insumos?mensaje=Recuento+f%C3%ADsico+registrado+y+ajuste+aplicado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+        else:
+            return RedirectResponse("/insumos?mensaje=Recuento+f%C3%ADsico+registrado+pendiente+de+aprobaci%C3%B3n+administrativa", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/reserva")
+async def insumos_reserva_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_id: uuid.UUID = Form(...),
+    cantidad_reservada: str = Form(...),
+    destino_tipo: str = Form(...),
+    destino_id: uuid.UUID = Form(...),
+    fecha_expiracion: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        labor_id = destino_id if destino_tipo == "labor" else None
+        servicio_id = destino_id if destino_tipo == "servicio" else None
+        f_exp = date.fromisoformat(fecha_expiracion) if fecha_expiracion and fecha_expiracion.strip() else None
+
+        await crear_reserva_insumo(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_id=storage_location_id,
+            cantidad_reservada=Decimal(cantidad_reservada),
+            labor_campo_id=labor_id,
+            servicio_prestado_id=servicio_id,
+            fecha_expiracion=f_exp,
+            usuario_rol=user.get("rol"),
+        )
+        return RedirectResponse("/insumos?mensaje=Reserva+de+insumo+creada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/insumos", response_class=HTMLResponse)
+async def insumos_dashboard_get(
+    request: Request,
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    # Insumos y Ubicaciones
+    res_ins = await db.execute(select(Insumo).where(Insumo.cliente_id == cliente_id, Insumo.activo == True).order_by(Insumo.nombre))
+    insumos = res_ins.scalars().all()
+
+    res_loc = await db.execute(select(StorageLocation).where(StorageLocation.cliente_id == cliente_id).order_by(StorageLocation.nombre))
+    ubicaciones = res_loc.scalars().all()
+
+    # Balances de existencias
+    existencias = []
+    alertas = []
+    total_reservas_activas = 0
+
+    for ins in insumos:
+        # Stock físico
+        res_f = await db.execute(
+            select(func.coalesce(func.sum(InsumoSaldoUbicacion.cantidad_disponible), Decimal("0.0000")))
+            .where(InsumoSaldoUbicacion.cliente_id == cliente_id, InsumoSaldoUbicacion.insumo_id == ins.id)
+        )
+        stock_fisico = res_f.scalar_one()
+
+        # PPP promedio
+        res_ppp = await db.execute(
+            select(func.coalesce(func.avg(InsumoSaldoUbicacion.costo_ppp_usd), Decimal("0.0000")))
+            .where(InsumoSaldoUbicacion.cliente_id == cliente_id, InsumoSaldoUbicacion.insumo_id == ins.id)
+        )
+        costo_ppp_usd = res_ppp.scalar_one()
+
+        # Reservas activas
+        res_r = await db.execute(
+            select(func.coalesce(func.sum(InsumoReserva.cantidad_reservada), Decimal("0.0000")))
+            .where(InsumoReserva.cliente_id == cliente_id, InsumoReserva.insumo_id == ins.id, InsumoReserva.estado_reserva == "activa")
+        )
+        stock_reservado = res_r.scalar_one()
+        total_reservas_activas += int(stock_reservado > 0)
+
+        disponible_neto = max(Decimal("0.0000"), stock_fisico - stock_reservado)
+
+        if ins.punto_pedido_minimo and disponible_neto <= ins.punto_pedido_minimo:
+            alertas.append({
+                "insumo": ins.nombre,
+                "motivo": f"Stock disponible ({disponible_neto} {ins.unidad_medida.value}) menor o igual al pedido mínimo ({ins.punto_pedido_minimo} {ins.unidad_medida.value})",
+                "tipo": "Stock Mínimo",
+            })
+
+        existencias.append({
+            "id": str(ins.id),
+            "nombre": ins.nombre,
+            "categoria": ins.categoria.value,
+            "unidad": ins.unidad_medida.value,
+            "punto_pedido_minimo": float(ins.punto_pedido_minimo or 0),
+            "stock_fisico": float(stock_fisico),
+            "stock_reservado": float(stock_reservado),
+            "disponible_neto": float(disponible_neto),
+            "costo_ppp_usd": float(costo_ppp_usd),
+        })
+
+    # Labores y Servicios Prestados para modales
+    res_lab = await db.execute(
+        select(LaborCampo)
+        .join(Lote, LaborCampo.lote_id == Lote.id)
+        .join(Campo, Lote.campo_id == Campo.id)
+        .where(Campo.cliente_id == cliente_id)
+        .order_by(LaborCampo.fecha.desc())
+        .limit(30)
+    )
+    labores = res_lab.scalars().all()
+
+    res_serv = await db.execute(select(ServicioPrestado).where(ServicioPrestado.cliente_id == cliente_id).order_by(ServicioPrestado.fecha_trabajo.desc()).limit(30))
+    servicios = res_serv.scalars().all()
+
+    total_stock_fisico = sum(item["stock_fisico"] for item in existencias)
+
+    return templates.TemplateResponse(
+        "insumos_dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "insumos",
+            "existencias": existencias,
+            "ubicaciones": ubicaciones,
+            "labores": labores,
+            "servicios": servicios,
+            "alertas": alertas,
+            "total_insumos": len(insumos),
+            "total_ubicaciones": len(ubicaciones),
+            "total_reservas_activas": total_reservas_activas,
+            "total_stock_fisico": total_stock_fisico,
+            "mensaje": mensaje,
+            "error": error,
+        },
+    )
+
+
+@app.get("/insumos/kardex", response_class=HTMLResponse)
+async def insumos_kardex_get(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    res_mov = await db.execute(
+        select(InsumoMovimiento)
+        .options(selectinload(InsumoMovimiento.insumo))
+        .where(InsumoMovimiento.cliente_id == cliente_id)
+        .order_by(InsumoMovimiento.fecha_movimiento.desc())
+        .limit(100)
+    )
+    movimientos = res_mov.scalars().all()
+
+    return templates.TemplateResponse(
+        "insumos_kardex.html",
+        {
+            "request": request,
+            "user": user,
+            "active_page": "insumos",
+            "movimientos": movimientos,
+        },
+    )
+
+
+@app.post("/insumos/compra")
+async def insumos_compra_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_id: uuid.UUID = Form(...),
+    cantidad: str = Form(...),
+    monto_unitario: str = Form(...),
+    moneda_origen: str = Form("USD"),
+    cotizacion_usd_ars: str = Form("1000.00"),
+    proveedor_nombre: str = Form(...),
+    numero_lote: Optional[str] = Form(None),
+    fecha_vencimiento: Optional[str] = Form(None),
+    clave_idempotencia: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = uuid.UUID(str(user.get("cliente_id"))) if user.get("cliente_id") else None
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "registrar_compra")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    registrado_por_id = None
+    if user.get("id"):
+        try:
+            registrado_por_id = uuid.UUID(str(user.get("id")))
+        except Exception:
+            registrado_por_id = None
+
+    try:
+        f_venc = date.fromisoformat(fecha_vencimiento) if fecha_vencimiento else None
+        await registrar_compra_ingreso(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_id=storage_location_id,
+            proveedor_nombre=proveedor_nombre,
+            fecha_compra=date.today(),
+            cantidad=Decimal(cantidad),
+            monto_unitario=Decimal(monto_unitario),
+            moneda_origen=MonedaEnum(moneda_origen),
+            cotizacion_usd_ars=Decimal(cotizacion_usd_ars),
+            numero_lote=numero_lote,
+            fecha_vencimiento=f_venc,
+            clave_idempotencia=clave_idempotencia or f"compra_form_{uuid.uuid4().hex[:6]}",
+            registrado_por_usuario_id=registrado_por_id,
+        )
+        return RedirectResponse("/insumos?mensaje=Compra+e+ingreso+de+insumo+registrados+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/insumos/consumo")
+async def insumos_consumo_post(
+    request: Request,
+    insumo_id: uuid.UUID = Form(...),
+    storage_location_id: uuid.UUID = Form(...),
+    cantidad_real: str = Form(...),
+    insumos_aportados_por: str = Form("propio"),
+    clave_idempotencia: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = user.get("cliente_id")
+
+    try:
+        validar_permisos_insumos(user.get("rol"), "confirmar_consumo")
+    except PermissionError as pe:
+        return RedirectResponse(f"/insumos?error={str(pe).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        res_lab = await db.execute(select(LaborCampo).join(Lote).where(Lote.cliente_id == cliente_id).limit(1))
+        labor = res_lab.scalars().first()
+        if not labor:
+            return RedirectResponse("/insumos?error=No+hay+labores+disponibles+para+asociar+el+consumo", status_code=status.HTTP_303_SEE_OTHER)
+
+        await registrar_consumo_labor(
+            db=db,
+            cliente_id=cliente_id,
+            insumo_id=insumo_id,
+            storage_location_id=storage_location_id,
+            labor_campo_id=labor.id,
+            cantidad_real=Decimal(cantidad_real),
+            fecha_consumo=datetime.now(),
+            insumos_aportados_por=insumos_aportados_por,
+            clave_idempotencia=clave_idempotencia or f"consumo_form_{uuid.uuid4().hex[:6]}",
+            registrado_por_usuario_id=uuid.UUID(user.get("id")) if user.get("id") else None,
+        )
+        return RedirectResponse("/insumos?mensaje=Consumo+real+confirmado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        return RedirectResponse(f"/insumos?error=Error:+{str(e).replace(' ', '+')}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/lotes", response_class=HTMLResponse)
