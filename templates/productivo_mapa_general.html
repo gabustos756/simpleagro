@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa General y Delimitación Vectorial | EduAgro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .map-container { height: calc(100vh - 8rem); }
+    .lot-card-hover { transition: all 0.2s ease-in-out; }
+    .lot-card-hover:hover, .lot-card-active {
+      border-color: #10b981 !important;
+      background-color: #f0fdf4 !important;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col bg-slate-50 text-slate-800 antialiased overflow-hidden">
+
+  <!-- Header Institucional -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 px-6 py-3.5 flex items-center justify-between z-20 shadow-md">
+    <div class="flex items-center space-x-4">
+      <a href="/productivo/campos" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+      </a>
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Mapa General de Campos y Lotes
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Visor GIS Interactivo</span>
+          </h1>
+          <p class="text-xs text-slate-400">Delimitación de parcelas, superficies ($ha$) y perímetros en tiempo real</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Herramientas del Mapa -->
+    <div class="flex items-center space-x-3">
+      <button id="btnToggleDrawing" onclick="toggleDrawingMode()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow-sm transition flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+        </svg>
+        <span id="btnDrawingText">✏️ Dibujar Lote</span>
+      </button>
+
+      <a href="/productivo/campos" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition">
+        Volver a Campos
+      </a>
+    </div>
+  </header>
+
+  <!-- Layout Principal Dividido -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- Mapa Satelital de Google Maps (Izquierda / Centro) -->
+    <div class="flex-1 relative bg-slate-200">
+      {% if has_api_key %}
+        <div id="map" class="w-full h-full"></div>
+      {% else %}
+        <div class="w-full h-full flex flex-col items-center justify-center p-8 bg-slate-100 text-center">
+          <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Clave de Google Maps requerida</h2>
+          <p class="text-sm text-slate-600 max-w-md">Configure <code class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono">GOOGLE_MAPS_API_KEY</code> o <code class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono">GOOGLE_API_KEY</code> en su archivo <code class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono">.env</code> para habilitar el mapa vectorial satelital.</p>
+        </div>
+      {% endif %}
+
+      <!-- Badge de métrica en tiempo real mientras se dibuja -->
+      <div id="drawingLiveBadge" class="hidden absolute top-4 left-4 z-10 bg-slate-900/90 backdrop-blur text-white px-4 py-3 rounded-xl shadow-xl border border-emerald-500/30 flex items-center space-x-4">
+        <div>
+          <span class="text-xs uppercase tracking-wider text-slate-400 block font-semibold">Superficie En Dibujo</span>
+          <span id="liveAreaHa" class="text-lg font-bold text-emerald-400">0.00 ha</span>
+        </div>
+        <div class="h-8 w-px bg-slate-700"></div>
+        <div>
+          <span class="text-xs uppercase tracking-wider text-slate-400 block font-semibold">Perímetro</span>
+          <span id="livePerimeterKm" class="text-base font-bold text-slate-200">0.00 km</span>
+        </div>
+        <button onclick="cancelDrawing()" class="ml-2 text-slate-400 hover:text-red-400 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Lateral Derecho: Campos y Lotes -->
+    <aside class="w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg z-10">
+      <!-- Encabezado del Panel -->
+      <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800 text-base">Campos y Lotes</h2>
+          <span class="text-xs text-slate-500 font-medium">{{ lotes|length }} parcelas registradas</span>
+        </div>
+        <button onclick="zoomToAllBounds()" class="p-2 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg transition shadow-sm flex items-center gap-1">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+          Ver Todos
+        </button>
+      </div>
+
+      <!-- Buscador Rápido -->
+      <div class="p-3 border-b border-slate-100 bg-white">
+        <input type="text" id="inputSearchLotes" onkeyup="filterLotesSidebar()" placeholder="🔍 Buscar lote o cultivo..." class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+
+      <!-- Lista de Campos y Lotes -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-5" id="lotesSidebarList">
+        {% for c in campos %}
+          <div class="space-y-2 campo-group" data-campo-id="{{ c.id }}">
+            <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
+              <span class="flex items-center gap-1.5 text-slate-700">
+                🌱 {{ c.nombre }}
+              </span>
+              <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{{ c.hectareas_totales }} ha</span>
+            </div>
+
+            <!-- Lotes del Campo -->
+            {% set lotes_del_campo = [] %}
+            {% for l in lotes %}
+              {% if l.campo_id == c.id %}
+                {% set _ = lotes_del_campo.append(l) %}
+                <div id="card-lote-{{ l.id }}"
+                     data-lote-id="{{ l.id }}"
+                     onmouseenter="highlightLotOnMap('{{ l.id }}')"
+                     onmouseleave="unhighlightLotOnMap('{{ l.id }}')"
+                     onclick="selectLotAndShowDrawer('{{ l.id }}')"
+                     class="lot-card-hover p-3.5 bg-white border border-slate-200 rounded-xl cursor-pointer shadow-sm relative group">
+                  
+                  <div class="flex items-start justify-between">
+                    <div>
+                      <h3 class="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition">{{ l.nombre }}</h3>
+                      <p class="text-xs text-slate-500 font-medium mt-0.5">{{ l.cultivo_actual }}</p>
+                    </div>
+                    {% if l.geometria_geojson %}
+                      <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        📍 GIS Delimitado
+                      </span>
+                    {% else %}
+                      <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600">
+                        Sin Polígono
+                      </span>
+                    {% endif %}
+                  </div>
+
+                  <div class="mt-3 grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <div>
+                      <span class="text-[10px] text-slate-400 uppercase font-semibold block">Área Productiva</span>
+                      <span class="font-bold text-slate-800">
+                        {% if l.superficie_calculada_gis_ha %}
+                          {{ l.superficie_calculada_gis_ha }} ha
+                        {% else %}
+                          {{ l.superficie_productiva_ha }} ha
+                        {% endif %}
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-[10px] text-slate-400 uppercase font-semibold block">Perímetro GIS</span>
+                      <span class="font-semibold text-slate-700">
+                        {% if l.perimetro_calculado_km %}
+                          {{ l.perimetro_calculado_km }} km
+                        {% else %}
+                          --
+                        {% endif %}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+
+            {% if lotes_del_campo|length == 0 %}
+              <div class="p-3 text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center italic">
+                Sin lotes registrados en este campo.
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </aside>
+  </main>
+
+  <!-- Ficha Desplegable Inferior Estilo share.farms -->
+  <div id="shareFarmsDrawer" class="hidden absolute bottom-4 left-6 right-104 bg-slate-900/95 backdrop-blur text-white rounded-2xl shadow-2xl border border-slate-700/60 p-5 transition-all duration-300 z-20">
+    <div class="flex items-start justify-between border-b border-slate-800 pb-3 mb-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+        </div>
+        <div>
+          <h2 id="drawerLoteNombre" class="text-xl font-bold text-white tracking-tight">Nombre del Lote</h2>
+          <p id="drawerCampoNombre" class="text-xs text-slate-400 font-medium">Establecimiento</p>
+        </div>
+      </div>
+      <button onclick="closeLotDrawer()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="grid grid-cols-4 gap-4 text-sm mb-4">
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Área GIS</span>
+        <span id="drawerAreaHa" class="text-lg font-bold text-emerald-400">0.00 ha</span>
+      </div>
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Perímetro GIS</span>
+        <span id="drawerPerimetroKm" class="text-lg font-bold text-slate-200">0.00 km</span>
+      </div>
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Coordenadas Centroide</span>
+        <span id="drawerCoordenadas" class="text-xs font-mono font-medium text-slate-300 block mt-1">--</span>
+      </div>
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Cultivo Actual</span>
+        <span id="drawerCultivo" class="text-base font-bold text-amber-300">--</span>
+      </div>
+    </div>
+
+    <!-- Acciones Estilo share.farms -->
+    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+      <div class="flex items-center space-x-3">
+        <button onclick="alert('Función de asociar fotografía habilitada.')" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition border border-slate-700 flex items-center gap-1.5">
+          📷 Agregar Foto
+        </button>
+        <button onclick="syncLotSurface()" class="px-3.5 py-1.5 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-xs font-semibold rounded-lg transition border border-emerald-700/50 flex items-center gap-1.5">
+          🔄 Sincronizar Superficie Productiva
+        </button>
+      </div>
+      <span id="drawerFechaEdit" class="text-xs text-slate-500 font-mono">Actualizado: --</span>
+    </div>
+  </div>
+
+  <!-- Modal para Crear Nuevo Lote desde Dibujo -->
+  <div id="modalNewLot" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          🌱 Guardar Nuevo Lote Delimitado
+        </h3>
+        <button onclick="closeNewLotModal()" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Establecimiento Campo</label>
+          <select id="modalSelectCampo" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+            {% for c in campos %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre del Lote</label>
+          <input type="text" id="modalInputNombre" placeholder="Ej: Venier 1, Graso Norte..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Cultivo Actual</label>
+          <select id="modalSelectCultivo" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+            <option value="Soja 1ra">Soja 1ra</option>
+            <option value="Maíz Tardío">Maíz Tardío</option>
+            <option value="Trigo 25/26">Trigo 25/26</option>
+            <option value="Barbecho Limpio">Barbecho Limpio</option>
+            <option value="Girasol">Girasol</option>
+          </select>
+        </div>
+
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+          <div class="flex justify-between font-bold text-emerald-900">
+            <span>Superficie Calculada GIS:</span>
+            <span id="modalAreaHaVal">0.00 ha</span>
+          </div>
+          <div class="flex justify-between text-emerald-800">
+            <span>Perímetro Calculado:</span>
+            <span id="modalPerimeterKmVal">0.00 km</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button onclick="closeNewLotModal()" class="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
+          <button onclick="saveNewLotWithPolygon()" class="px-5 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-md">Guardar Lote</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Maps SDK Script -->
+  {% if has_api_key %}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=drawing,geometry&callback=initMap" async defer></script>
+  {% endif %}
+
+  <script>
+    let map = null;
+    let drawingManager = null;
+    let activePolygon = null;
+    let lotPolygonsMap = {}; // lote_id -> google.maps.Polygon
+    let lotesData = {{ lotes|tojson|safe }};
+    let camposData = {{ campos|tojson|safe }};
+    let currentDrawingCoordinates = [];
+    let isDrawingMode = false;
+    let activeSelectedLoteId = null;
+
+    // Paleta de colores según cultivo
+    const CROP_COLORS = {
+      'Soja 1ra': '#10b981',
+      'Maíz Tardío': '#f59e0b',
+      'Trigo 25/26': '#0284c7',
+      'Barbecho Limpio': '#8d5b4c',
+      'Girasol': '#ec4899',
+    };
+
+    function getCropColor(cultivo) {
+      return CROP_COLORS[cultivo] || '#059669';
+    }
+
+    function initMap() {
+      const defaultCenter = { lat: -31.7766, lng: -63.8011 };
+      
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: defaultCenter,
+        zoom: 13,
+        mapTypeId: 'hybrid',
+        tilt: 0,
+        mapTypeControl: true,
+        mapTypeControlOptions: { style: google.maps.MapTypeControlStyle.DROPDOWN_MENU },
+        streetViewControl: false,
+      });
+
+      renderAllLotPolygons();
+      zoomToAllBounds();
+    }
+
+    function renderAllLotPolygons() {
+      lotesData.forEach(lote => {
+        if (!lote.geometria_geojson || !lote.geometria_geojson.coordinates) return;
+
+        const coordsRing = lote.geometria_geojson.coordinates[0];
+        const path = coordsRing.map(pt => ({ lat: pt[1], lng: pt[0] }));
+        const color = getCropColor(lote.cultivo_actual);
+
+        const polygon = new google.maps.Polygon({
+          paths: path,
+          strokeColor: color,
+          strokeOpacity: 0.9,
+          strokeWeight: 3,
+          fillColor: color,
+          fillOpacity: 0.35,
+          map: map,
+          zIndex: 1
+        });
+
+        // Eventos Hover
+        polygon.addListener('mouseover', () => {
+          polygon.setOptions({ fillOpacity: 0.6, strokeWeight: 4 });
+          highlightLotSidebarCard(lote.id);
+        });
+
+        polygon.addListener('mouseout', () => {
+          if (activeSelectedLoteId !== lote.id) {
+            polygon.setOptions({ fillOpacity: 0.35, strokeWeight: 3 });
+            unhighlightLotSidebarCard(lote.id);
+          }
+        });
+
+        polygon.addListener('click', () => {
+          selectLotAndShowDrawer(lote.id);
+        });
+
+        lotPolygonsMap[lote.id] = polygon;
+      });
+    }
+
+    function zoomToAllBounds() {
+      if (!map) return;
+      const bounds = new google.maps.LatLngBounds();
+      let hasPoints = false;
+
+      lotesData.forEach(l => {
+        if (l.centroide_lat && l.centroide_lng) {
+          bounds.extend({ lat: l.centroide_lat, lng: l.centroide_lng });
+          hasPoints = true;
+        }
+      });
+
+      camposData.forEach(c => {
+        if (c.latitud && c.longitud) {
+          bounds.extend({ lat: c.latitud, lng: c.longitud });
+          hasPoints = true;
+        }
+      });
+
+      if (hasPoints) {
+        map.fitBounds(bounds);
+      }
+    }
+
+    function toggleDrawingMode() {
+      isDrawingMode = !isDrawingMode;
+      const btnText = document.getElementById('btnDrawingText');
+      const badge = document.getElementById('drawingLiveBadge');
+
+      if (isDrawingMode) {
+        btnText.innerText = '❌ Cancelar Dibujo';
+        badge.classList.remove('hidden');
+        startDrawingPolygon();
+      } else {
+        cancelDrawing();
+      }
+    }
+
+    function startDrawingPolygon() {
+      if (activePolygon) activePolygon.setMap(null);
+      currentDrawingCoordinates = [];
+
+      activePolygon = new google.maps.Polygon({
+        paths: [],
+        strokeColor: '#3b82f6',
+        strokeOpacity: 1.0,
+        strokeWeight: 3,
+        fillColor: '#60a5fa',
+        fillOpacity: 0.4,
+        editable: true,
+        map: map
+      });
+
+      const clickListener = map.addListener('click', (e) => {
+        if (!isDrawingMode) return;
+        const path = activePolygon.getPath();
+        path.push(e.latLng);
+        updateDrawingMetrics();
+      });
+    }
+
+    function updateDrawingMetrics() {
+      if (!activePolygon) return;
+      const path = activePolygon.getPath();
+      const numPts = path.getLength();
+
+      if (numPts < 3) {
+        document.getElementById('liveAreaHa').innerText = '0.00 ha';
+        document.getElementById('livePerimeterKm').innerText = '0.00 km';
+        return;
+      }
+
+      const areaM2 = google.maps.geometry.spherical.computeArea(path);
+      const perimM = google.maps.geometry.spherical.computeLength(path);
+
+      const ha = (areaM2 / 10000.0).toFixed(2);
+      const km = (perimM / 1000.0).toFixed(2);
+
+      document.getElementById('liveAreaHa').innerText = `${ha} ha`;
+      document.getElementById('livePerimeterKm').innerText = `${km} km`;
+
+      if (numPts >= 4 && !document.getElementById('btnSaveDrawing')) {
+        const badge = document.getElementById('drawingLiveBadge');
+        const saveBtn = document.createElement('button');
+        saveBtn.id = 'btnSaveDrawing';
+        saveBtn.className = 'ml-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition shadow';
+        saveBtn.innerText = '✅ Finalizar Dibujo';
+        saveBtn.onclick = finishDrawingAndOpenModal;
+        badge.appendChild(saveBtn);
+      }
+    }
+
+    function finishDrawingAndOpenModal() {
+      const path = activePolygon.getPath();
+      if (path.getLength() < 3) return;
+
+      const coords = [];
+      for (let i = 0; i < path.getLength(); i++) {
+        const pt = path.getAt(i);
+        coords.push([pt.lng(), pt.lat()]);
+      }
+      // Cerrar polígono
+      coords.push([path.getAt(0).lng(), path.getAt(0).lat()]);
+
+      currentDrawingCoordinates = coords;
+
+      const areaM2 = google.maps.geometry.spherical.computeArea(path);
+      const perimM = google.maps.geometry.spherical.computeLength(path);
+
+      document.getElementById('modalAreaHaVal').innerText = `${(areaM2 / 10000.0).toFixed(2)} ha`;
+      document.getElementById('modalPerimeterKmVal').innerText = `${(perimM / 1000.0).toFixed(2)} km`;
+      document.getElementById('modalNewLot').classList.remove('hidden');
+    }
+
+    function cancelDrawing() {
+      isDrawingMode = false;
+      document.getElementById('btnDrawingText').innerText = '✏️ Dibujar Lote';
+      document.getElementById('drawingLiveBadge').classList.add('hidden');
+      const saveBtn = document.getElementById('btnSaveDrawing');
+      if (saveBtn) saveBtn.remove();
+
+      if (activePolygon) {
+        activePolygon.setMap(null);
+        activePolygon = null;
+      }
+    }
+
+    function closeNewLotModal() {
+      document.getElementById('modalNewLot').classList.add('hidden');
+    }
+
+    async function saveNewLotWithPolygon() {
+      const campoId = document.getElementById('modalSelectCampo').value;
+      const nombre = document.getElementById('modalInputNombre').value.trim();
+      const cultivo = document.getElementById('modalSelectCultivo').value;
+
+      if (!nombre) {
+        alert('Por favor ingrese el nombre del lote.');
+        return;
+      }
+
+      const geojsonPayload = {
+        type: 'Polygon',
+        coordinates: [currentDrawingCoordinates]
+      };
+
+      try {
+        const res = await fetch('/api/v1/gis/lotes/crear-con-poligono', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campo_id: campoId,
+            nombre: nombre,
+            cultivo_actual: cultivo,
+            geometria_geojson: geojsonPayload
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('¡Lote creado exitosamente con delimitación geográfica!');
+          window.location.reload();
+        } else {
+          alert(`Error: ${data.detail || 'No se pudo guardar el lote.'}`);
+        }
+      } catch (e) {
+        alert('Error de conexión al guardar el lote.');
+      }
+    }
+
+    function highlightLotOnMap(loteId) {
+      const poly = lotPolygonsMap[loteId];
+      if (poly) {
+        poly.setOptions({ strokeColor: '#f59e0b', strokeWeight: 5, fillOpacity: 0.65 });
+      }
+    }
+
+    function unhighlightLotOnMap(loteId) {
+      if (activeSelectedLoteId === loteId) return;
+      const poly = lotPolygonsMap[loteId];
+      const lote = lotesData.find(l => l.id === loteId);
+      if (poly && lote) {
+        const color = getCropColor(lote.cultivo_actual);
+        poly.setOptions({ strokeColor: color, strokeWeight: 3, fillOpacity: 0.35 });
+      }
+    }
+
+    function highlightLotSidebarCard(loteId) {
+      const card = document.getElementById(`card-lote-${loteId}`);
+      if (card) card.classList.add('lot-card-active');
+    }
+
+    function unhighlightLotSidebarCard(loteId) {
+      if (activeSelectedLoteId === loteId) return;
+      const card = document.getElementById(`card-lote-${loteId}`);
+      if (card) card.classList.remove('lot-card-active');
+    }
+
+    function selectLotAndShowDrawer(loteId) {
+      activeSelectedLoteId = loteId;
+      const lote = lotesData.find(l => l.id === loteId);
+      if (!lote) return;
+
+      // Resaltar en Sidebar
+      document.querySelectorAll('.lot-card-hover').forEach(c => c.classList.remove('lot-card-active'));
+      highlightLotSidebarCard(loteId);
+
+      // Centrar mapa
+      if (lote.centroide_lat && lote.centroide_lng) {
+        map.panTo({ lat: lote.centroide_lat, lng: lote.centroide_lng });
+        map.setZoom(15);
+      }
+
+      // Llenar Drawer
+      document.getElementById('drawerLoteNombre').innerText = lote.nombre;
+      document.getElementById('drawerCampoNombre').innerText = lote.campo_nombre || 'Establecimiento';
+      document.getElementById('drawerAreaHa').innerText = `${lote.superficie_calculada_gis_ha || lote.superficie_productiva_ha} ha`;
+      document.getElementById('drawerPerimetroKm').innerText = lote.perimetro_calculado_km ? `${lote.perimetro_calculado_km} km` : '--';
+      document.getElementById('drawerCoordenadas').innerText = (lote.centroide_lat && lote.centroide_lng) ? `Lat: ${lote.centroide_lat}, Lng: ${lote.centroide_lng}` : '--';
+      document.getElementById('drawerCultivo').innerText = lote.cultivo_actual || 'Soja 1ra';
+      document.getElementById('drawerFechaEdit').innerText = `Actualizado: ${lote.fecha_actualizacion_geometria || 'Hoy'}`;
+
+      document.getElementById('shareFarmsDrawer').classList.remove('hidden');
+    }
+
+    function closeLotDrawer() {
+      activeSelectedLoteId = null;
+      document.getElementById('shareFarmsDrawer').classList.add('hidden');
+      document.querySelectorAll('.lot-card-hover').forEach(c => c.classList.remove('lot-card-active'));
+    }
+
+    async function syncLotSurface() {
+      if (!activeSelectedLoteId) return;
+      try {
+        const res = await fetch(`/api/v1/gis/lotes/${activeSelectedLoteId}/sincronizar-superficie`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert(`Error: ${data.detail}`);
+        }
+      } catch (e) {
+        alert('Error de conexión.');
+      }
+    }
+
+    function filterLotesSidebar() {
+      const query = document.getElementById('inputSearchLotes').value.toLowerCase();
+      document.querySelectorAll('.lot-card-hover').forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(query) ? 'block' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>

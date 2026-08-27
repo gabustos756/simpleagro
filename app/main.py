@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -42,6 +42,8 @@ from app.models import (
     PrecioMercadoCache,
 )
 from app.services.comercial import calcular_posicion_comercial, obtener_campania_activa_para_cliente
+from app.services.gis_service import procesar_geometria_lote, validar_poligono_geojson
+from app.schemas import LoteGeometriaUpdate
 from app.enums import (
     DocumentTypeEnum,
     EstadoProductivoLoteEnum,
@@ -221,6 +223,14 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
         "produccion_total_qq": prod_qq,
         "produccion_total_t": prod_qq / 10.0,
         "observaciones": l.observaciones or "",
+        "geometria_geojson": getattr(l, "geometria_geojson", None),
+        "superficie_calculada_gis_ha": float(l.superficie_calculada_gis_ha) if getattr(l, "superficie_calculada_gis_ha", None) is not None else None,
+        "perimetro_calculado_m": float(l.perimetro_calculado_m) if getattr(l, "perimetro_calculado_m", None) is not None else None,
+        "perimetro_calculado_km": round(float(l.perimetro_calculado_m) / 1000.0, 3) if getattr(l, "perimetro_calculado_m", None) is not None else None,
+        "centroide_lat": float(l.centroide_lat) if getattr(l, "centroide_lat", None) is not None else None,
+        "centroide_lng": float(l.centroide_lng) if getattr(l, "centroide_lng", None) is not None else None,
+        "fuente_geometria": getattr(l, "fuente_geometria", None) or "DIBUJO_MANUAL",
+        "fecha_actualizacion_geometria": str(l.fecha_actualizacion_geometria) if getattr(l, "fecha_actualizacion_geometria", None) else None,
         "estado_productivo": "en_crecimiento",
         "estado_productivo_label": "En Crecimiento",
     }
@@ -1148,6 +1158,226 @@ async def ver_campo_mapa_satelital(
             "selected_lote_id": lote,
         },
     )
+
+
+@app.get("/productivo/mapa-general", response_class=HTMLResponse)
+async def ver_mapa_general_multicampo(
+    request: Request,
+    campo: Optional[str] = Query(None),
+    lote: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/productivo/mapa-general", status_code=status.HTTP_303_SEE_OTHER)
+
+    campo_activo = await get_campo_activo_db(request, db)
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+
+    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="productivo_mapa_general.html",
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "campos": campos,
+            "lotes": lotes,
+            "has_api_key": bool(google_maps_api_key),
+            "google_maps_api_key": google_maps_api_key,
+            "selected_campo_id": campo,
+            "selected_lote_id": lote,
+        },
+    )
+
+
+@app.get("/api/v1/gis/campos-y-lotes")
+async def get_gis_campos_y_lotes_api(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado.")
+
+    campos = await fetch_campos_dicts(db)
+    lotes = await fetch_lotes_dicts(db)
+
+    for c in campos:
+        c["lotes"] = [l for l in lotes if l["campo_id"] == c["id"]]
+
+    return {
+        "status": "success",
+        "campos": campos,
+        "lotes": lotes,
+    }
+
+
+@app.put("/api/v1/gis/lotes/{lote_id}/geometria")
+async def update_lote_geometria_api(
+    lote_id: str,
+    payload: LoteGeometriaUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado.")
+
+    try:
+        l_uuid = uuid.UUID(lote_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ID de lote inválido.")
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt = select(Lote).where(Lote.id == l_uuid)
+    if user_cliente_uuid:
+        stmt = stmt.where(Lote.cliente_id == user_cliente_uuid)
+
+    res = await db.execute(stmt)
+    lote_obj = res.scalars().first()
+    if not lote_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lote no encontrado o sin permisos.")
+
+    try:
+        metricas = procesar_geometria_lote(payload.geometria_geojson)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+    lote_obj.geometria_geojson = metricas["geojson"]
+    lote_obj.superficie_calculada_gis_ha = metricas["superficie_calculada_gis_ha"]
+    lote_obj.perimetro_calculado_m = metricas["perimetro_calculado_m"]
+    lote_obj.centroide_lat = metricas["centroide_lat"]
+    lote_obj.centroide_lng = metricas["centroide_lng"]
+    lote_obj.fuente_geometria = "DIBUJO_MANUAL"
+    lote_obj.fecha_actualizacion_geometria = datetime.now(timezone.utc)
+
+    if payload.sincronizar_superficie:
+        lote_obj.superficie_productiva_ha = metricas["superficie_calculada_gis_ha"]
+        lote_obj.superficie_total_ha = max(lote_obj.superficie_total_ha, metricas["superficie_calculada_gis_ha"])
+
+    await db.commit()
+    await db.refresh(lote_obj)
+
+    campo_nombre = "Campo General"
+    if lote_obj.campo_id:
+        res_c = await db.execute(select(Campo.nombre).where(Campo.id == lote_obj.campo_id))
+        campo_nombre = res_c.scalar() or "Campo General"
+
+    return {
+        "status": "success",
+        "message": "Geometría del lote actualizada correctamente.",
+        "lote": lote_to_dict(lote_obj, campo_nombre),
+        "metricas": metricas,
+    }
+
+
+@app.post("/api/v1/gis/lotes/crear-con-poligono")
+async def create_lote_con_poligono_api(
+    request: Request,
+    payload: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado.")
+
+    campo_id_str = payload.get("campo_id")
+    nombre = payload.get("nombre", "").strip()
+    cultivo_actual = payload.get("cultivo_actual", "Soja 1ra")
+    geojson = payload.get("geometria_geojson")
+
+    if not campo_id_str or not nombre or not geojson:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Faltan datos obligatorios (campo_id, nombre, geometria_geojson).")
+
+    try:
+        c_uuid = uuid.UUID(campo_id_str)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID de campo inválido.")
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt_c = select(Campo).where(Campo.id == c_uuid)
+    if user_cliente_uuid:
+        stmt_c = stmt_c.where(Campo.cliente_id == user_cliente_uuid)
+
+    res_c = await db.execute(stmt_c)
+    campo_obj = res_c.scalars().first()
+    if not campo_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campo no encontrado.")
+
+    try:
+        metricas = procesar_geometria_lote(geojson)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+    sup_ha = metricas["superficie_calculada_gis_ha"]
+
+    nuevo_lote = Lote(
+        id=uuid.uuid4(),
+        campo_id=campo_obj.id,
+        cliente_id=campo_obj.cliente_id,
+        nombre=nombre,
+        superficie_total_ha=sup_ha,
+        superficie_productiva_ha=sup_ha,
+        cultivo_actual=cultivo_actual,
+        geometria_geojson=metricas["geojson"],
+        superficie_calculada_gis_ha=sup_ha,
+        perimetro_calculado_m=metricas["perimetro_calculado_m"],
+        centroide_lat=metricas["centroide_lat"],
+        centroide_lng=metricas["centroide_lng"],
+        fuente_geometria="DIBUJO_MANUAL",
+        fecha_actualizacion_geometria=datetime.now(timezone.utc),
+    )
+
+    db.add(nuevo_lote)
+    await db.commit()
+    await db.refresh(nuevo_lote)
+
+    return {
+        "status": "success",
+        "message": "Lote creado exitosamente con delimitación geográfica.",
+        "lote": lote_to_dict(nuevo_lote, campo_obj.nombre),
+    }
+
+
+@app.post("/api/v1/gis/lotes/{lote_id}/sincronizar-superficie")
+async def sincronizar_superficie_lote_api(
+    lote_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado.")
+
+    try:
+        l_uuid = uuid.UUID(lote_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ID de lote inválido.")
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt = select(Lote).where(Lote.id == l_uuid)
+    if user_cliente_uuid:
+        stmt = stmt.where(Lote.cliente_id == user_cliente_uuid)
+
+    res = await db.execute(stmt)
+    lote_obj = res.scalars().first()
+    if not lote_obj or not lote_obj.superficie_calculada_gis_ha:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El lote no posee geometría dibujada para sincronizar.")
+
+    lote_obj.superficie_productiva_ha = lote_obj.superficie_calculada_gis_ha
+    lote_obj.superficie_total_ha = max(lote_obj.superficie_total_ha, lote_obj.superficie_calculada_gis_ha)
+    await db.commit()
+
+    return {
+        "status": "success",
+        "message": f"Superficie productiva sincronizada a {lote_obj.superficie_calculada_gis_ha} ha.",
+    }
 
 
 @app.post("/productivo/campos")

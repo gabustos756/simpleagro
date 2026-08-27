@@ -186,3 +186,9 @@ class LoteResponse(LoteBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+
+
+class LoteGeometriaUpdate(BaseModel):
+    geometria_geojson: dict
+    sincronizar_superficie: bool = False
+
