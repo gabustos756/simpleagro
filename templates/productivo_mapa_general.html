@@ -306,14 +306,9 @@
         <div class="flex items-center justify-end space-x-3 pt-2">
           <button onclick="closeNewLotModal()" class="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
           <button onclick="saveNewLotWithPolygon()" class="px-5 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-md">Guardar Lote</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Google Maps SDK Script -->
+        <!-- Google Maps SDK Script -->
   {% if has_api_key %}
-    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&v=weekly&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&v=weekly&loading=async&callback=initMap" async defer></script>
   {% endif %}
 
   <script>
@@ -336,7 +331,7 @@
       'Soja 1ra': '#10b981',
       'Maíz Tardío': '#f59e0b',
       'Trigo 25/26': '#0284c7',
-    'Barbecho Limpio': '#8d5b4c',
+      'Barbecho Limpio': '#8d5b4c',
       'Girasol': '#ec4899',
     };
 
@@ -363,6 +358,9 @@
 
     function renderAllLotPolygons() {
       lotesData.forEach(lote => {
+        const lat = lote.latitud || lote.centroide_lat;
+        const lng = lote.longitud || lote.centroide_lng;
+
         if (lote.geometria_geojson && lote.geometria_geojson.coordinates) {
           const coordsRing = lote.geometria_geojson.coordinates[0];
           const path = coordsRing.map(pt => ({ lat: pt[1], lng: pt[0] }));
@@ -397,16 +395,43 @@
           });
 
           lotPolygonsMap[lote.id] = polygon;
-        } else if (lote.latitud && lote.longitud) {
+
+          // Etiqueta destacada en el centroide del lote
+          if (lat && lng) {
+            new google.maps.Marker({
+              position: { lat: lat, lng: lng },
+              map: map,
+              label: {
+                text: `${lote.nombre} (${lote.superficie_calculada_gis_ha || lote.superficie_productiva_ha}ha)`,
+                color: '#ffffff',
+                fontWeight: 'bold',
+                fontSize: '11px'
+              },
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 0.1, // transparente para mostrar solo etiqueta
+                fillOpacity: 0
+              }
+            });
+          }
+        } else if (lat && lng) {
+          // Lote con Latitud y Longitud asignadas pero sin polígono trazado aún
+          const color = getCropColor(lote.cultivo_actual);
           const marker = new google.maps.Marker({
-            position: { lat: lote.latitud, lng: lote.longitud },
+            position: { lat: lat, lng: lng },
             map: map,
-            title: `${lote.nombre} (Coordenada GPS)`,
+            title: `${lote.nombre} (Referencia GPS)`,
+            label: {
+              text: `📍 ${lote.nombre}`,
+              color: '#ffffff',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            },
             icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 8,
-              fillColor: getCropColor(lote.cultivo_actual),
-              fillOpacity: 0.9,
+              path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+              scale: 6,
+              fillColor: color,
+              fillOpacity: 1.0,
               strokeWeight: 2,
               strokeColor: '#ffffff'
             }
@@ -425,9 +450,19 @@
       let hasPoints = false;
 
       lotesData.forEach(l => {
-        if (l.centroide_lat && l.centroide_lng) {
-          bounds.extend({ lat: l.centroide_lat, lng: l.centroide_lng });
+        const lat = l.latitud || l.centroide_lat;
+        const lng = l.longitud || l.centroide_lng;
+
+        if (lat && lng) {
+          bounds.extend({ lat: lat, lng: lng });
           hasPoints = true;
+        }
+
+        if (l.geometria_geojson && l.geometria_geojson.coordinates) {
+          l.geometria_geojson.coordinates[0].forEach(pt => {
+            bounds.extend({ lat: pt[1], lng: pt[0] });
+            hasPoints = true;
+          });
         }
       });
 
@@ -440,6 +475,11 @@
 
       if (hasPoints) {
         map.fitBounds(bounds);
+        // Evitar zoom exagerado si hay 1 solo punto
+        const listener = google.maps.event.addListener(map, "idle", function() { 
+          if (map.getZoom() > 16) map.setZoom(16); 
+          google.maps.event.removeListener(listener); 
+        });
       }
     }
 
