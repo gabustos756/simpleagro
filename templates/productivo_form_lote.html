@@ -74,6 +74,27 @@
           </div>
         </div>
 
+        <!-- Ubicación GPS del Lote (Estilo share.farms) -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-bold uppercase text-slate-700">📍 Ubicación GPS de Referencia (Estilo share.farms)</label>
+            <span class="text-[11px] text-slate-400 font-medium">Opcional</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Latitud GPS</label>
+              <input type="number" step="any" name="latitud" value="{{ lote.latitud if (lote and lote.latitud) else '' }}" placeholder="-31.870379" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Longitud GPS</label>
+              <input type="number" step="any" name="longitud" value="{{ lote.longitud if (lote and lote.longitud) else '' }}" placeholder="-63.955180" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-mono" />
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 italic">
+            💡 Al indicar Latitud y Longitud, el Visor Satelital ubicará un marcador sobre esta parcela para delimitar sus bordes en segundos.
+          </p>
+        </div>
+
         <!-- Régimen de Tenencia -->
         <div class="space-y-3 pt-2 border-t border-slate-100">
           <label class="block text-xs font-bold uppercase text-slate-600">Régimen de Tenencia</label>
