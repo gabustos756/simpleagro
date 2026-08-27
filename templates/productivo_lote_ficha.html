@@ -54,6 +54,12 @@
         <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
           <span>✏️</span> Editar Lote
         </a>
+
+        <form method="POST" action="/productivo/lotes/{{ lote.id }}/eliminar" onsubmit="return confirm('¿Está seguro que desea eliminar el lote \'{{ lote.nombre }}\'? Esta acción no se puede deshacer.');" class="inline">
+          <button type="submit" class="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+            <span>🗑️</span> Eliminar Lote
+          </button>
+        </form>
       </div>
     </div>
 

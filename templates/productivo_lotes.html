@@ -231,11 +231,18 @@
           </div>
 
           <!-- Footer con Acción -->
-          <div class="pt-1 flex justify-between items-center text-xs">
+          <div class="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
             <span class="text-[11px] font-bold text-slate-500">Suelo: {{ l.tipo_suelo }}</span>
-            <span class="font-black text-agro-700 group-hover:translate-x-1 transition-transform flex items-center gap-1">
-              Ver Ficha →
-            </span>
+            <div class="flex items-center space-x-2">
+              <form method="POST" action="/productivo/lotes/{{ l.id }}/eliminar" onsubmit="return confirm('¿Eliminar lote \'{{ l.nombre }}\'?');" class="inline" onclick="event.stopPropagation();">
+                <button type="submit" title="Eliminar Lote" class="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 text-[10px] font-bold rounded-lg border border-red-200 transition">
+                  🗑️
+                </button>
+              </form>
+              <span class="font-black text-agro-700 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                Ver Ficha →
+              </span>
+            </div>
           </div>
 
         </a>

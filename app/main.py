@@ -1382,6 +1382,72 @@ async def sincronizar_superficie_lote_api(
     }
 
 
+@app.delete("/api/v1/gis/lotes/{lote_id}")
+async def delete_lote_gis_api(
+    lote_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado.")
+
+    try:
+        l_uuid = uuid.UUID(lote_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID de lote inválido.")
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt = select(Lote).where(Lote.id == l_uuid)
+    if user_cliente_uuid:
+        stmt = stmt.where(Lote.cliente_id == user_cliente_uuid)
+
+    res = await db.execute(stmt)
+    lote_obj = res.scalars().first()
+    if not lote_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lote no encontrado.")
+
+    nombre_lote = lote_obj.nombre
+    await db.delete(lote_obj)
+    await db.commit()
+
+    return {
+        "status": "success",
+        "message": f"El lote '{nombre_lote}' fue eliminado exitosamente."
+    }
+
+
+@app.post("/productivo/lotes/{lote_id}/eliminar")
+async def delete_lote_form(
+    lote_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        l_uuid = uuid.UUID(lote_id)
+    except Exception:
+        return RedirectResponse("/productivo/lotes?error=ID+de+lote+invalido", status_code=status.HTTP_303_SEE_OTHER)
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt = select(Lote).where(Lote.id == l_uuid)
+    if user_cliente_uuid:
+        stmt = stmt.where(Lote.cliente_id == user_cliente_uuid)
+
+    res = await db.execute(stmt)
+    lote_obj = res.scalars().first()
+    if lote_obj:
+        await db.delete(lote_obj)
+        await db.commit()
+
+    return RedirectResponse("/productivo/lotes?mensaje=Lote+eliminado+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.post("/productivo/campos")
 async def create_campo(
     request: Request,

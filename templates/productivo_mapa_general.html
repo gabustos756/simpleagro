@@ -232,13 +232,16 @@
     </div>
 
     <!-- Acciones Estilo share.farms -->
-    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
-      <div class="flex items-center space-x-3">
-        <button onclick="alert('Función de asociar fotografía habilitada.')" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition border border-slate-700 flex items-center gap-1.5">
-          📷 Agregar Foto
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="startRedrawingActiveLote()" class="px-3.5 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 text-xs font-semibold rounded-lg transition border border-blue-700/50 flex items-center gap-1.5">
+          ✏️ Redibujar Polígono
         </button>
         <button onclick="syncLotSurface()" class="px-3.5 py-1.5 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-xs font-semibold rounded-lg transition border border-emerald-700/50 flex items-center gap-1.5">
-          🔄 Sincronizar Superficie Productiva
+          🔄 Sincronizar Superficie
+        </button>
+        <button onclick="deleteActiveLoteFromMap()" class="px-3.5 py-1.5 bg-red-900/60 hover:bg-red-800 text-red-200 text-xs font-semibold rounded-lg transition border border-red-700/50 flex items-center gap-1.5">
+          🗑️ Eliminar Lote
         </button>
       </div>
       <span id="drawerFechaEdit" class="text-xs text-slate-500 font-mono">Actualizado: --</span>
@@ -617,6 +620,52 @@
       document.getElementById('modalNewLot').classList.add('hidden');
     }
 
+    function startRedrawingActiveLote() {
+      if (!activeSelectedLoteId) return;
+      const lote = lotesData.find(l => l.id === activeSelectedLoteId);
+      if (!lote) return;
+
+      // Precompletar el modal con el lote activo
+      if (document.getElementById('modalInputNombre')) {
+        document.getElementById('modalInputNombre').value = lote.nombre;
+      }
+      if (document.getElementById('modalSelectCampo') && lote.campo_id) {
+        document.getElementById('modalSelectCampo').value = lote.campo_id;
+      }
+
+      // Remover polígono temporal del mapa mientras se redibuja
+      const existingPoly = lotPolygonsMap[activeSelectedLoteId];
+      if (existingPoly) {
+        existingPoly.setMap(null);
+      }
+
+      alert(`✏️ Modo Redibujo Activo para '${lote.nombre}'. Haz clics sucesivos sobre el satélite para trazar la nueva delimitación.`);
+      toggleDrawingMode();
+    }
+
+    async function deleteActiveLoteFromMap() {
+      if (!activeSelectedLoteId) return;
+      const lote = lotesData.find(l => l.id === activeSelectedLoteId);
+      if (!lote) return;
+
+      if (!confirm(`¿Está seguro que desea eliminar el lote '${lote.nombre}'? Esta acción no se puede deshacer.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/gis/lotes/${activeSelectedLoteId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message || 'Lote eliminado exitosamente.');
+          window.location.reload();
+        } else {
+          alert(`Error: ${data.detail || 'No se pudo eliminar el lote.'}`);
+        }
+      } catch (e) {
+        alert('Error de conexión al eliminar el lote.');
+      }
+    }
+
     async function saveNewLotWithPolygon() {
       const campoId = document.getElementById('modalSelectCampo').value;
       const nombre = document.getElementById('modalInputNombre').value.trim();
@@ -634,6 +683,28 @@
         coordinates: [currentDrawingCoordinates]
       };
 
+      // Si estamos redibujando un lote existente
+      if (activeSelectedLoteId) {
+        try {
+          const res = await fetch(`/api/v1/gis/lotes/${activeSelectedLoteId}/geometria`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ geometria_geojson: geojsonPayload })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            alert(`¡Polígono de '${nombre}' actualizado exitosamente!`);
+            window.location.reload();
+          } else {
+            alert(`Error: ${data.detail || 'No se pudo actualizar la geometría del lote.'}`);
+          }
+        } catch (e) {
+          alert('Error de conexión al actualizar el lote.');
+        }
+        return;
+      }
+
+      // Si es la creación de un lote nuevo
       try {
         const res = await fetch('/api/v1/gis/lotes/crear-con-poligono', {
           method: 'POST',

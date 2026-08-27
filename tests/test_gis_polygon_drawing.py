@@ -253,3 +253,33 @@ async def test_7_create_and_edit_lote_with_lat_lng_coordinates():
                 assert lote_db["centroide_lat"] == -31.870379
                 assert lote_db["centroide_lng"] == -63.955180
 
+
+@pytest.mark.asyncio
+async def test_8_delete_lote_api_and_form():
+    """Verifica la eliminación segura de lotes vía REST API DELETE y Form POST."""
+    async with AsyncSessionLocal() as db:
+        cliente = await get_or_create_test_cliente(db)
+        campo = await get_or_create_test_campo(db, cliente.id)
+        lote = await get_or_create_test_lote(db, campo.id, cliente.id)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        with patch("app.main.get_current_user_from_session") as mock_user:
+            mock_user.return_value = {
+                "id": str(uuid.uuid4()),
+                "email": "productor@eduagro.com",
+                "cliente_id": str(cliente.id),
+                "rol": "productor",
+            }
+
+            # Eliminar lote vía DELETE /api/v1/gis/lotes/{id}
+            response = await ac.delete(f"/api/v1/gis/lotes/{lote.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "success"
+
+            # Verificar eliminación en la BD
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(Lote.__table__.select().where(Lote.id == lote.id))
+                assert res.first() is None
+
+
