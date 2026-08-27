@@ -353,6 +353,38 @@
         streetViewControl: false,
       });
 
+      // Inicializar DrawingManager de Google Maps para trazado de polígonos
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: false,
+        polygonOptions: {
+          strokeColor: '#3b82f6',
+          strokeOpacity: 1.0,
+          strokeWeight: 3,
+          fillColor: '#60a5fa',
+          fillOpacity: 0.4,
+          editable: true,
+          draggable: true,
+          zIndex: 10
+        }
+      });
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
+        if (activePolygon) activePolygon.setMap(null);
+        activePolygon = polygon;
+
+        // Desactivar modo dibujo para permitir edición de vértices
+        drawingManager.setDrawingMode(null);
+
+        const path = polygon.getPath();
+        google.maps.event.addListener(path, 'set_at', updateDrawingMetrics);
+        google.maps.event.addListener(path, 'insert_at', updateDrawingMetrics);
+        google.maps.event.addListener(path, 'remove_at', updateDrawingMetrics);
+
+        updateDrawingMetrics();
+      });
+
       renderAllLotPolygons();
       zoomToAllBounds();
     }
@@ -454,26 +486,15 @@
     }
 
     function startDrawingPolygon() {
-      if (activePolygon) activePolygon.setMap(null);
+      if (activePolygon) {
+        activePolygon.setMap(null);
+        activePolygon = null;
+      }
       currentDrawingCoordinates = [];
 
-      activePolygon = new google.maps.Polygon({
-        paths: [],
-        strokeColor: '#3b82f6',
-        strokeOpacity: 1.0,
-        strokeWeight: 3,
-        fillColor: '#60a5fa',
-        fillOpacity: 0.4,
-        editable: true,
-        map: map
-      });
-
-      const clickListener = map.addListener('click', (e) => {
-        if (!isDrawingMode) return;
-        const path = activePolygon.getPath();
-        path.push(e.latLng);
-        updateDrawingMetrics();
-      });
+      if (drawingManager) {
+        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+      }
     }
 
     function updateDrawingMetrics() {
@@ -496,7 +517,7 @@
       document.getElementById('liveAreaHa').innerText = `${ha} ha`;
       document.getElementById('livePerimeterKm').innerText = `${km} km`;
 
-      if (numPts >= 4 && !document.getElementById('btnSaveDrawing')) {
+      if (numPts >= 3 && !document.getElementById('btnSaveDrawing')) {
         const badge = document.getElementById('drawingLiveBadge');
         const saveBtn = document.createElement('button');
         saveBtn.id = 'btnSaveDrawing';
@@ -508,6 +529,7 @@
     }
 
     function finishDrawingAndOpenModal() {
+      if (!activePolygon) return;
       const path = activePolygon.getPath();
       if (path.getLength() < 3) return;
 
@@ -535,6 +557,10 @@
       document.getElementById('drawingLiveBadge').classList.add('hidden');
       const saveBtn = document.getElementById('btnSaveDrawing');
       if (saveBtn) saveBtn.remove();
+
+      if (drawingManager) {
+        drawingManager.setDrawingMode(null);
+      }
 
       if (activePolygon) {
         activePolygon.setMap(null);
