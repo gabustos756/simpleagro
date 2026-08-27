@@ -21,40 +21,41 @@
 <body class="h-full flex flex-col bg-slate-50 text-slate-800 antialiased overflow-hidden">
 
   <!-- Header Institucional -->
-  <header class="bg-slate-900 text-white border-b border-slate-800 px-6 py-3.5 flex items-center justify-between z-20 shadow-md">
-    <div class="flex items-center space-x-4">
-      <a href="/productivo/campos" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <!-- Header Institucional Responsivo -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-wrap items-center justify-between z-20 shadow-md gap-2">
+    <div class="flex items-center space-x-2 sm:space-x-4">
+      <a href="/productivo/campos" class="p-1.5 sm:p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
         </svg>
       </a>
-      <div class="flex items-center space-x-3">
-        <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <div class="p-1.5 sm:p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
           </svg>
         </div>
         <div>
-          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            Mapa General de Campos y Lotes
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Visor GIS Interactivo</span>
+          <h1 class="text-sm sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5 sm:gap-2">
+            <span>Mapa General</span>
+            <span class="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">GIS</span>
           </h1>
-          <p class="text-xs text-slate-400">Delimitación de parcelas, superficies ($ha$) y perímetros en tiempo real</p>
+          <p class="hidden md:block text-xs text-slate-400">Delimitación de parcelas, superficies (ha) y perímetros en tiempo real</p>
         </div>
       </div>
     </div>
 
     <!-- Barra de Herramientas del Mapa -->
-    <div class="flex items-center space-x-3">
-      <button id="btnToggleDrawing" onclick="toggleDrawingMode()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow-sm transition flex items-center gap-2">
+    <div class="flex items-center space-x-2 shrink-0">
+      <button id="btnToggleDrawing" onclick="toggleDrawingMode()" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs sm:text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
         </svg>
         <span id="btnDrawingText">✏️ Dibujar Lote</span>
       </button>
 
-      <a href="/productivo/campos" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition">
-        Volver a Campos
+      <a href="/productivo/campos" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs sm:text-sm font-medium transition">
+        Campos
       </a>
     </div>
   </header>
@@ -63,7 +64,7 @@
   <main class="flex-1 flex overflow-hidden relative">
 
     <!-- Mapa Satelital de Google Maps (Izquierda / Centro) -->
-    <div class="flex-1 relative bg-slate-200">
+    <div class="flex-1 relative bg-slate-200 w-full h-full">
       {% if has_api_key %}
         <div id="map" class="w-full h-full"></div>
       {% else %}
@@ -79,15 +80,15 @@
       {% endif %}
 
       <!-- Badge de métrica en tiempo real mientras se dibuja -->
-      <div id="drawingLiveBadge" class="hidden absolute top-4 left-4 z-10 bg-slate-900/90 backdrop-blur text-white px-4 py-3 rounded-xl shadow-xl border border-emerald-500/30 flex items-center space-x-4">
+      <div id="drawingLiveBadge" class="hidden absolute top-4 left-4 z-10 bg-slate-900/90 backdrop-blur text-white px-3 sm:px-4 py-2 sm:py-3 rounded-xl shadow-xl border border-emerald-500/30 flex items-center space-x-3 sm:space-x-4">
         <div>
-          <span class="text-xs uppercase tracking-wider text-slate-400 block font-semibold">Superficie En Dibujo</span>
-          <span id="liveAreaHa" class="text-lg font-bold text-emerald-400">0.00 ha</span>
+          <span class="text-[10px] sm:text-xs uppercase tracking-wider text-slate-400 block font-semibold">Superficie</span>
+          <span id="liveAreaHa" class="text-base sm:text-lg font-bold text-emerald-400">0.00 ha</span>
         </div>
         <div class="h-8 w-px bg-slate-700"></div>
         <div>
-          <span class="text-xs uppercase tracking-wider text-slate-400 block font-semibold">Perímetro</span>
-          <span id="livePerimeterKm" class="text-base font-bold text-slate-200">0.00 km</span>
+          <span class="text-[10px] sm:text-xs uppercase tracking-wider text-slate-400 block font-semibold">Perímetro</span>
+          <span id="livePerimeterKm" class="text-sm sm:text-base font-bold text-slate-200">0.00 km</span>
         </div>
         <button onclick="cancelDrawing()" class="ml-2 text-slate-400 hover:text-red-400 transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -95,18 +96,29 @@
       </div>
     </div>
 
-    <!-- Panel Lateral Derecho: Campos y Lotes -->
-    <aside class="w-96 bg-white border-l border-slate-200 flex flex-col shadow-lg z-10">
+    <!-- Botón Flotante Mobile para Abrir/Cerrar Lista de Lotes -->
+    <button id="btnMobileToggle" onclick="toggleMobileSidebar()" class="lg:hidden fixed bottom-6 right-4 z-40 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow-2xl border border-emerald-400 flex items-center gap-2">
+      <span>📋</span>
+      <span id="btnMobileToggleText">Lista de Lotes ({{ lotes|length }})</span>
+    </button>
+
+    <!-- Panel Lateral Derecho: Campos y Lotes (Adaptativo para Mobile) -->
+    <aside id="lotesSidebar" class="hidden lg:flex w-full lg:w-96 bg-white border-l border-slate-200 flex-col shadow-2xl lg:shadow-lg z-30 fixed lg:static inset-y-0 right-0 top-14 lg:top-0 transition-all duration-300">
       <!-- Encabezado del Panel -->
       <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
         <div>
           <h2 class="font-bold text-slate-800 text-base">Campos y Lotes</h2>
           <span class="text-xs text-slate-500 font-medium">{{ lotes|length }} parcelas registradas</span>
         </div>
-        <button onclick="zoomToAllBounds()" class="p-2 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg transition shadow-sm flex items-center gap-1">
-          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-          Ver Todos
-        </button>
+        <div class="flex items-center space-x-2">
+          <button onclick="zoomToAllBounds()" class="p-2 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg transition shadow-sm flex items-center gap-1">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+            Ver Todos
+          </button>
+          <button onclick="toggleMobileSidebar()" class="lg:hidden p-2 text-slate-500 hover:text-slate-800 font-bold text-sm">
+            ✕
+          </button>
+        </div>
       </div>
 
       <!-- Buscador Rápido -->
@@ -190,15 +202,15 @@
     </aside>
   </main>
 
-  <!-- Ficha Desplegable Inferior Estilo share.farms -->
-  <div id="shareFarmsDrawer" class="hidden absolute bottom-4 left-6 right-104 bg-slate-900/95 backdrop-blur text-white rounded-2xl shadow-2xl border border-slate-700/60 p-5 transition-all duration-300 z-20">
-    <div class="flex items-start justify-between border-b border-slate-800 pb-3 mb-4">
+  <!-- Ficha Desplegable Inferior Estilo share.farms (Adaptativa) -->
+  <div id="shareFarmsDrawer" class="hidden fixed bottom-3 left-3 right-3 lg:left-6 lg:right-98 max-w-4xl bg-slate-900/95 backdrop-blur text-white rounded-2xl shadow-2xl border border-slate-700/60 p-4 sm:p-5 transition-all duration-300 z-20 max-h-[80vh] overflow-y-auto">
+    <div class="flex items-start justify-between border-b border-slate-800 pb-2 sm:pb-3 mb-3 sm:mb-4">
       <div class="flex items-center space-x-3">
-        <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+        <div class="p-2 sm:p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
         </div>
         <div>
-          <h2 id="drawerLoteNombre" class="text-xl font-bold text-white tracking-tight">Nombre del Lote</h2>
+          <h2 id="drawerLoteNombre" class="text-base sm:text-xl font-bold text-white tracking-tight">Nombre del Lote</h2>
           <p id="drawerCampoNombre" class="text-xs text-slate-400 font-medium">Establecimiento</p>
         </div>
       </div>
@@ -207,27 +219,27 @@
       </button>
     </div>
 
-    <div class="grid grid-cols-4 gap-4 text-sm mb-4">
-      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Área GIS</span>
-        <span id="drawerAreaHa" class="text-lg font-bold text-emerald-400">0.00 ha</span>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 text-sm mb-3 sm:mb-4">
+      <div class="bg-slate-800/80 p-2.5 sm:p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[10px] sm:text-[11px] text-slate-400 font-semibold uppercase block">Área GIS</span>
+        <span id="drawerAreaHa" class="text-base sm:text-lg font-bold text-emerald-400">0.00 ha</span>
       </div>
-      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Perímetro GIS</span>
-        <span id="drawerPerimetroKm" class="text-lg font-bold text-slate-200">0.00 km</span>
+      <div class="bg-slate-800/80 p-2.5 sm:p-3 rounded-xl border border-slate-700/50">
+        <span class="text-[10px] sm:text-[11px] text-slate-400 font-semibold uppercase block">Perímetro GIS</span>
+        <span id="drawerPerimetroKm" class="text-base sm:text-lg font-bold text-slate-200">0.00 km</span>
       </div>
-      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 flex flex-col justify-between">
+      <div class="bg-slate-800/80 p-2.5 sm:p-3 rounded-xl border border-slate-700/50 flex flex-col justify-between col-span-2 sm:col-span-1">
         <div class="flex items-center justify-between">
-          <span class="text-[11px] text-slate-400 font-semibold uppercase block">Coordenadas (share.farms)</span>
+          <span class="text-[10px] sm:text-[11px] text-slate-400 font-semibold uppercase block">GPS (share.farms)</span>
           <button onclick="copyDrawerCoordinates()" title="Copiar Coordenadas GPS" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-slate-700/60 px-1.5 py-0.5 rounded transition">
             📋 <span id="copyCoordsBtnText">Copiar</span>
           </button>
         </div>
         <span id="drawerCoordenadas" class="text-xs font-mono font-medium text-slate-200 block mt-1 tracking-tight">--</span>
       </div>
-      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Cultivo Actual</span>
-        <span id="drawerCultivo" class="text-base font-bold text-amber-300">--</span>
+      <div class="bg-slate-800/80 p-2.5 sm:p-3 rounded-xl border border-slate-700/50 col-span-2 sm:col-span-1">
+        <span class="text-[10px] sm:text-[11px] text-slate-400 font-semibold uppercase block">Cultivo Actual</span>
+        <span id="drawerCultivo" class="text-sm sm:text-base font-bold text-amber-300">--</span>
       </div>
     </div>
 
@@ -771,10 +783,31 @@
       if (card) card.classList.remove('lot-card-active');
     }
 
+    function toggleMobileSidebar() {
+      const sidebar = document.getElementById('lotesSidebar');
+      if (!sidebar) return;
+      sidebar.classList.toggle('hidden');
+      const isHidden = sidebar.classList.contains('hidden');
+      const btnText = document.getElementById('btnMobileToggleText');
+      if (btnText) {
+        btnText.innerText = isHidden ? `Lista de Lotes (${lotesData.length})` : 'Ver Mapa';
+      }
+    }
+
     function selectLotAndShowDrawer(loteId) {
       activeSelectedLoteId = loteId;
       const lote = lotesData.find(l => l.id === loteId);
       if (!lote) return;
+
+      // Ocultar sidebar en móviles para mostrar mapa y drawer despejados
+      if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('lotesSidebar');
+        if (sidebar && !sidebar.classList.contains('hidden')) {
+          sidebar.classList.add('hidden');
+          const btnText = document.getElementById('btnMobileToggleText');
+          if (btnText) btnText.innerText = `Lista de Lotes (${lotesData.length})`;
+        }
+      }
 
       // Resaltar en Sidebar
       document.querySelectorAll('.lot-card-hover').forEach(c => c.classList.remove('lot-card-active'));
