@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # Cargar variables de entorno desde .env
 load_dotenv()
 
-from fastapi import FastAPI, Request, Form, status, Depends, UploadFile, File
+from fastapi import FastAPI, Request, Form, status, Depends, UploadFile, File, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
@@ -1082,6 +1082,70 @@ async def list_campos(request: Request, db: AsyncSession = Depends(get_db)):
             "campos": campos,
             "ha_totales_suma": ha_totales_suma,
             "ha_productivas_suma": ha_productivas_suma,
+        },
+    )
+
+
+@app.get("/campos/{campo_id}/mapa", response_class=HTMLResponse)
+async def ver_campo_mapa_satelital(
+    campo_id: str,
+    request: Request,
+    lote: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse(f"/login?next=/campos/{campo_id}/mapa", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        c_uuid = uuid.UUID(campo_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campo no encontrado o ID de campo inválido.")
+
+    user_cliente_uuid = get_uuid(user["cliente_id"]) if user.get("cliente_id") else None
+
+    stmt = select(Campo).where(Campo.id == c_uuid)
+    if user_cliente_uuid:
+        stmt = stmt.where(Campo.cliente_id == user_cliente_uuid)
+
+    res = await db.execute(stmt)
+    campo_obj = res.scalar_one_or_none()
+
+    if not campo_obj:
+        # Verificar si el campo existe en la BD pero pertenece a otro cliente/tenant
+        res_any = await db.execute(select(Campo).where(Campo.id == c_uuid))
+        if res_any.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No posee permisos para acceder a la información geográfica de este establecimiento."
+            )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campo no encontrado.")
+
+    res_lotes = await db.execute(select(Lote).where(Lote.campo_id == c_uuid))
+    lotes_objs = res_lotes.scalars().all()
+    lotes_dicts = [lote_to_dict(l, campo_obj.nombre) for l in lotes_objs]
+    ha_productivas_suma = sum(l["superficie_productiva_ha"] for l in lotes_dicts)
+
+    has_coordinates = campo_obj.latitud is not None and campo_obj.longitud is not None
+    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+    has_api_key = bool(google_maps_api_key)
+
+    campo_dict = campo_to_dict(campo_obj, len(lotes_objs))
+    campo_activo = await get_campo_activo_db(request, db)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="campo_mapa_satelital.html",
+        context={
+            "user": user,
+            "campo_activo": campo_activo,
+            "campo": campo_dict,
+            "lotes": lotes_dicts,
+            "ha_productivas_suma": ha_productivas_suma,
+            "has_coordinates": has_coordinates,
+            "has_api_key": has_api_key,
+            "google_maps_api_key": google_maps_api_key,
+            "selected_lote_id": lote,
         },
     )
 
