@@ -216,9 +216,14 @@
         <span class="text-[11px] text-slate-400 font-semibold uppercase block">Perímetro GIS</span>
         <span id="drawerPerimetroKm" class="text-lg font-bold text-slate-200">0.00 km</span>
       </div>
-      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-        <span class="text-[11px] text-slate-400 font-semibold uppercase block">Coordenadas Centroide</span>
-        <span id="drawerCoordenadas" class="text-xs font-mono font-medium text-slate-300 block mt-1">--</span>
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] text-slate-400 font-semibold uppercase block">Coordenadas (share.farms)</span>
+          <button onclick="copyDrawerCoordinates()" title="Copiar Coordenadas GPS" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-slate-700/60 px-1.5 py-0.5 rounded transition">
+            📋 <span id="copyCoordsBtnText">Copiar</span>
+          </button>
+        </div>
+        <span id="drawerCoordenadas" class="text-xs font-mono font-medium text-slate-200 block mt-1 tracking-tight">--</span>
       </div>
       <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
         <span class="text-[11px] text-slate-400 font-semibold uppercase block">Cultivo Actual</span>
@@ -263,6 +268,17 @@
         <div>
           <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Nombre del Lote</label>
           <input type="text" id="modalInputNombre" placeholder="Ej: Venier 1, Graso Norte..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Latitud GPS (Opcional)</label>
+            <input type="number" step="any" id="modalInputLat" placeholder="-31.870379" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Longitud GPS (Opcional)</label>
+            <input type="number" step="any" id="modalInputLng" placeholder="-63.955180" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono">
+          </div>
         </div>
 
         <div>
@@ -343,41 +359,59 @@
 
     function renderAllLotPolygons() {
       lotesData.forEach(lote => {
-        if (!lote.geometria_geojson || !lote.geometria_geojson.coordinates) return;
+        if (lote.geometria_geojson && lote.geometria_geojson.coordinates) {
+          const coordsRing = lote.geometria_geojson.coordinates[0];
+          const path = coordsRing.map(pt => ({ lat: pt[1], lng: pt[0] }));
+          const color = getCropColor(lote.cultivo_actual);
 
-        const coordsRing = lote.geometria_geojson.coordinates[0];
-        const path = coordsRing.map(pt => ({ lat: pt[1], lng: pt[0] }));
-        const color = getCropColor(lote.cultivo_actual);
+          const polygon = new google.maps.Polygon({
+            paths: path,
+            strokeColor: color,
+            strokeOpacity: 0.9,
+            strokeWeight: 3,
+            fillColor: color,
+            fillOpacity: 0.35,
+            map: map,
+            zIndex: 1
+          });
 
-        const polygon = new google.maps.Polygon({
-          paths: path,
-          strokeColor: color,
-          strokeOpacity: 0.9,
-          strokeWeight: 3,
-          fillColor: color,
-          fillOpacity: 0.35,
-          map: map,
-          zIndex: 1
-        });
+          // Eventos Hover
+          polygon.addListener('mouseover', () => {
+            polygon.setOptions({ fillOpacity: 0.6, strokeWeight: 4 });
+            highlightLotSidebarCard(lote.id);
+          });
 
-        // Eventos Hover
-        polygon.addListener('mouseover', () => {
-          polygon.setOptions({ fillOpacity: 0.6, strokeWeight: 4 });
-          highlightLotSidebarCard(lote.id);
-        });
+          polygon.addListener('mouseout', () => {
+            if (activeSelectedLoteId !== lote.id) {
+              polygon.setOptions({ fillOpacity: 0.35, strokeWeight: 3 });
+              unhighlightLotSidebarCard(lote.id);
+            }
+          });
 
-        polygon.addListener('mouseout', () => {
-          if (activeSelectedLoteId !== lote.id) {
-            polygon.setOptions({ fillOpacity: 0.35, strokeWeight: 3 });
-            unhighlightLotSidebarCard(lote.id);
-          }
-        });
+          polygon.addListener('click', () => {
+            selectLotAndShowDrawer(lote.id);
+          });
 
-        polygon.addListener('click', () => {
-          selectLotAndShowDrawer(lote.id);
-        });
+          lotPolygonsMap[lote.id] = polygon;
+        } else if (lote.latitud && lote.longitud) {
+          const marker = new google.maps.Marker({
+            position: { lat: lote.latitud, lng: lote.longitud },
+            map: map,
+            title: `${lote.nombre} (Coordenada GPS)`,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: getCropColor(lote.cultivo_actual),
+              fillOpacity: 0.9,
+              strokeWeight: 2,
+              strokeColor: '#ffffff'
+            }
+          });
 
-        lotPolygonsMap[lote.id] = polygon;
+          marker.addListener('click', () => {
+            selectLotAndShowDrawer(lote.id);
+          });
+        }
       });
     }
 
@@ -516,6 +550,8 @@
       const campoId = document.getElementById('modalSelectCampo').value;
       const nombre = document.getElementById('modalInputNombre').value.trim();
       const cultivo = document.getElementById('modalSelectCultivo').value;
+      const latVal = document.getElementById('modalInputLat').value ? parseFloat(document.getElementById('modalInputLat').value) : null;
+      const lngVal = document.getElementById('modalInputLng').value ? parseFloat(document.getElementById('modalInputLng').value) : null;
 
       if (!nombre) {
         alert('Por favor ingrese el nombre del lote.');
@@ -535,6 +571,8 @@
             campo_id: campoId,
             nombre: nombre,
             cultivo_actual: cultivo,
+            latitud: latVal,
+            longitud: lngVal,
             geometria_geojson: geojsonPayload
           })
         });
@@ -549,6 +587,18 @@
       } catch (e) {
         alert('Error de conexión al guardar el lote.');
       }
+    }
+
+    function copyDrawerCoordinates() {
+      const coordsText = document.getElementById('drawerCoordenadas').innerText;
+      if (!coordsText || coordsText === '--') return;
+      navigator.clipboard.writeText(coordsText).then(() => {
+        const btnText = document.getElementById('copyCoordsBtnText');
+        if (btnText) {
+          btnText.innerText = '¡Copiado!';
+          setTimeout(() => { btnText.innerText = 'Copiar'; }, 2000);
+        }
+      });
     }
 
     function highlightLotOnMap(loteId) {
@@ -588,18 +638,21 @@
       document.querySelectorAll('.lot-card-hover').forEach(c => c.classList.remove('lot-card-active'));
       highlightLotSidebarCard(loteId);
 
+      const lat = lote.latitud || lote.centroide_lat;
+      const lng = lote.longitud || lote.centroide_lng;
+
       // Centrar mapa
-      if (lote.centroide_lat && lote.centroide_lng) {
-        map.panTo({ lat: lote.centroide_lat, lng: lote.centroide_lng });
+      if (lat && lng) {
+        map.panTo({ lat: lat, lng: lng });
         map.setZoom(15);
       }
 
-      // Llenar Drawer
+      // Llenar Drawer Estilo share.farms
       document.getElementById('drawerLoteNombre').innerText = lote.nombre;
       document.getElementById('drawerCampoNombre').innerText = lote.campo_nombre || 'Establecimiento';
       document.getElementById('drawerAreaHa').innerText = `${lote.superficie_calculada_gis_ha || lote.superficie_productiva_ha} ha`;
       document.getElementById('drawerPerimetroKm').innerText = lote.perimetro_calculado_km ? `${lote.perimetro_calculado_km} km` : '--';
-      document.getElementById('drawerCoordenadas').innerText = (lote.centroide_lat && lote.centroide_lng) ? `Lat: ${lote.centroide_lat}, Lng: ${lote.centroide_lng}` : '--';
+      document.getElementById('drawerCoordenadas').innerText = (lat && lng) ? `lat.: ${lat.toFixed(6)}  long.: ${lng.toFixed(6)}` : '--';
       document.getElementById('drawerCultivo').innerText = lote.cultivo_actual || 'Soja 1ra';
       document.getElementById('drawerFechaEdit').innerText = `Actualizado: ${lote.fecha_actualizacion_geometria || 'Hoy'}`;
 

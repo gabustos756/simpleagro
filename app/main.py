@@ -229,6 +229,8 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
         "perimetro_calculado_km": round(float(l.perimetro_calculado_m) / 1000.0, 3) if getattr(l, "perimetro_calculado_m", None) is not None else None,
         "centroide_lat": float(l.centroide_lat) if getattr(l, "centroide_lat", None) is not None else None,
         "centroide_lng": float(l.centroide_lng) if getattr(l, "centroide_lng", None) is not None else None,
+        "latitud": float(l.centroide_lat) if getattr(l, "centroide_lat", None) is not None else (l.geolocalizacion_lat_lng.get("lat") if isinstance(getattr(l, "geolocalizacion_lat_lng", None), dict) else None),
+        "longitud": float(l.centroide_lng) if getattr(l, "centroide_lng", None) is not None else (l.geolocalizacion_lat_lng.get("lng") if isinstance(getattr(l, "geolocalizacion_lat_lng", None), dict) else None),
         "fuente_geometria": getattr(l, "fuente_geometria", None) or "DIBUJO_MANUAL",
         "fecha_actualizacion_geometria": str(l.fecha_actualizacion_geometria) if getattr(l, "fecha_actualizacion_geometria", None) else None,
         "estado_productivo": "en_crecimiento",
@@ -2718,6 +2720,8 @@ async def create_lote(
     cultivo_planificado: Optional[str] = Form(""),
     qq_ha_estimado: Optional[float] = Form(0.0),
     qq_ha_real: Optional[float] = Form(0.0),
+    latitud: Optional[float] = Form(None),
+    longitud: Optional[float] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     user = await get_current_user_from_session(request, db)
@@ -2732,6 +2736,9 @@ async def create_lote(
 
     venc_alq = date.fromisoformat(vencimiento_alquiler) if vencimiento_alquiler else None
     ten_enum = TenenciaTipoEnum.PROPIO if tenencia_tipo == "propio" else TenenciaTipoEnum.ALQUILADO
+
+    lat_val = float(latitud) if latitud is not None else None
+    lng_val = float(longitud) if longitud is not None else None
 
     nuevo_lote = Lote(
         id=l_uuid,
@@ -2751,6 +2758,9 @@ async def create_lote(
         qq_ha_estimado=float(qq_ha_estimado or 0.0),
         qq_ha_real=r_real,
         produccion_total_qq=prod_qq,
+        centroide_lat=lat_val,
+        centroide_lng=lng_val,
+        geolocalizacion_lat_lng={"lat": lat_val, "lng": lng_val} if (lat_val is not None and lng_val is not None) else None,
         observaciones="Lote registrado en el Módulo Productivo de EduAgro",
     )
     db.add(nuevo_lote)
@@ -2941,6 +2951,8 @@ async def update_lote(
     cultivo_planificado: Optional[str] = Form(""),
     qq_ha_estimado: Optional[float] = Form(0.0),
     qq_ha_real: Optional[float] = Form(0.0),
+    latitud: Optional[float] = Form(None),
+    longitud: Optional[float] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     user = await get_current_user_from_session(request, db)
@@ -2971,6 +2983,14 @@ async def update_lote(
         lote_obj.qq_ha_estimado = float(qq_ha_estimado or 0.0)
         lote_obj.qq_ha_real = r_real
         lote_obj.produccion_total_qq = prod_qq
+
+        if latitud is not None and longitud is not None:
+            lat_val = float(latitud)
+            lng_val = float(longitud)
+            lote_obj.centroide_lat = lat_val
+            lote_obj.centroide_lng = lng_val
+            lote_obj.geolocalizacion_lat_lng = {"lat": lat_val, "lng": lng_val}
+
         await db.commit()
 
     return RedirectResponse(f"/productivo/lotes/{lote_id}", status_code=status.HTTP_303_SEE_OTHER)

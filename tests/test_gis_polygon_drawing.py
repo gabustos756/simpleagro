@@ -213,3 +213,43 @@ async def test_6_sync_surface_api():
             assert response.status_code == 200
             data = response.json()
             assert "sincronizada" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_7_create_and_edit_lote_with_lat_lng_coordinates():
+    """Verifica la asignación y edición de coordenadas GPS latitud/longitud en lote."""
+    async with AsyncSessionLocal() as db:
+        cliente = await get_or_create_test_cliente(db)
+        campo = await get_or_create_test_campo(db, cliente.id)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        with patch("app.main.get_current_user_from_session") as mock_user:
+            mock_user.return_value = {
+                "id": str(uuid.uuid4()),
+                "email": "productor@eduagro.com",
+                "cliente_id": str(cliente.id),
+                "rol": "productor",
+            }
+
+            form_data = {
+                "nombre": "Lote Venier GPS QA",
+                "campo_id": str(campo.id),
+                "superficie_total_ha": "50.0",
+                "superficie_productiva_ha": "48.5",
+                "tenencia_tipo": "propio",
+                "latitud": "-31.870379",
+                "longitud": "-63.955180",
+                "cultivo_actual": "Soja 1ra"
+            }
+
+            response = await ac.post("/productivo/lotes/nuevo", data=form_data, follow_redirects=False)
+            assert response.status_code in [302, 303]
+            lote_id = response.headers["location"].split("/")[-1]
+
+            # Verificar en DB que se guardaron las coordenadas GPS
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(Lote.__table__.select().where(Lote.id == uuid.UUID(lote_id)))
+                lote_db = res.mappings().first()
+                assert lote_db["centroide_lat"] == -31.870379
+                assert lote_db["centroide_lng"] == -63.955180
+

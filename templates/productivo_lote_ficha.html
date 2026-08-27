@@ -68,6 +68,14 @@
             <span>{{ lote.nombre }}</span>
           </h1>
           <p class="text-xs text-slate-500 mt-0.5">Suelo: <strong class="text-slate-800 font-bold">{{ lote.tipo_suelo or 'Argiudol Típico' }}</strong></p>
+          {% if lote.latitud and lote.longitud %}
+            <div class="mt-2 inline-flex items-center gap-2 bg-slate-900 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-mono">
+              <span>📍 lat.: <strong>{{ "%.6f"|format(lote.latitud) }}</strong>  long.: <strong>{{ "%.6f"|format(lote.longitud) }}</strong></span>
+              <button onclick="navigator.clipboard.writeText('lat.: {{ lote.latitud }} long.: {{ lote.longitud }}'); alert('¡Coordenadas GPS copiadas!');" title="Copiar Coordenadas GPS" class="text-emerald-400 hover:text-emerald-300 font-bold text-2xs bg-slate-800 px-2 py-0.5 rounded border border-slate-700 transition">
+                📋 Copiar
+              </button>
+            </div>
+          {% endif %}
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
