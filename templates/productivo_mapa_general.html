@@ -313,13 +313,11 @@
 
   <!-- Google Maps SDK Script -->
   {% if has_api_key %}
-    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=drawing,geometry&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&v=weekly&callback=initMap" async defer></script>
   {% endif %}
 
   <script>
     let map = null;
-    let drawingManager = null;
-    let activePolygon = null;
     let lotPolygonsMap = {}; // lote_id -> google.maps.Polygon
     let lotesData = {{ lotes|tojson|safe }};
     let camposData = {{ campos|tojson|safe }};
@@ -327,12 +325,18 @@
     let isDrawingMode = false;
     let activeSelectedLoteId = null;
 
+    // Variables del motor de dibujo directo
+    let drawingPath = [];
+    let drawingMarkers = [];
+    let drawingPolyline = null;
+    let mapClickListener = null;
+
     // Paleta de colores según cultivo
     const CROP_COLORS = {
       'Soja 1ra': '#10b981',
       'Maíz Tardío': '#f59e0b',
       'Trigo 25/26': '#0284c7',
-      'Barbecho Limpio': '#8d5b4c',
+    'Barbecho Limpio': '#8d5b4c',
       'Girasol': '#ec4899',
     };
 
@@ -351,38 +355,6 @@
         mapTypeControl: true,
         mapTypeControlOptions: { style: google.maps.MapTypeControlStyle.DROPDOWN_MENU },
         streetViewControl: false,
-      });
-
-      // Inicializar DrawingManager de Google Maps para trazado de polígonos
-      drawingManager = new google.maps.drawing.DrawingManager({
-        drawingMode: null,
-        drawingControl: false,
-        polygonOptions: {
-          strokeColor: '#3b82f6',
-          strokeOpacity: 1.0,
-          strokeWeight: 3,
-          fillColor: '#60a5fa',
-          fillOpacity: 0.4,
-          editable: true,
-          draggable: true,
-          zIndex: 10
-        }
-      });
-      drawingManager.setMap(map);
-
-      google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
-        if (activePolygon) activePolygon.setMap(null);
-        activePolygon = polygon;
-
-        // Desactivar modo dibujo para permitir edición de vértices
-        drawingManager.setDrawingMode(null);
-
-        const path = polygon.getPath();
-        google.maps.event.addListener(path, 'set_at', updateDrawingMetrics);
-        google.maps.event.addListener(path, 'insert_at', updateDrawingMetrics);
-        google.maps.event.addListener(path, 'remove_at', updateDrawingMetrics);
-
-        updateDrawingMetrics();
       });
 
       renderAllLotPolygons();
@@ -486,21 +458,48 @@
     }
 
     function startDrawingPolygon() {
-      if (activePolygon) {
-        activePolygon.setMap(null);
-        activePolygon = null;
-      }
-      currentDrawingCoordinates = [];
+      cancelDrawingStateOnly();
 
-      if (drawingManager) {
-        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-      }
+      isDrawingMode = true;
+      drawingPath = [];
+      drawingMarkers = [];
+
+      map.setOptions({ draggableCursor: 'crosshair' });
+
+      drawingPolyline = new google.maps.Polyline({
+        path: drawingPath,
+        strokeColor: '#3b82f6',
+        strokeOpacity: 1.0,
+        strokeWeight: 3,
+        map: map
+      });
+
+      mapClickListener = map.addListener('click', (e) => {
+        if (!isDrawingMode) return;
+        const latLng = e.latLng;
+        drawingPath.push(latLng);
+        drawingPolyline.setPath(drawingPath);
+
+        const marker = new google.maps.Marker({
+          position: latLng,
+          map: map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 5,
+            fillColor: '#3b82f6',
+            fillOpacity: 1.0,
+            strokeColor: '#ffffff',
+            strokeWeight: 2
+          }
+        });
+        drawingMarkers.push(marker);
+
+        updateDrawingMetrics();
+      });
     }
 
     function updateDrawingMetrics() {
-      if (!activePolygon) return;
-      const path = activePolygon.getPath();
-      const numPts = path.getLength();
+      const numPts = drawingPath.length;
 
       if (numPts < 3) {
         document.getElementById('liveAreaHa').innerText = '0.00 ha';
@@ -508,8 +507,8 @@
         return;
       }
 
-      const areaM2 = google.maps.geometry.spherical.computeArea(path);
-      const perimM = google.maps.geometry.spherical.computeLength(path);
+      const areaM2 = google.maps.geometry.spherical.computeArea(drawingPath);
+      const perimM = google.maps.geometry.spherical.computeLength(drawingPath);
 
       const ha = (areaM2 / 10000.0).toFixed(2);
       const km = (perimM / 1000.0).toFixed(2);
@@ -529,26 +528,38 @@
     }
 
     function finishDrawingAndOpenModal() {
-      if (!activePolygon) return;
-      const path = activePolygon.getPath();
-      if (path.getLength() < 3) return;
+      if (drawingPath.length < 3) return;
 
       const coords = [];
-      for (let i = 0; i < path.getLength(); i++) {
-        const pt = path.getAt(i);
+      for (let i = 0; i < drawingPath.length; i++) {
+        const pt = drawingPath[i];
         coords.push([pt.lng(), pt.lat()]);
       }
-      // Cerrar polígono
-      coords.push([path.getAt(0).lng(), path.getAt(0).lat()]);
+      // Anillo cerrado
+      coords.push([drawingPath[0].lng(), drawingPath[0].lat()]);
 
       currentDrawingCoordinates = coords;
 
-      const areaM2 = google.maps.geometry.spherical.computeArea(path);
-      const perimM = google.maps.geometry.spherical.computeLength(path);
+      const areaM2 = google.maps.geometry.spherical.computeArea(drawingPath);
+      const perimM = google.maps.geometry.spherical.computeLength(drawingPath);
 
       document.getElementById('modalAreaHaVal').innerText = `${(areaM2 / 10000.0).toFixed(2)} ha`;
       document.getElementById('modalPerimeterKmVal').innerText = `${(perimM / 1000.0).toFixed(2)} km`;
       document.getElementById('modalNewLot').classList.remove('hidden');
+    }
+
+    function cancelDrawingStateOnly() {
+      if (mapClickListener) {
+        google.maps.event.removeListener(mapClickListener);
+        mapClickListener = null;
+      }
+      if (drawingPolyline) {
+        drawingPolyline.setMap(null);
+        drawingPolyline = null;
+      }
+      drawingMarkers.forEach(m => m.setMap(null));
+      drawingMarkers = [];
+      drawingPath = [];
     }
 
     function cancelDrawing() {
@@ -558,14 +569,8 @@
       const saveBtn = document.getElementById('btnSaveDrawing');
       if (saveBtn) saveBtn.remove();
 
-      if (drawingManager) {
-        drawingManager.setDrawingMode(null);
-      }
-
-      if (activePolygon) {
-        activePolygon.setMap(null);
-        activePolygon = null;
-      }
+      map.setOptions({ draggableCursor: null });
+      cancelDrawingStateOnly();
     }
 
     function closeNewLotModal() {
