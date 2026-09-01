@@ -16,14 +16,8 @@ depends_on = None
 
 
 def upgrade():
-    # Update enum values if using native enum in PostgreSQL (ignorar error de privilegios si lo maneja el admin DB)
-    enum_vals = ['siembra', 'cosecha', 'fertilizacion', 'pulverizacion', 'labranza', 'tratamiento_semilla',
-                 'SIEMBRA', 'COSECHA', 'FERTILIZACION', 'PULVERIZACION', 'LABRANZA', 'TRATAMIENTO_SEMILLA']
-    for val in enum_vals:
-        try:
-            op.execute(f"ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS '{val}'")
-        except Exception as e:
-            print(f"Aviso al agregar {val} a tipo_labor_enum: {e}")
+    op.add_column('labores_campo', sqla.Column('superficie_afectada_ha', sqla.Float(), nullable=True))
+
 
 
 
