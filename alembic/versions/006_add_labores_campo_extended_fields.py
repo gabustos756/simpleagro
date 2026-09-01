@@ -16,19 +16,20 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('labores_campo', sqla.Column('superficie_afectada_ha', sqla.Float(), nullable=True))
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS superficie_afectada_ha FLOAT;")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS sector_zona VARCHAR(150);")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS parametros_aplicacion JSONB;")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS detalles_siembra JSONB;")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS detalles_cosecha JSONB;")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS blanco_biologico VARCHAR(200);")
+    op.execute("ALTER TABLE labores_campo ADD COLUMN IF NOT EXISTS evaluacion_resultado TEXT;")
 
 
 
 
 
-    op.add_column('labores_campo', sqla.Column('superficie_afectada_ha', sqla.Float(), nullable=True))
-    op.add_column('labores_campo', sqla.Column('sector_zona', sqla.String(length=150), nullable=True))
-    op.add_column('labores_campo', sqla.Column('parametros_aplicacion', postgresql.JSONB, nullable=True))
-    op.add_column('labores_campo', sqla.Column('detalles_siembra', postgresql.JSONB, nullable=True))
-    op.add_column('labores_campo', sqla.Column('detalles_cosecha', postgresql.JSONB, nullable=True))
-    op.add_column('labores_campo', sqla.Column('blanco_biologico', sqla.String(length=200), nullable=True))
-    op.add_column('labores_campo', sqla.Column('evaluacion_resultado', sqla.Text(), nullable=True))
+
+
 
 
 def downgrade():
