@@ -16,20 +16,15 @@ depends_on = None
 
 
 def upgrade():
-    # Update enum values if using native enum in PostgreSQL
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'siembra'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'cosecha'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'fertilizacion'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'pulverizacion'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'labranza'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'tratamiento_semilla'")
+    # Update enum values if using native enum in PostgreSQL (ignorar error de privilegios si lo maneja el admin DB)
+    enum_vals = ['siembra', 'cosecha', 'fertilizacion', 'pulverizacion', 'labranza', 'tratamiento_semilla',
+                 'SIEMBRA', 'COSECHA', 'FERTILIZACION', 'PULVERIZACION', 'LABRANZA', 'TRATAMIENTO_SEMILLA']
+    for val in enum_vals:
+        try:
+            op.execute(f"ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS '{val}'")
+        except Exception as e:
+            print(f"Aviso al agregar {val} a tipo_labor_enum: {e}")
 
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'SIEMBRA'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'COSECHA'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'FERTILIZACION'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'PULVERIZACION'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'LABRANZA'")
-    op.execute("ALTER TYPE tipo_labor_enum ADD VALUE IF NOT EXISTS 'TRATAMIENTO_SEMILLA'")
 
 
 
