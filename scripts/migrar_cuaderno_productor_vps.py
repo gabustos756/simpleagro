@@ -436,10 +436,10 @@ async def migrar_cuaderno_vps(dry_run: bool = False, session=None):
                 res_exist = await db.execute(
                     select(LaborCampo).where(
                         LaborCampo.lote_id == lote_target.id,
-                        LaborCampo.tipo_labor == labor_data["tipo_labor"],
                         LaborCampo.fecha == fecha_dt,
                     )
                 )
+
                 labor_existente = res_exist.scalars().first()
 
                 if labor_existente:
