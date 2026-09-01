@@ -60,41 +60,39 @@
     </div>
 
     <!-- DESKTOP NAV BAR (VISIBLE DESDE md:flex) -->
-    <div class="hidden md:block py-1.5 border-t border-slate-800/60">
-      <nav class="flex items-center space-x-1 sm:space-x-1.5 text-xs font-bold shrink-0">
-        <a href="/" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'portal' or request.url.path == '/' %}bg-agro-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>🏠</span> <span>Portal</span>
+    <div class="hidden md:block py-1.5 border-t border-slate-800/60 overflow-x-auto">
+      <nav class="flex items-center space-x-1.5 text-xs font-bold shrink-0">
+        <a href="/productivo/lotes" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'productivo' or '/productivo' in request.url.path or active_page == 'portal' or request.url.path == '/' %}bg-agro-600 text-white shadow-xs font-black ring-1 ring-agro-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>🌾</span> <span>Campo & Lotes</span>
         </a>
 
-        <a href="/productivo/lotes" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'productivo' or '/productivo' in request.url.path %}bg-agro-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>🌾</span> <span>Productivo</span>
-        </a>
-
-        <a href="/clima/campos" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'clima' or '/clima' in request.url.path %}bg-sky-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>🌤️</span> <span>Clima</span>
-        </a>
-
-        <a href="/comercial" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'comercial' or '/comercial' in request.url.path %}bg-amber-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>📈</span> <span>Comercial</span>
-        </a>
-
-        <a href="/servicios/campos" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'servicios' or '/servicios/' in request.url.path %}bg-purple-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>⚡</span> <span>Servicios</span>
-        </a>
-
-        <a href="/servicios-prestados" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'servicios_prestados' or '/servicios-prestados' in request.url.path %}bg-emerald-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-          <span>🚜</span> <span>Trabajos a Terceros</span>
-        </a>
-
-        <a href="/campo" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'campo' or request.url.path == '/campo' %}bg-emerald-700 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}" title="Modo Campo: Carga de tareas, lluvias y trabajos offline">
-          <span>📱</span> <span>Modo Campo</span>
-        </a>
-
-        <a href="/insumos" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 {% if active_page == 'insumos' or '/insumos' in request.url.path %}bg-teal-600 text-white shadow-xs font-black{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+        <a href="/insumos" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'insumos' or '/insumos' in request.url.path %}bg-teal-600 text-white shadow-xs font-black ring-1 ring-teal-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
           <span>📦</span> <span>Insumos</span>
         </a>
 
-        <a href="/descargar-guia" target="_blank" class="px-2.5 sm:px-3 py-1 rounded-lg transition-all flex items-center gap-1 shrink-0 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 shadow-xs font-bold" title="Abrir y Descargar la Guía de Usuario en PDF">
+        <a href="/comercial" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'comercial' or '/comercial' in request.url.path %}bg-amber-600 text-white shadow-xs font-black ring-1 ring-amber-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>📈</span> <span>Comercial</span>
+        </a>
+
+        <a href="/servicios/campos" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'servicios' or '/servicios' in request.url.path %}bg-purple-600 text-white shadow-xs font-black ring-1 ring-purple-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>⚡</span> <span>Servicios & Trámites</span>
+        </a>
+
+        <a href="/servicios-prestados" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'servicios_prestados' or '/servicios-prestados' in request.url.path %}bg-emerald-600 text-white shadow-xs font-black ring-1 ring-emerald-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>🚜</span> <span>Trabajos a Terceros</span>
+        </a>
+
+        <a href="/clima/campos" class="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 {% if active_page == 'clima' or '/clima' in request.url.path %}bg-sky-600 text-white shadow-xs font-black ring-1 ring-sky-400{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
+          <span>🌤️</span> <span>Clima</span>
+        </a>
+
+        <div class="h-4 w-px bg-slate-800 mx-0.5"></div>
+
+        <a href="/campo" class="px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1 shrink-0 {% if active_page == 'campo' or request.url.path == '/campo' %}bg-emerald-700 text-white shadow-xs font-black{% else %}bg-slate-800/80 text-emerald-300 hover:bg-emerald-800 hover:text-white border border-emerald-500/40{% endif %}" title="Modo Campo: Carga de tareas y lluvias offline">
+          <span>📱</span> <span>Modo Campo</span>
+        </a>
+
+        <a href="/descargar-guia" target="_blank" class="px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1 shrink-0 bg-slate-800/80 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 shadow-xs font-bold" title="Abrir Guía en PDF">
           <span>📖</span> <span>Guía PDF</span>
         </a>
       </nav>
@@ -105,26 +103,18 @@
 
       <!-- LISTADO DE MÓDULOS EN MÓVIL -->
       <nav class="flex flex-col space-y-1.5">
-        <a href="/" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'portal' or request.url.path == '/' %}bg-agro-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
-          <div class="flex items-center gap-2.5">
-            <span class="text-base">🏠</span>
-            <span>Portal Principal</span>
-          </div>
-          <span class="text-xs opacity-70">➔</span>
-        </a>
-
-        <a href="/productivo/lotes" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'productivo' or '/productivo' in request.url.path %}bg-agro-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
+        <a href="/productivo/lotes" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'productivo' or '/productivo' in request.url.path or active_page == 'portal' or request.url.path == '/' %}bg-agro-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
           <div class="flex items-center gap-2.5">
             <span class="text-base">🌾</span>
-            <span>Módulo Productivo</span>
+            <span>Campo & Lotes (Centro 360°)</span>
           </div>
           <span class="text-xs opacity-70">➔</span>
         </a>
 
-        <a href="/clima/campos" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'clima' or '/clima' in request.url.path %}bg-sky-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
+        <a href="/insumos" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'insumos' or '/insumos' in request.url.path %}bg-teal-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
           <div class="flex items-center gap-2.5">
-            <span class="text-base">🌤️</span>
-            <span>Clima & Pronóstico</span>
+            <span class="text-base">📦</span>
+            <span>Insumos & Depósito</span>
           </div>
           <span class="text-xs opacity-70">➔</span>
         </a>
@@ -140,7 +130,23 @@
         <a href="/servicios/campos" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'servicios' or '/servicios' in request.url.path %}bg-purple-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
           <div class="flex items-center gap-2.5">
             <span class="text-base">⚡</span>
-            <span>Servicios & Trámites</span>
+            <span>Servicios Rurales & Trámites</span>
+          </div>
+          <span class="text-xs opacity-70">➔</span>
+        </a>
+
+        <a href="/servicios-prestados" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'servicios_prestados' or '/servicios-prestados' in request.url.path %}bg-emerald-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🚜</span>
+            <span>Trabajos a Terceros</span>
+          </div>
+          <span class="text-xs opacity-70">➔</span>
+        </a>
+
+        <a href="/clima/campos" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'clima' or '/clima' in request.url.path %}bg-sky-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🌤️</span>
+            <span>Clima & Pronóstico</span>
           </div>
           <span class="text-xs opacity-70">➔</span>
         </a>
@@ -170,6 +176,8 @@
           <span class="text-xs bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-lg font-bold">PWA</span>
         </button>
       </nav>
+
+
 
       <!-- SECCIÓN DE USUARIO (DENTRO DEL MENÚ MÓVIL) -->
       {% if user %}

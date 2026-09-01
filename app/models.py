@@ -348,18 +348,27 @@ class LaborCampo(Base):
         UUID(as_uuid=True), ForeignKey("campanias.id", ondelete="CASCADE"), nullable=False
     )
     tipo_labor: Mapped[TipoLabor] = mapped_column(
-        SQLEnum(TipoLabor, name="tipo_labor_enum", native_enum=True),
+        SQLEnum(TipoLabor, name="tipo_labor_enum", native_enum=True, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
+
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     insumos_utilizados: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
     responsable_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
     )
     costo_estimado_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    superficie_afectada_ha: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sector_zona: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    parametros_aplicacion: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    detalles_siembra: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    detalles_cosecha: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    blanco_biologico: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    evaluacion_resultado: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     lote: Mapped["Lote"] = relationship("Lote", back_populates="labores")
+
     campania: Mapped["Campania"] = relationship("Campania", back_populates="labores")
     responsable: Mapped[Optional["Usuario"]] = relationship("Usuario", back_populates="labores")
 

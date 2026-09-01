@@ -2967,6 +2967,14 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
     else:
         decision_insights = []
 
+    # 5. Obtener labores registradas para este lote
+    res_labores = await db.execute(
+        select(LaborCampo)
+        .where(LaborCampo.lote_id == uuid.UUID(lote_id))
+        .order_by(LaborCampo.fecha.desc())
+    )
+    labores_lote = res_labores.scalars().all()
+
     return templates.TemplateResponse(
         request=request,
         name="productivo_lote_ficha.html",
@@ -2977,11 +2985,130 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
             "weather": weather_info,
             "valorizacion": valorizacion_lote,
             "decision_insights": decision_insights,
+            "labores": labores_lote,
         },
     )
 
 
+@app.post("/productivo/lotes/{lote_id}/labores/rapida")
+async def crear_labor_rapida_lote(
+    request: Request,
+    lote_id: str,
+    tipo_labor: str = Form(...),
+    fecha: str = Form(...),
+    superficie_afectada_ha: Optional[float] = Form(None),
+    sector_zona: Optional[str] = Form(None),
+    insumo_nombre: Optional[str] = Form(None),
+    insumo_dosis: Optional[float] = Form(None),
+    insumo_unidad: Optional[str] = Form("lt/ha"),
+    volumen_agua_lts_ha: Optional[float] = Form(None),
+    presion_bar: Optional[float] = Form(None),
+    velocidad_kmh: Optional[float] = Form(None),
+    pastilla_boquilla: Optional[str] = Form(None),
+    blanco_biologico: Optional[str] = Form(None),
+    densidad_semillas_m: Optional[float] = Form(None),
+    variedad_hibrido: Optional[str] = Form(None),
+    humedad_porcentaje: Optional[float] = Form(None),
+    rendimiento_qq_ha: Optional[float] = Form(None),
+    total_cosechado_qq: Optional[float] = Form(None),
+    evaluacion_resultado: Optional[str] = Form(None),
+    notas: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    l_uuid = uuid.UUID(lote_id)
+
+    # Buscar campaña activa
+    res_camp = await db.execute(select(Campania).order_by(Campania.fecha_inicio.desc()).limit(1))
+    campania_obj = res_camp.scalars().first()
+    camp_id = campania_obj.id if campania_obj else uuid.uuid4()
+
+    # Fecha de la labor
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except Exception:
+        fecha_dt = datetime.now(timezone.utc)
+
+    # Insumos utilizados
+    insumos_list = []
+    if insumo_nombre and insumo_dosis:
+        insumos_list.append({
+            "nombre": insumo_nombre.strip(),
+            "dosis": float(insumo_dosis),
+            "unidad": insumo_unidad or "lt/ha",
+        })
+
+    # Parámetros por tipo de labor
+    parametros_aplicacion = None
+    if tipo_labor in ["pulverizacion", "fertilizacion"] and (volumen_agua_lts_ha or presion_bar or velocidad_kmh or pastilla_boquilla):
+        parametros_aplicacion = {
+            "volumen_agua_lts_ha": volumen_agua_lts_ha,
+            "presion_bar": presion_bar,
+            "velocidad_kmh": velocidad_kmh,
+            "pastilla_boquilla": pastilla_boquilla,
+        }
+
+    detalles_siembra = None
+    if tipo_labor in ["siembra", "tratamiento_semilla"] and (densidad_semillas_m or variedad_hibrido):
+        detalles_siembra = {
+            "densidad_semillas_m": densidad_semillas_m,
+            "variedad_hibrido": variedad_hibrido,
+        }
+
+    detalles_cosecha = None
+    if tipo_labor == "cosecha" and (humedad_porcentaje or rendimiento_qq_ha or total_cosechado_qq):
+        detalles_cosecha = {
+            "humedad_porcentaje": humedad_porcentaje,
+            "rendimiento_qq_ha": rendimiento_qq_ha,
+            "total_cosechado_qq": total_cosechado_qq,
+        }
+
+    # Tipo enum
+    try:
+        t_enum = TipoLabor(tipo_labor)
+    except Exception:
+        t_enum = TipoLabor.PULVERIZACION
+
+    nueva_labor = LaborCampo(
+        id=uuid.uuid4(),
+        lote_id=l_uuid,
+        campania_id=camp_id,
+        tipo_labor=t_enum,
+        fecha=fecha_dt,
+        superficie_afectada_ha=superficie_afectada_ha,
+        sector_zona=sector_zona,
+        insumos_utilizados=insumos_list,
+        parametros_aplicacion=parametros_aplicacion,
+        detalles_siembra=detalles_siembra,
+        detalles_cosecha=detalles_cosecha,
+        blanco_biologico=blanco_biologico,
+        evaluacion_resultado=evaluacion_resultado,
+        notas=notas,
+        responsable_id=user.id if hasattr(user, "id") else None,
+    )
+
+    db.add(nueva_labor)
+
+    # Si es cosecha, actualizar métricas reales del lote
+    if tipo_labor == "cosecha" and (rendimiento_qq_ha or total_cosechado_qq):
+        res_lote = await db.execute(select(Lote).where(Lote.id == l_uuid))
+        lote_obj = res_lote.scalars().first()
+        if lote_obj:
+            if rendimiento_qq_ha:
+                lote_obj.qq_ha_real = rendimiento_qq_ha
+            if total_cosechado_qq:
+                lote_obj.produccion_total_qq = total_cosechado_qq
+
+    await db.commit()
+
+    return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg=Labor+registrada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/productivo/lotes/{lote_id}/editar", response_class=HTMLResponse)
+
 async def form_editar_lote(request: Request, lote_id: str, db: AsyncSession = Depends(get_db)):
     user = await get_current_user_from_session(request, db)
     if not user:

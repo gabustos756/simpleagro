@@ -192,3 +192,58 @@ class LoteGeometriaUpdate(BaseModel):
     geometria_geojson: dict
     sincronizar_superficie: bool = False
 
+
+# ----------------------------------------------------------------------
+# 3. LaborCampo Schemas
+# ----------------------------------------------------------------------
+
+
+class ParametrosAplicacionSchema(BaseModel):
+    volumen_agua_lts_ha: Optional[float] = Field(None, description="Volumen de agua aplicado en lts/ha")
+    presion_bar: Optional[float] = Field(None, description="Presión de trabajo en Bar")
+    velocidad_kmh: Optional[float] = Field(None, description="Velocidad del equipo en km/h")
+    pastilla_boquilla: Optional[str] = Field(None, description="Tipo de pastilla o combinación núcleo/disco")
+    horario: Optional[str] = Field(None, description="Franja horaria de la labor")
+
+
+class DetallesSiembraSchema(BaseModel):
+    densidad_semillas_m: Optional[float] = Field(None, description="Densidad de siembra en semillas/metro")
+    variedad_hibrido: Optional[str] = Field(None, description="Nombre de la variedad o híbrido sembrado")
+    curado_semilla: Optional[dict] = Field(None, description="Detalles del producto curasemilla utilizado")
+    distribucion_semillas: Optional[List[dict]] = Field(None, description="Distribución por variedad y superficie")
+
+
+class DetallesCosechaSchema(BaseModel):
+    humedad_porcentaje: Optional[float] = Field(None, description="Porcentaje de humedad al cosechar")
+    rendimiento_qq_ha: Optional[float] = Field(None, description="Rendimiento en quintales por hectárea")
+    total_cosechado_qq: Optional[float] = Field(None, description="Producción total cosechada en quintales")
+
+
+class LaborCampoBase(BaseModel):
+    lote_id: uuid.UUID
+    campania_id: uuid.UUID
+    tipo_labor: TipoLabor
+    fecha: datetime
+    insumos_utilizados: List[InsumoUtilizadoItem] = Field(default_factory=list)
+    responsable_id: Optional[uuid.UUID] = None
+    costo_estimado_usd: Optional[Decimal] = None
+    superficie_afectada_ha: Optional[float] = None
+    sector_zona: Optional[str] = None
+    parametros_aplicacion: Optional[ParametrosAplicacionSchema] = None
+    detalles_siembra: Optional[DetallesSiembraSchema] = None
+    detalles_cosecha: Optional[DetallesCosechaSchema] = None
+    blanco_biologico: Optional[str] = None
+    evaluacion_resultado: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class LaborCampoCreate(LaborCampoBase):
+    pass
+
+
+class LaborCampoResponse(LaborCampoBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+
+

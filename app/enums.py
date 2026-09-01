@@ -64,6 +64,8 @@ class TipoLabor(str, enum.Enum):
     PULVERIZACION = "pulverizacion"
     COSECHA = "cosecha"
     FERTILIZACION = "fertilizacion"
+    LABRANZA = "labranza"
+    TRATAMIENTO_SEMILLA = "tratamiento_semilla"
 
 
 class EstadoServicio(str, enum.Enum):

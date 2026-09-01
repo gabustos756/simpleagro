@@ -38,30 +38,23 @@
         ← Volver al Listado de Lotes
       </a>
 
-      <div class="flex items-center space-x-2 w-full sm:w-auto">
+      <div class="flex items-center space-x-2 w-full sm:w-auto flex-wrap gap-y-2">
+        <button type="button" onclick="abrirModalLabor()" class="px-4 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black text-xs rounded-xl shadow-md inline-flex items-center gap-1.5 transition-all ring-2 ring-agro-400">
+          <span>🚜</span> <span>+ Registrar Labor</span>
+        </button>
+
         {% if lote.campo_id %}
-        <a href="/campos/{{ lote.campo_id }}/mapa?lote={{ lote.id }}" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all" title="Ver campo desde arriba en mapa satelital">
-          <span>🛰️</span> Ver desde arriba
+        <a href="/campos/{{ lote.campo_id }}/mapa?lote={{ lote.id }}" class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all" title="Ver campo en mapa satelital">
+          <span>🛰️</span> Mapa GIS
         </a>
         {% endif %}
 
-        {% if valorizacion %}
-        <a href="/comercial?cultivo={{ valorizacion.cultivo_key }}" class="px-3.5 py-2 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
-          <span>📊</span> Ver en Posición Comercial ↗
+        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+          <span>✏️</span> Editar
         </a>
-        {% endif %}
-
-        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
-          <span>✏️</span> Editar Lote
-        </a>
-
-        <form method="POST" action="/productivo/lotes/{{ lote.id }}/eliminar" onsubmit="return confirm('¿Está seguro que desea eliminar el lote \'{{ lote.nombre }}\'? Esta acción no se puede deshacer.');" class="inline">
-          <button type="submit" class="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
-            <span>🗑️</span> Eliminar Lote
-          </button>
-        </form>
       </div>
     </div>
+
 
     <!-- TARJETA PRINCIPAL FICHA DE LOTE V2 -->
     <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -471,13 +464,145 @@
         </div>
       </div>
 
+      <!-- 8. HISTORIAL DE LABORES DE CAMPO (CUADERNO AGRONÓMICO) -->
+      <div class="space-y-3 pt-4 border-t border-slate-100">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <span>📖</span> Historial de Labores de Campo (Cuaderno Agronómico)
+          </h3>
+          <span class="text-xs font-bold text-slate-400">Total registradas: {{ labores|length if labores else 0 }}</span>
+        </div>
+
+        {% if labores %}
+        <div class="space-y-3">
+          {% for labor in labores %}
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 hover:border-slate-300 transition-all">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider
+                  {% if labor.tipo_labor == 'pulverizacion' %}bg-sky-100 text-sky-900 border border-sky-300
+                  {% elif labor.tipo_labor == 'siembra' %}bg-emerald-100 text-emerald-900 border border-emerald-300
+                  {% elif labor.tipo_labor == 'cosecha' %}bg-amber-100 text-amber-900 border border-amber-300
+                  {% elif labor.tipo_labor == 'fertilizacion' %}bg-purple-100 text-purple-900 border border-purple-300
+                  {% elif labor.tipo_labor == 'labranza' %}bg-orange-100 text-orange-900 border border-orange-300
+                  {% else %}bg-slate-200 text-slate-800 border border-slate-300{% endif %}">
+                  {% if labor.tipo_labor == 'pulverizacion' %}🚜 Pulverización
+                  {% elif labor.tipo_labor == 'siembra' %}🌱 Siembra
+                  {% elif labor.tipo_labor == 'cosecha' %}🌾 Cosecha
+                  {% elif labor.tipo_labor == 'fertilizacion' %}🧪 Fertilización
+                  {% elif labor.tipo_labor == 'labranza' %}🛠️ Labranza
+                  {% elif labor.tipo_labor == 'tratamiento_semilla' %}🧬 Curado Semilla
+                  {% else %}{{ labor.tipo_labor }}{% endif %}
+                </span>
+                <span class="text-xs font-black text-slate-800">
+                  📅 {{ labor.fecha.strftime('%d/%m/%Y') if labor.fecha else 'Sin fecha' }}
+                </span>
+                {% if labor.sector_zona %}
+                <span class="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-2xs font-extrabold">
+                  📍 {{ labor.sector_zona }}
+                </span>
+                {% endif %}
+                {% if labor.superficie_afectada_ha %}
+                <span class="text-2xs font-bold text-slate-500">
+                  ({{ labor.superficie_afectada_ha }} ha)
+                </span>
+                {% endif %}
+              </div>
+
+              {% if labor.costo_estimado_usd %}
+              <span class="text-xs font-bold text-slate-700">
+                Costo Est.: <strong class="text-emerald-700">${{ labor.costo_estimado_usd | formato_ar }} USD</strong>
+              </span>
+              {% endif %}
+            </div>
+
+            <!-- Insumos utilizados -->
+            {% if labor.insumos_utilizados %}
+            <div class="text-xs space-y-1">
+              <span class="text-2xs font-extrabold text-slate-400 uppercase tracking-wider block">Insumos Aplicados / Mezcla:</span>
+              <div class="flex flex-wrap gap-1.5">
+                {% for item in labor.insumos_utilizados %}
+                <span class="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded-md text-2xs font-bold text-slate-700 shadow-2xs">
+                  <span>💊</span> {{ item.nombre or item.insumo_id }}: <strong class="text-slate-900">{{ item.dosis or item.cantidad }} {{ item.unidad }}</strong>
+                </span>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Parámetros técnicos específicos -->
+            {% if labor.parametros_aplicacion %}
+            <div class="bg-sky-50/60 border border-sky-100 rounded-xl p-2.5 text-2xs flex flex-wrap items-center gap-3 text-sky-950">
+              <span class="font-black text-sky-900 uppercase">🎯 Parámetros Pulverizadora:</span>
+              {% if labor.parametros_aplicacion.volumen_agua_lts_ha %}
+              <span>Volumen: <strong>{{ labor.parametros_aplicacion.volumen_agua_lts_ha }} L/ha</strong></span>
+              {% endif %}
+              {% if labor.parametros_aplicacion.presion_bar %}
+              <span>Presión: <strong>{{ labor.parametros_aplicacion.presion_bar }} Bar</strong></span>
+              {% endif %}
+              {% if labor.parametros_aplicacion.velocidad_kmh %}
+              <span>Velocidad: <strong>{{ labor.parametros_aplicacion.velocidad_kmh }} km/h</strong></span>
+              {% endif %}
+              {% if labor.parametros_aplicacion.pastilla_boquilla %}
+              <span>Boquilla: <strong>{{ labor.parametros_aplicacion.pastilla_boquilla }}</strong></span>
+              {% endif %}
+              {% if labor.blanco_biologico %}
+              <span class="text-amber-800 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Blanco: {{ labor.blanco_biologico }}</span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if labor.detalles_siembra %}
+            <div class="bg-emerald-50/60 border border-emerald-100 rounded-xl p-2.5 text-2xs flex flex-wrap items-center gap-3 text-emerald-950">
+              <span class="font-black text-emerald-900 uppercase">🌱 Detalle Siembra:</span>
+              {% if labor.detalles_siembra.densidad_semillas_m %}
+              <span>Densidad: <strong>{{ labor.detalles_siembra.densidad_semillas_m }} sem/m</strong></span>
+              {% endif %}
+              {% if labor.detalles_siembra.variedad_hibrido %}
+              <span>Híbrido/Variedad: <strong>{{ labor.detalles_siembra.variedad_hibrido }}</strong></span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if labor.detalles_cosecha %}
+            <div class="bg-amber-50/60 border border-amber-100 rounded-xl p-2.5 text-2xs flex flex-wrap items-center gap-3 text-amber-950">
+              <span class="font-black text-amber-900 uppercase">🌾 Métricas Cosecha:</span>
+              {% if labor.detalles_cosecha.humedad_porcentaje %}
+              <span>Humedad: <strong>{{ labor.detalles_cosecha.humedad_porcentaje }}%</strong></span>
+              {% endif %}
+              {% if labor.detalles_cosecha.rendimiento_qq_ha %}
+              <span>Rendimiento: <strong>{{ labor.detalles_cosecha.rendimiento_qq_ha }} qq/ha</strong></span>
+              {% endif %}
+              {% if labor.detalles_cosecha.total_cosechado_qq %}
+              <span>Total: <strong>{{ labor.detalles_cosecha.total_cosechado_qq }} qq</strong></span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if labor.evaluacion_resultado or labor.notas %}
+            <p class="text-2xs text-slate-600 italic bg-white p-2 rounded-lg border border-slate-100">
+              💬 {{ labor.evaluacion_resultado or labor.notas }}
+            </p>
+            {% endif %}
+
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-6 text-center text-xs text-slate-500">
+          🌱 No hay labores registradas aún para este lote.
+        </div>
+        {% endif %}
+      </div>
+
       <!-- Observaciones -->
+
       <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-500 gap-3">
         <div>
           <strong>Observaciones del Lote:</strong> {{ lote.observaciones }}
         </div>
         <div class="px-3 py-1 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-[11px] text-slate-600">
-          🤖 Ficha V2 Adaptada para Toma de Decisiones
+          🤖 Ficha 360° Centro de Comando por Lote
         </div>
       </div>
 
@@ -485,5 +610,193 @@
 
   </main>
 
+  <!-- MODAL CARGA RÁPIDA DE LABOR AGRONÓMICA -->
+  <div id="modal-nueva-labor" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+    <div class="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 my-8 relative">
+      
+      <button type="button" onclick="cerrarModalLabor()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-xl font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors">
+        ✕
+      </button>
+
+      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+        <div class="w-10 h-10 rounded-2xl bg-agro-600 flex items-center justify-center text-xl text-white shadow-md">
+          🚜
+        </div>
+        <div>
+          <h3 class="text-lg font-black text-slate-900">Registrar Labor en {{ lote.nombre }}</h3>
+          <p class="text-xs text-slate-500">Carga rápida de trabajos realizados o planificados</p>
+        </div>
+      </div>
+
+      <form method="POST" action="/productivo/lotes/{{ lote.id }}/labores/rapida" class="space-y-4 text-xs">
+        
+        <!-- TIPO DE LABOR & FECHA -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="font-extrabold text-slate-700 block mb-1">Tipo de Labor <span class="text-red-500">*</span></label>
+            <select name="tipo_labor" id="select-tipo-labor" onchange="cambiarCamposLabor()" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-agro-500">
+              <option value="pulverizacion">🚜 Pulverización (Barbecho / Fitosanitario)</option>
+              <option value="siembra">🌱 Siembra</option>
+              <option value="cosecha">🌾 Cosecha</option>
+              <option value="fertilizacion">🧪 Fertilización (Voleo / Incorporada)</option>
+              <option value="labranza">🛠️ Labranza / Mecanizado (Rotativa / Rastra)</option>
+              <option value="tratamiento_semilla">🧬 Curado de Semilla</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="font-extrabold text-slate-700 block mb-1">Fecha <span class="text-red-500">*</span></label>
+            <input type="date" name="fecha" required value="{{ current_date_str or '2026-09-01' }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-agro-500">
+          </div>
+        </div>
+
+        <!-- SUPERFICIE & SECTOR/ZONA -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Superficie Afectada (ha)</label>
+            <input type="number" step="0.1" name="superficie_afectada_ha" placeholder="Ej: {{ lote.superficie_productiva_ha }}" value="{{ lote.superficie_productiva_ha }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
+          </div>
+
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Sector / Sub-zona</label>
+            <input type="text" name="sector_zona" placeholder="Ej: Lote completo, Lado Norte, Cabecera" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800">
+          </div>
+        </div>
+
+        <!-- INSUMO UTILIZADO (PRINCIPAL) -->
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+          <span class="font-black text-slate-700 uppercase tracking-wider text-2xs block">💊 Insumo Principal Aplicado / Mezcla</span>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <input type="text" name="insumo_nombre" placeholder="Nombre (Ej: LT Box, Glifo Top, Urea, Stine 9720)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+            </div>
+            <div>
+              <div class="flex items-center gap-1">
+                <input type="number" step="0.001" name="insumo_dosis" placeholder="Dosis" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+                <select name="insumo_unidad" class="px-1.5 py-2 bg-white border border-slate-300 rounded-xl font-extrabold text-2xs">
+                  <option value="lt/ha">L/ha</option>
+                  <option value="kg/ha">kg/ha</option>
+                  <option value="sem/m">sem/m</option>
+                  <option value="bolsas">bolsas</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CAMPOS DINÁMICOS: PULVERIZADORA -->
+        <div id="campo-dinamico-pulverizacion" class="bg-sky-50/70 border border-sky-200 rounded-2xl p-3.5 space-y-2">
+          <span class="font-black text-sky-900 uppercase tracking-wider text-2xs block">🎯 Parámetros de Pulverizadora / Calibración</span>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div>
+              <label class="text-2xs font-bold text-sky-900 block">Agua (L/ha)</label>
+              <input type="number" step="1" name="volumen_agua_lts_ha" placeholder="Ej: 50" class="w-full px-2 py-1.5 bg-white border border-sky-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-sky-900 block">Presión (Bar)</label>
+              <input type="number" step="0.1" name="presion_bar" placeholder="Ej: 2.5" class="w-full px-2 py-1.5 bg-white border border-sky-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-sky-900 block">Velocidad (km/h)</label>
+              <input type="number" step="1" name="velocidad_kmh" placeholder="Ej: 16" class="w-full px-2 py-1.5 bg-white border border-sky-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-sky-900 block">Pastilla / Boquilla</label>
+              <input type="text" name="pastilla_boquilla" placeholder="Ej: Antideriva 0.15" class="w-full px-2 py-1.5 bg-white border border-sky-200 rounded-lg font-bold">
+            </div>
+          </div>
+          <div>
+            <label class="text-2xs font-bold text-sky-900 block">Blanco Biológico / Causa</label>
+            <input type="text" name="blanco_biologico" placeholder="Ej: Escape de Pastillo y Maizbón, Orugas, Barbecho" class="w-full px-2.5 py-1.5 bg-white border border-sky-200 rounded-lg font-semibold">
+          </div>
+        </div>
+
+        <!-- CAMPOS DINÁMICOS: SIEMBRA -->
+        <div id="campo-dinamico-siembra" class="hidden bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 space-y-2">
+          <span class="font-black text-emerald-900 uppercase tracking-wider text-2xs block">🌱 Detalle de Siembra & Curado</span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="text-2xs font-bold text-emerald-900 block">Densidad (semillas/metro)</label>
+              <input type="number" step="0.1" name="densidad_semillas_m" placeholder="Ej: 4.2 en Maíz, 26 en Soja" class="w-full px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-emerald-900 block">Híbrido / Variedad</label>
+              <input type="text" name="variedad_hibrido" placeholder="Ej: Stine 9720, DM 46i20" class="w-full px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg font-bold">
+            </div>
+          </div>
+        </div>
+
+        <!-- CAMPOS DINÁMICOS: COSECHA -->
+        <div id="campo-dinamico-cosecha" class="hidden bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+          <span class="font-black text-amber-900 uppercase tracking-wider text-2xs block">🌾 Métricas de Cosecha</span>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-2xs font-bold text-amber-900 block">Humedad %</label>
+              <input type="number" step="0.1" name="humedad_porcentaje" placeholder="Ej: 12.5" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-amber-900 block">Rendimiento (qq/ha)</label>
+              <input type="number" step="0.1" name="rendimiento_qq_ha" placeholder="Ej: 96.07" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="text-2xs font-bold text-amber-900 block">Total Cosechado (qq)</label>
+              <input type="number" step="0.1" name="total_cosechado_qq" placeholder="Ej: 5480.4" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+            </div>
+          </div>
+        </div>
+
+        <!-- NOTAS & EVALUACIÓN AGRONÓMICA -->
+        <div>
+          <label class="font-bold text-slate-700 block mb-1">Notas / Evaluación Agronómica</label>
+          <textarea name="evaluacion_resultado" rows="2" placeholder="Ej: Lote impecable tras 26mm de lluvia. Quedó una franja testigo sobre orilla Ricardo Gallo." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800"></textarea>
+        </div>
+
+        <!-- ACCIONES -->
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalLabor()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
+            Cancelar
+          </button>
+          <button type="submit" class="px-5 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black rounded-xl shadow-md transition-all">
+            Guardar Labor 👍
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function abrirModalLabor() {
+      const modal = document.getElementById('modal-nueva-labor');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function cerrarModalLabor() {
+      const modal = document.getElementById('modal-nueva-labor');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    function cambiarCamposLabor() {
+      const select = document.getElementById('select-tipo-labor');
+      if (!select) return;
+      const val = select.value;
+
+      const divPulv = document.getElementById('campo-dinamico-pulverizacion');
+      const divSiem = document.getElementById('campo-dinamico-siembra');
+      const divCose = document.getElementById('campo-dinamico-cosecha');
+
+      if (divPulv) divPulv.classList.toggle('hidden', !(val === 'pulverizacion' || val === 'fertilizacion'));
+      if (divSiem) divSiem.classList.toggle('hidden', !(val === 'siembra' || val === 'tratamiento_semilla'));
+      if (divCose) divCose.classList.toggle('hidden', val !== 'cosecha');
+    }
+  </script>
+
 </body>
 </html>
+
