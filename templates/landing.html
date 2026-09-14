@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro | ERP y Copiloto Inteligente para el Productor y la Empresa Agropecuaria</title>
+  <meta name="description" content="Plataforma integral de gestión agropecuaria. Mapeo satelital de lotes, control de silobolsas con 4 saldos, motor determinístico de precio neto y modo campo offline para la camioneta.">
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+              950: '#052e16',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 4s ease-in-out infinite',
+            'scan': 'scan 3s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-6px)' },
+            },
+            scan: {
+              '0%': { transform: 'translateY(0%)' },
+              '100%': { transform: 'translateY(100%)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .satellite-grid {
+      background-image: radial-gradient(rgba(34, 197, 94, 0.15) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .progress-bar-fill {
+      transition: width 0.1s linear;
+    }
+    /* Ocultar scrollbar pero permitir scroll horizontal en mobile */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-agro-500 selection:text-slate-950 min-h-screen flex flex-col">
+
+  <!-- ========================================================================= -->
+  <!-- 1. HEADER / NAVBAR SUPERIOR CON MENÚ HAMBURGUESA MOBILE -->
+  <!-- ========================================================================= -->
+  <header class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 transition-all">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 sm:h-20 gap-4">
+        
+        <!-- Logo de EduAgro (Limpio y profesional) -->
+        <div class="flex items-center space-x-3 shrink-0">
+          <a href="/" class="group flex items-center gap-2.5">
+            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-agro-600 to-agro-400 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg shadow-agro-500/20 group-hover:scale-105 transition-transform">
+              🌾
+            </div>
+            <span class="text-xl sm:text-2xl font-black tracking-tight text-white">
+              Edu<span class="text-agro-500">Agro</span>
+            </span>
+          </a>
+          <span class="hidden md:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+            ERP Agropecuario
+          </span>
+        </div>
+
+        <!-- Navegación Desktop (Sin iconos, limpia y elegante) -->
+        <nav class="hidden lg:flex items-center space-x-7 text-xs font-semibold text-slate-300">
+          <a href="#satelital" class="hover:text-agro-400 transition-colors">Satélite & Lotes</a>
+          <a href="#showcase-modulos" class="hover:text-agro-400 transition-colors">Módulos</a>
+          <a href="#mercado" class="hover:text-agro-400 transition-colors">Mercado en Vivo</a>
+          <a href="#decisiones" class="hover:text-agro-400 transition-colors">Motor Inteligente</a>
+          <a href="#perfiles" class="hover:text-agro-400 transition-colors">Perfiles</a>
+          <a href="#contacto" class="hover:text-agro-400 transition-colors">Contacto</a>
+        </nav>
+
+        <!-- Botones de Acción Desktop & Botón Hamburguesa Mobile -->
+        <div class="flex items-center space-x-2.5 sm:space-x-3">
+          {% if user %}
+            <a href="/portal" class="hidden sm:inline-flex px-4 py-2 bg-agro-600 hover:bg-agro-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-agro-500/25 transition-all items-center gap-1.5">
+              Ir a Mi Campo
+            </a>
+          {% else %}
+            <a href="/login" class="hidden sm:inline-block px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold text-xs rounded-xl transition-all">
+              Ingresar
+            </a>
+            <a href="#contacto" class="hidden sm:inline-block px-4 py-2 bg-gradient-to-r from-agro-600 to-emerald-500 hover:from-agro-500 hover:to-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-agro-500/20 transition-all">
+              Solicitar Demo
+            </a>
+          {% endif %}
+
+          <!-- BOTÓN HAMBURGUESA MOBILE (Visible en móviles y tablets < lg) -->
+          <button id="mobile-menu-btn" type="button" aria-label="Abrir menú de navegación" class="lg:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none transition-colors">
+            <!-- Icono Hamburguesa (Cerrado) -->
+            <svg id="menu-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+            <!-- Icono Cruz (Abierto) -->
+            <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MENÚ DESPLEGABLE HAMBURGUESA MOBILE -->
+    <div id="mobile-menu-drawer" class="hidden lg:hidden px-4 pt-2 pb-6 border-t border-slate-800/80 bg-slate-950/98 space-y-2 animate-fadeIn">
+      <a href="#satelital" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Satélite & Lotes
+      </a>
+      <a href="#showcase-modulos" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Módulos & Simulación
+      </a>
+      <a href="#mercado" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Mercado & Cotizaciones BCR
+      </a>
+      <a href="#decisiones" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Motor de Decisiones
+      </a>
+      <a href="#perfiles" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Perfiles de Empresa
+      </a>
+      <a href="#contacto" onclick="toggleMobileMenu()" class="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-900 hover:text-agro-400 transition-colors">
+        Contacto & Demostración
+      </a>
+      
+      <div class="pt-3 border-t border-slate-800/80 flex flex-col gap-2">
+        {% if user %}
+          <a href="/portal" class="w-full text-center py-3 bg-agro-600 hover:bg-agro-500 text-slate-950 font-black text-sm rounded-xl">
+            Ir a Mi Campo
+          </a>
+        {% else %}
+          <a href="/login" class="w-full text-center py-2.5 bg-slate-900 text-slate-200 border border-slate-700 font-bold text-sm rounded-xl">
+            Ingresar al Sistema
+          </a>
+          <a href="#contacto" onclick="toggleMobileMenu()" class="w-full text-center py-3 bg-gradient-to-r from-agro-600 to-emerald-500 text-slate-950 font-black text-sm rounded-xl shadow-md">
+            Solicitar Demostración
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- 2. HERO SECTION -->
+  <!-- ========================================================================= -->
+  <section class="relative overflow-hidden pt-10 pb-16 lg:pt-20 lg:pb-24 border-b border-slate-900">
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-agro-500/10 blur-[130px] rounded-full pointer-events-none -z-10"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-4xl mx-auto space-y-6">
+        
+        <!-- Badge de Contexto Territorial -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-agro-500/10 border border-agro-500/30 text-agro-400 text-xs font-bold tracking-wide uppercase">
+          <span class="w-2 h-2 rounded-full bg-agro-400 animate-pulse"></span>
+          Software Integral para Córdoba, Santa Fe y Pampa Húmeda
+        </div>
+
+        <!-- Título Principal -->
+        <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight sm:leading-none">
+          El ERP y Copiloto Inteligente para el <span class="text-transparent bg-clip-text bg-gradient-to-r from-agro-400 via-emerald-300 to-teal-200">Productor Agropecuario</span>
+        </h1>
+
+        <!-- Subtítulo Enfocado al Productor y Empresa -->
+        <p class="text-sm sm:text-lg lg:text-xl text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal">
+          Conectamos el trabajo diario sobre la camioneta con la mesa de decisiones de tu empresa. Visualizá tus lotes por satélite, controlá cada silobolsa al kilo, auditá balanzas y descubrí con matemática pura el destino que te deja más plata neta en la tranquera.
+        </p>
+
+        <!-- Botones de Llamado a la Acción (Sin PDF familiar, foco en demo y satélite) -->
+        <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+          <a href="#satelital" class="w-full sm:w-auto px-7 py-3.5 bg-agro-500 hover:bg-agro-400 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-agro-500/25 transition-all flex items-center justify-center gap-2">
+            Ver Monitoreo Satelital en Vivo
+          </a>
+          <a href="#showcase-modulos" class="w-full sm:w-auto px-7 py-3.5 bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2">
+            Simulador de Módulos
+          </a>
+        </div>
+
+        <!-- Franja de Métricas / Certezas del Sistema -->
+        <div class="pt-8 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto text-left">
+          <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <div class="text-lg sm:text-2xl font-black text-agro-400">100%</div>
+            <div class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Motor Determinístico (Cero alucinaciones)</div>
+          </div>
+          <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <div class="text-lg sm:text-2xl font-black text-amber-400">Estándar 1B</div>
+            <div class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">4 Saldos en Silobolsas (Físico vs. Libre)</div>
+          </div>
+          <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <div class="text-lg sm:text-2xl font-black text-emerald-400">qq/ha ➔ Tn</div>
+            <div class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Conversión y Reserva de Arrendamientos</div>
+          </div>
+          <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <div class="text-lg sm:text-2xl font-black text-sky-400">Offline-First</div>
+            <div class="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5">Modo Camioneta funcional sin señal</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 3. SECCIÓN ESTRELLA: VISOR SATELITAL DE LOTES, RINDES Y RECOMENDACIONES -->
+  <!-- (Optimizado para mobile: mapa y tarjeta claramente visibles sin taparse) -->
+  <!-- ========================================================================= -->
+  <section id="satelital" class="py-12 lg:py-24 bg-slate-900/70 border-b border-slate-800 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Encabezado de la sección -->
+      <div class="max-w-3xl mb-8 sm:mb-12 space-y-2.5">
+        <div class="inline-flex items-center gap-1.5 text-xs font-bold text-agro-400 uppercase tracking-wider bg-agro-500/10 px-3 py-1 rounded-full border border-agro-500/20">
+          Mapeo Vectorial & Inteligencia Agronómica
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+          Visualizá el Estado Real de cada Lote desde el Satélite
+        </h2>
+        <p class="text-slate-300 text-xs sm:text-base leading-relaxed">
+          Delimitá los cuadros de tu campo, sabé con exactitud qué cultivo tenés en pie, monitoreá los rendimientos proyectados en quintales por hectárea ($qq/ha$) y recibí recomendaciones automáticas que protegen el margen de tu campaña.
+        </p>
+      </div>
+
+      <!-- VISOR SATELITAL SIMULADO -->
+      <div class="bg-slate-950 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col lg:relative">
+        
+        <!-- Barra superior del visor GIS -->
+        <div class="bg-slate-900/95 px-3 sm:px-4 py-3 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+            <span class="h-3.5 w-px bg-slate-800 mx-1"></span>
+            <span class="font-bold text-slate-200">
+              Establecimiento: <strong class="text-agro-400">La Paulina</strong>
+            </span>
+            <span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px]">840 ha</span>
+          </div>
+
+          <!-- Selector de Lotes con scroll horizontal en mobile -->
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full pb-0.5">
+            <button onclick="cambiarLoteSatelital('lote4')" id="btn-lote4" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-agro-600 text-slate-950 shadow-sm shrink-0">
+              Lote 4 (Soja 1ra)
+            </button>
+            <button onclick="cambiarLoteSatelital('lote2')" id="btn-lote2" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-all shrink-0">
+              Lote 2 (Maíz)
+            </button>
+            <button onclick="cambiarLoteSatelital('lote7')" id="btn-lote7" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-all shrink-0">
+              Lote 7 (Trigo)
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Satelital con Lotes (Responsive con viewBox proporcional) -->
+        <div class="relative h-[260px] sm:h-[360px] lg:h-[500px] w-full overflow-hidden bg-slate-900 satellite-grid flex items-center justify-center">
+          <div class="absolute inset-0 opacity-40 bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950/40"></div>
+          
+          <!-- SVG con viewBox responsivo: escala perfectamente en mobile y desktop -->
+          <svg class="w-full h-full" viewBox="0 0 860 500" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="gradLoteActivo" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#22c55e" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#15803d" stop-opacity="0.15"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Lote 1: Vecino / Barbecho -->
+            <polygon points="40,50 260,35 240,210 30,195" fill="#334155" fill-opacity="0.25" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4"/>
+            <text x="60" y="125" fill="#cbd5e1" font-size="14" font-weight="600">Lote 1 · 90 ha (Barbecho)</text>
+
+            <!-- Lote 2: Maíz Tardío -->
+            <polygon points="275,35 540,25 520,200 255,210" fill="#eab308" fill-opacity="0.15" stroke="#eab308" stroke-width="2"/>
+            <text x="330" y="115" fill="#fef08a" font-size="14" font-weight="700">Lote 2 · 185 ha · Maíz</text>
+
+            <!-- Lote 7: Trigo Cosechado -->
+            <polygon points="555,25 820,40 800,205 535,195" fill="#0284c7" fill-opacity="0.15" stroke="#0284c7" stroke-width="1.5"/>
+            <text x="610" y="115" fill="#7dd3fc" font-size="14" font-weight="600">Lote 7 · 140 ha · Trigo</text>
+
+            <!-- LOTE 4: EL PROTAGONISTA SELECCIONADO -->
+            <polygon id="svg-poly-lote" points="160,230 680,220 640,470 120,460" fill="url(#gradLoteActivo)" stroke="#22c55e" stroke-width="3.5" class="filter drop-shadow-[0_0_15px_rgba(34,197,94,0.4)]"/>
+            <circle cx="400" cy="340" r="8" fill="#22c55e" class="animate-ping"/>
+            <circle cx="400" cy="340" r="5" fill="#ffffff"/>
+          </svg>
+        </div>
+
+        <!-- TARJETA FLOTANTE DEL LOTE (En desktop flota a la derecha; en mobile se coloca abajo con total claridad) -->
+        <div class="p-4 sm:p-5 lg:p-0 lg:absolute lg:bottom-6 lg:right-6 lg:max-w-md lg:z-20 border-t lg:border-t-0 border-slate-800 bg-slate-950 lg:bg-transparent">
+          <div class="glass-card rounded-2xl p-4 sm:p-5 shadow-2xl border border-agro-500/30 text-left space-y-3">
+            
+            <!-- Cabecera de la ficha del lote -->
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-black text-agro-400 uppercase tracking-wider" id="lote-card-subtitle">CUADRO SUR · PROPIO</span>
+                  <span id="lote-card-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    LISTO COSECHA
+                  </span>
+                </div>
+                <h3 class="text-base sm:text-xl font-black text-white mt-0.5" id="lote-card-title">
+                  Lote 4 - "El Triángulo"
+                </h3>
+              </div>
+              <div class="text-right">
+                <span class="text-lg sm:text-2xl font-black text-white" id="lote-card-ha">142</span>
+                <span class="text-[10px] sm:text-xs text-slate-400 font-semibold block">Hectáreas</span>
+              </div>
+            </div>
+
+            <!-- Grilla de Datos Productivos -->
+            <div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-800 text-xs">
+              <div>
+                <span class="text-[10px] text-slate-400 block font-medium">Cultivo en Pie</span>
+                <strong class="text-slate-100 font-bold text-xs" id="lote-card-cultivo">Soja 1ra (DM 46i20)</strong>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block font-medium">Rinde Estimado</span>
+                <strong class="text-emerald-400 font-bold text-xs" id="lote-card-rinde">38.5 qq/ha</strong>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block font-medium">Volumen Total</span>
+                <strong class="text-amber-300 font-bold text-xs" id="lote-card-volumen">546.7 Tn</strong>
+              </div>
+            </div>
+
+            <!-- ALERTA DINÁMICA DEL MOTOR DE DECISIONES DE EDUAGRO -->
+            <div id="lote-card-alerta-box" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
+              <span class="text-base shrink-0">⚠️</span>
+              <div class="space-y-1">
+                <div class="text-xs font-bold text-amber-300 flex items-center justify-between">
+                  <span id="lote-card-alerta-titulo">Lluvia Inminente en 48hs (32 mm)</span>
+                  <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 rounded text-amber-200">Riesgo Piso</span>
+                </div>
+                <p class="text-[11px] text-slate-300 leading-snug" id="lote-card-alerta-desc">
+                  Humedad actual: <strong>15.2%</strong>. El motor recomienda cosechar e ingresar a secadora de inmediato para evitar pérdidas por vuelco o caminos intransitables.
+                </p>
+                <div class="text-[10px] font-bold text-agro-400 pt-0.5" id="lote-card-alerta-ahorro">
+                  💰 Ahorro estimado por prevención de merma: US$ 3.850
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 4. SHOWCASE DE MÓDULOS EN ACCIÓN ("SIMULANDO UN VIDEO DE USO REAL") -->
+  <!-- ========================================================================= -->
+  <section id="showcase-modulos" class="py-12 lg:py-24 bg-slate-950 border-b border-slate-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-10 space-y-2.5">
+        <div class="inline-flex items-center gap-1.5 text-xs font-bold text-agro-400 uppercase tracking-wider bg-agro-500/10 px-3 py-1 rounded-full border border-agro-500/20">
+          Tour Funcional en Video Simulado
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+          Mirá Cómo Funciona EduAgro en tu Operatoria Real
+        </h2>
+        <p class="text-slate-300 text-xs sm:text-base leading-relaxed">
+          Sin necesidad de interactuar, observá el flujo automático entre la cosecha, la guarda en silobolsas, los contratos de venta y la administración familiar.
+        </p>
+      </div>
+
+      <!-- NAVEGADOR DE PESTAÑAS CON AUTO-PLAY (2 COLUMNAS EN MOBILE, 6 EN DESKTOP) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6" id="modulos-tabs">
+        
+        <button onclick="activarModulo(0)" id="tab-0" class="modulo-tab active p-2.5 rounded-xl text-left bg-slate-900 border border-agro-500/40 text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Satelital & Lotes</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-0" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+        <button onclick="activarModulo(1)" id="tab-1" class="modulo-tab p-2.5 rounded-xl text-left bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Motor Precio Neto</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-1" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+        <button onclick="activarModulo(2)" id="tab-2" class="modulo-tab p-2.5 rounded-xl text-left bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Silobolsas (1B)</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-2" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+        <button onclick="activarModulo(3)" id="tab-3" class="modulo-tab p-2.5 rounded-xl text-left bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Insumos USD/ARS</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-3" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+        <button onclick="activarModulo(4)" id="tab-4" class="modulo-tab p-2.5 rounded-xl text-left bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Servicios EPEC</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-4" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+        <button onclick="activarModulo(5)" id="tab-5" class="modulo-tab p-2.5 rounded-xl text-left bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white transition-all relative overflow-hidden">
+          <div class="text-xs font-bold mb-1 truncate">Modo Camioneta</div>
+          <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+            <div id="bar-5" class="progress-bar-fill bg-agro-500 h-full w-0"></div>
+          </div>
+        </button>
+
+      </div>
+
+      <!-- CONTENEDOR DEL SIMULADOR VISUAL (PANTALLA DE LA APP EN VIVO) -->
+      <div class="bg-slate-900 rounded-3xl border border-slate-800 p-4 sm:p-8 shadow-2xl min-h-[440px] flex items-center justify-center relative overflow-hidden">
+        
+        <!-- PANTALLA 0: SATELITAL & GIS -->
+        <div id="pantalla-0" class="modulo-pantalla w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-agro-400 uppercase">Módulo Productivo GIS</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">Delimitación Vectorial y Cálculo de Hectáreas en Vivo</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Georreferenciado GPS
+            </span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+            <div class="md:col-span-2 bg-slate-950 rounded-2xl p-3 border border-slate-800 relative overflow-hidden">
+              <img src="/static/img/productivo_lotes.png" alt="Lotes EduAgro" class="w-full h-48 sm:h-64 object-cover rounded-xl border border-slate-800 shadow-md">
+              <div class="absolute bottom-5 left-5 bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-xl border border-agro-500/40 text-xs text-white">
+                <span class="font-bold text-agro-400">Pizarra de Siembra:</span> Soja 1ra (420 ha) · Maíz (280 ha)
+              </div>
+            </div>
+            <div class="space-y-2.5">
+              <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                <div class="text-[11px] text-slate-400">Rinde Histórico vs Estimado</div>
+                <div class="text-base sm:text-lg font-bold text-white mt-0.5">36.8 qq/ha <span class="text-xs font-normal text-agro-400">(+12%)</span></div>
+              </div>
+              <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                <div class="text-[11px] text-slate-400">Rotación Agronómica</div>
+                <div class="text-xs text-slate-200 mt-0.5">Girasol ➔ Trigo/Soja 2da ➔ Maíz Tardío con balance de nitrógeno óptimo.</div>
+              </div>
+              <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                <div class="text-[11px] text-slate-400">Acceso Técnico</div>
+                <div class="text-xs text-agro-300 font-semibold mt-0.5">Habilitado para tu Ingeniero Agrónomo asesor.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANTALLA 1: MOTOR DE DECISIONES DETERMINÍSTICO (PRECIO NETO EN ORIGEN) -->
+        <div id="pantalla-1" class="modulo-pantalla hidden w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-amber-400 uppercase">Motor de Decisiones Determinístico</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">Comparador de Destinos: ¿Rosario o Acopio Local?</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold">
+              Cálculo al Centavo en Origen
+            </span>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <!-- Destino A: Puerto Rosario -->
+            <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <h4 class="font-black text-slate-200 text-xs sm:text-sm">Opción A: Puerto Rosario / Timbúes</h4>
+                <span class="text-xs text-slate-400">320 km</span>
+              </div>
+              <div class="space-y-1 text-xs text-slate-300">
+                <div class="flex justify-between"><span>Precio Bruto Ofrecido:</span> <strong class="text-white">$310.00 USD/Tn</strong></div>
+                <div class="flex justify-between text-red-400"><span>- Flete Larga Distancia:</span> <strong>- $28.50 USD/Tn</strong></div>
+                <div class="flex justify-between text-red-400"><span>- Costo Secada (2.5 pts):</span> <strong>- $6.25 USD/Tn</strong></div>
+                <div class="flex justify-between text-red-400"><span>- Paritaria & Comisiones:</span> <strong>- $1.50 USD/Tn</strong></div>
+                <div class="border-t border-slate-800 pt-2 flex justify-between font-black text-xs sm:text-sm text-slate-300">
+                  <span>PRECIO NETO TRANQUERA:</span>
+                  <span class="text-white">$273.75 USD/Tn</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Destino B: Acopio Local (Ganador) -->
+            <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border-2 border-agro-500/50 relative space-y-2.5">
+              <div class="absolute -top-3 right-4 px-2 py-0.5 rounded-full bg-agro-500 text-slate-950 font-black text-[9px] uppercase tracking-wider">
+                🏆 Recomendado por el Motor
+              </div>
+              <div class="flex items-center justify-between">
+                <h4 class="font-black text-white text-xs sm:text-sm">Opción B: Acopio Local</h4>
+                <span class="text-xs text-agro-400 font-bold">25 km</span>
+              </div>
+              <div class="space-y-1 text-xs text-slate-300">
+                <div class="flex justify-between"><span>Precio Bruto Ofrecido:</span> <strong class="text-white">$302.00 USD/Tn</strong></div>
+                <div class="flex justify-between text-emerald-400"><span>- Flete Corto Local:</span> <strong>- $9.20 USD/Tn</strong></div>
+                <div class="flex justify-between text-red-400"><span>- Costo Secada Planta:</span> <strong>- $4.50 USD/Tn</strong></div>
+                <div class="flex justify-between text-red-400"><span>- Gastos Operativos:</span> <strong>- $1.00 USD/Tn</strong></div>
+                <div class="border-t border-agro-500/40 pt-2 flex justify-between font-black text-xs sm:text-sm text-agro-400">
+                  <span>PRECIO NETO TRANQUERA:</span>
+                  <span>$287.30 USD/Tn</span>
+                </div>
+              </div>
+              <div class="p-2 rounded-xl bg-agro-500/10 text-agro-300 text-xs font-bold text-center">
+                ✨ Ganancia extra neta: +US$ 13.55 por Tonelada
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANTALLA 2: SILOBOLSAS & ESTÁNDAR DE 4 SALDOS (1B) -->
+        <div id="pantalla-2" class="modulo-pantalla hidden w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-emerald-400 uppercase">Stock Físico & Comercial 1B</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">El Fin del Miedo a Sobre-Vender: 4 Saldos Concurrentes</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-bold">
+              Precisión de Kilos por Partida
+            </span>
+          </div>
+
+          <!-- Barra de desglose de 4 saldos -->
+          <div class="space-y-2 pt-1">
+            <div class="flex flex-col sm:flex-row justify-between text-xs text-slate-300 gap-1">
+              <span>Stock Físico Real: <strong>1.450,00 Tn</strong></span>
+              <span class="text-agro-400 font-bold">Valor Estimado Libre: US$ 248.880</span>
+            </div>
+            <div class="h-6 sm:h-7 w-full bg-slate-800 rounded-xl overflow-hidden flex text-[9px] sm:text-[10px] font-black text-slate-950">
+              <div class="bg-amber-500 flex items-center justify-center truncate px-1" style="width: 25%">
+                ARRIENDO 360 Tn
+              </div>
+              <div class="bg-sky-400 flex items-center justify-center truncate px-1" style="width: 15%">
+                CANJE 210 Tn
+              </div>
+              <div class="bg-indigo-400 flex items-center justify-center truncate px-1" style="width: 10%">
+                VIAJE 145 Tn
+              </div>
+              <div class="bg-agro-400 flex items-center justify-center truncate px-1" style="width: 50%">
+                LIBRE: 735 Tn (50.7%)
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+              <span class="text-xs text-slate-400">Silobolsa 1 (Lote 4 - Soja)</span>
+              <div class="text-base sm:text-lg font-bold text-white mt-0.5">220 Tn Físicas</div>
+              <span class="text-[11px] text-agro-400">100% Libre para fijar precio</span>
+            </div>
+            <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+              <span class="text-xs text-slate-400">Silobolsa 2 (Lote 2 - Maíz)</span>
+              <div class="text-base sm:text-lg font-bold text-white mt-0.5">250 Tn Físicas</div>
+              <span class="text-[11px] text-amber-300">120 Tn reservadas para alquiler</span>
+            </div>
+            <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+              <span class="text-xs text-slate-400">Acopio AFA (En Custodia)</span>
+              <div class="text-base sm:text-lg font-bold text-white mt-0.5">500 Tn Físicas</div>
+              <span class="text-[11px] text-sky-300">Pendiente fijación Matba Rofex</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANTALLA 3: INSUMOS BIMONEDA & PRE-LABOR -->
+        <div id="pantalla-3" class="modulo-pantalla hidden w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-teal-400 uppercase">Insumos y Abastecimiento V3</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">Kardex Bimoneda con PPP (USD/ARS) y Control Pre-Labor</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-teal-500/10 text-teal-300 border border-teal-500/30 rounded-full text-xs font-bold">
+              Blindaje de Galpón
+            </span>
+          </div>
+
+          <div class="bg-slate-950 rounded-2xl p-4 border border-slate-800 space-y-3">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs pb-2 border-b border-slate-800 gap-1">
+              <span class="font-bold text-white">Orden: Pulverización Lote 4 (142 ha)</span>
+              <span class="text-agro-400 font-bold">🟢 Disponibilidad Aprobada en Galpón</span>
+            </div>
+            <div class="space-y-2 text-xs">
+              <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900">
+                <span>Fungicida Curalot Plus</span>
+                <div class="text-right">
+                  <strong class="text-white">Requerido: 71 L</strong> / <span class="text-slate-400">Stock: 120 L</span>
+                  <span class="text-[10px] text-teal-300 block">PPP: US$ 18.50/L ($27.500 ARS)</span>
+                </div>
+              </div>
+              <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900">
+                <span>Coadyuvante Siliconado</span>
+                <div class="text-right">
+                  <strong class="text-white">Requerido: 14.2 L</strong> / <span class="text-slate-400">Stock: 40 L</span>
+                  <span class="text-[10px] text-teal-300 block">PPP: US$ 9.20/L ($13.680 ARS)</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 pt-1">
+              * El sistema bloquea automáticamente la orden si no hay insumos suficientes o si el viento supera los 15 km/h.
+            </div>
+          </div>
+        </div>
+
+        <!-- PANTALLA 4: SERVICIOS RURALES EPEC & BÓVEDA DIGITAL -->
+        <div id="pantalla-4" class="modulo-pantalla hidden w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-purple-400 uppercase">Servicios Rurales, Patentes y Trámites</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">Semáforo de Vencimientos y Comprobantes Seguros</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold">
+              Cero Cortes de Luz Rural
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
+            <div class="bg-slate-950 p-3.5 sm:p-4 rounded-2xl border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-white">EPEC Luz Rural - Bomba Lote 4</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-300">PAGADO</span>
+              </div>
+              <p class="text-xs text-slate-400">Vencimiento: 10 de Marzo · Pagado vía Link Oficial</p>
+              <div class="flex items-center justify-between pt-1 text-xs">
+                <span class="text-slate-300">Monto: <strong>$148.200 ARS</strong></span>
+                <span class="text-[11px] text-purple-400 font-semibold">
+                  Factura_EPEC.pdf
+                </span>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 p-3.5 sm:p-4 rounded-2xl border border-amber-500/30 space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-white">Inmobiliario Rural / Rentas Cba</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-300 animate-pulse">POR VENCER (5 DÍAS)</span>
+              </div>
+              <p class="text-xs text-slate-400">Cuota 1/2026 · Descuento por pago en término</p>
+              <div class="flex items-center justify-between pt-1 text-xs">
+                <span class="text-slate-300">Monto: <strong>$320.400 ARS</strong></span>
+                <span class="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold rounded text-[10px]">
+                  Pagar en Rentas ↗
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANTALLA 5: MODO CAMPO EN CAMIONETA -->
+        <div id="pantalla-5" class="modulo-pantalla hidden w-full max-w-4xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <span class="text-xs font-bold text-sky-400 uppercase">Modo Campo para Celular</span>
+              <h3 class="text-lg sm:text-2xl font-black text-white">Uso Táctil con una Mano sobre la Camioneta</h3>
+            </div>
+            <span class="px-2.5 py-0.5 bg-sky-500/10 text-sky-300 border border-sky-500/30 rounded-full text-xs font-bold">
+              100% Sin Señal (Offline-First)
+            </span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-6 pt-1">
+            <div class="w-60 bg-slate-950 border-4 border-slate-800 rounded-3xl p-4 shadow-2xl space-y-3">
+              <div class="w-12 h-1 bg-slate-800 rounded-full mx-auto"></div>
+              <div class="text-center">
+                <span class="text-[10px] text-sky-400 font-bold uppercase">Pluviómetro Rápido</span>
+                <div class="text-3xl font-black text-white mt-1">28 <span class="text-sm font-normal text-slate-400">mm</span></div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="py-2.5 bg-slate-900 text-white font-bold rounded-xl text-xs border border-slate-800">
+                  +5 mm
+                </button>
+                <button class="py-2.5 bg-agro-600 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-agro-500/20">
+                  +10 mm
+                </button>
+              </div>
+              <div class="p-2 bg-emerald-500/10 text-emerald-300 rounded-xl text-[10px] font-bold text-center border border-emerald-500/20">
+                ✅ Guardado en memoria local
+              </div>
+            </div>
+
+            <div class="max-w-md space-y-2.5 text-left">
+              <h4 class="text-base font-bold text-white">Pensado para quien anda en el barro</h4>
+              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                No le pidas a tu encargado de campo que use una planilla compleja. Diseñamos botones gigantes para anotar lluvias y notas de lote desde el volante de la camioneta. Cuando vuelve a la base o toma señal en el pueblo, todo se actualiza solo en la oficina.
+              </p>
+              <div class="text-xs font-semibold text-sky-300">
+                📱 Instalable como aplicación móvil (PWA) sin pasar por App Store.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 5. SECCIÓN DE MERCADO Y COTIZACIONES EN VIVO (PIZARRA ROSARIO CAC / BCR) -->
+  <!-- (Aquí queda explícito el valor del Dólar y los Granos como pidió el usuario) -->
+  <!-- ========================================================================= -->
+  <section id="mercado" class="py-12 lg:py-20 bg-slate-900/60 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="max-w-3xl mb-10 space-y-2.5">
+        <div class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-wider bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+          Sincronización con el Mercado de Granos
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+          Cotizaciones Oficiales de Pizarra y Dólar CAC en Vivo
+        </h2>
+        <p class="text-slate-300 text-xs sm:text-base leading-relaxed">
+          EduAgro se sincroniza diariamente con la Cámara Arbitral de Cereales de Rosario (BCR) y el Banco Nación. Tu grano en silobolsas se valoriza en tiempo real para que sepas exactamente cuánto capital líquido tenés disponible hoy.
+        </p>
+      </div>
+
+      <!-- Cuadrícula de 4 Tarjetas de Mercado -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Tarjeta 1: Dólar CAC / BNA -->
+        <div class="glass-card rounded-2xl p-5 border border-amber-500/30 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
+            <span>DÓLAR OFICIAL CAC</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black text-amber-300">
+            ${{ cotizacion_dolar|default(1487)|int }} <span class="text-xs font-normal text-slate-400">ARS</span>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Fuente: {{ cotizacion_dolar_info.fuente|default('Dólar CAC Rosario (BCR)') }}
+          </p>
+        </div>
+
+        <!-- Tarjeta 2: Soja Rosario -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
+            <span>SOJA PIZARRA ROSARIO</span>
+            <span class="text-agro-400 font-bold">BCR</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black text-white">
+            ${{ precios_pizarra.soja.ars|default(415000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+          </div>
+          <p class="text-[11px] text-agro-400 font-medium">
+            Equivalente: ~US$ {{ precios_pizarra.soja.usd|default(280)|int }} USD/Tn
+          </p>
+        </div>
+
+        <!-- Tarjeta 3: Maíz Rosario -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
+            <span>MAÍZ PIZARRA ROSARIO</span>
+            <span class="text-amber-400 font-bold">BCR</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black text-white">
+            ${{ precios_pizarra.maiz.ars|default(245000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+          </div>
+          <p class="text-[11px] text-amber-300 font-medium">
+            Equivalente: ~US$ {{ precios_pizarra.maiz.usd|default(165)|int }} USD/Tn
+          </p>
+        </div>
+
+        <!-- Tarjeta 4: Trigo Rosario -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
+            <span>TRIGO CAC ROSARIO</span>
+            <span class="text-sky-400 font-bold">BCR</span>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black text-white">
+            ${{ precios_pizarra.trigo.ars|default(285000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+          </div>
+          <p class="text-[11px] text-sky-300 font-medium">
+            Equivalente: ~US$ {{ precios_pizarra.trigo.usd|default(192)|int }} USD/Tn
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 6. BENEFICIOS POR PERFIL: DUEÑO, INGENIERO AGRÓNOMO Y FINANZAS -->
+  <!-- ========================================================================= -->
+  <section id="perfiles" class="py-12 lg:py-24 bg-slate-950 border-b border-slate-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-10 sm:mb-14 space-y-2.5">
+        <div class="inline-flex items-center gap-1.5 text-xs font-bold text-agro-400 uppercase tracking-wider bg-agro-500/10 px-3 py-1 rounded-full border border-agro-500/20">
+          Diseñado para Toda la Empresa
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+          Una Solución Pensada para Cada Miembro de tu Equipo
+        </h2>
+        <p class="text-slate-300 text-xs sm:text-base leading-relaxed">
+          Los roles familiares y operativos de EduAgro garantizan que cada persona tenga la información que necesita, sin exponer números confidenciales a quien no corresponde.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
+        
+        <!-- Rol 1: Productor / Dueño de Campo -->
+        <div class="glass-card rounded-3xl p-5 sm:p-7 space-y-3.5 border border-slate-800 hover:border-agro-500/40 transition-all">
+          <div>
+            <span class="text-xs font-bold text-agro-400 uppercase tracking-wider">Perfil 1</span>
+            <h3 class="text-lg sm:text-xl font-black text-white mt-1">El Productor & Dueño</h3>
+          </div>
+          <ul class="space-y-2.5 text-xs sm:text-sm text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-agro-400 font-bold">✓</span>
+              <span><strong>Certeza de Stock Libre:</strong> Sabe al centavo cuántas toneladas reales tiene sin comprometer para salir a vender.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-agro-400 font-bold">✓</span>
+              <span><strong>Valorización Patrimonial en USD:</strong> Su cosecha valuada a Pizarra Rosario en tiempo real.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-agro-400 font-bold">✓</span>
+              <span><strong>Decisiones con Margen Neto:</strong> Elige puerto o acopio sabiendo qué flete y secada le conviene más.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Rol 2: Ingeniero Agrónomo / Dirección Técnica -->
+        <div class="glass-card rounded-3xl p-5 sm:p-7 space-y-3.5 border border-slate-800 hover:border-emerald-500/40 transition-all">
+          <div>
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Perfil 2</span>
+            <h3 class="text-lg sm:text-xl font-black text-white mt-1">El Ingeniero Agrónomo</h3>
+          </div>
+          <ul class="space-y-2.5 text-xs sm:text-sm text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">✓</span>
+              <span><strong>Trazabilidad Lote a Lote:</strong> Rotaciones, rindes por campaña en $qq/ha$ y fechas fenológicas.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">✓</span>
+              <span><strong>Ventanas de Pulverización:</strong> Alertas automáticas de viento ($>15\text{ km/h}$) y riesgo de helada ($<4^\circ\text{C}$).</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">✓</span>
+              <span><strong>Recetas y Disponibilidad de Insumos:</strong> Verificación de producto en galpón antes de enviar la máquina.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Rol 3: Administración y Finanzas Familiares -->
+        <div class="glass-card rounded-3xl p-5 sm:p-7 space-y-3.5 border border-slate-800 hover:border-purple-500/40 transition-all">
+          <div>
+            <span class="text-xs font-bold text-purple-400 uppercase tracking-wider">Perfil 3</span>
+            <h3 class="text-lg sm:text-xl font-black text-white mt-1">Administración y Finanzas</h3>
+          </div>
+          <ul class="space-y-2.5 text-xs sm:text-sm text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-purple-400 font-bold">✓</span>
+              <span><strong>Arrendamientos Automatizados:</strong> Conversión de $qq/ha$ a toneladas con reserva automática en stock.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-purple-400 font-bold">✓</span>
+              <span><strong>Auditoría de Balanzas:</strong> Alerta inmediata si el camión llega a destino con más de 300 kg o 1% de faltante.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-purple-400 font-bold">✓</span>
+              <span><strong>Cero Papel Perdido:</strong> Facturas de Luz Rural EPEC, patentes y comprobantes con hash digital en la nube.</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 7. TABLA COMPARATIVA: SIN EDUAGRO VS. CON EDUAGRO -->
+  <!-- ========================================================================= -->
+  <section class="py-12 lg:py-24 bg-slate-900/50 border-b border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-10 space-y-2.5">
+        <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+          La Diferencia entre el Caos Diario y el Control Total
+        </h2>
+        <p class="text-slate-400 text-xs sm:text-sm">
+          Compará cómo se gestiona tu establecimiento hoy vs. cómo trabaja una empresa que utiliza EduAgro.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+        <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800 text-xs sm:text-sm">
+          
+          <!-- Columna: Sin EduAgro -->
+          <div class="p-5 sm:p-8 space-y-3.5 bg-red-950/10">
+            <div class="flex items-center gap-2 text-red-400 font-black text-sm sm:text-base">
+              <span>✕</span> Sin EduAgro (El Método Tradicional)
+            </div>
+            <ul class="space-y-3 text-slate-300">
+              <li class="flex items-start gap-2">
+                <span class="text-red-400 font-bold">✕</span>
+                <span>Planillas de Excel que nadie actualiza a tiempo y libretas de lluvia mojadas en el tablero de la chata.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-red-400 font-bold">✕</span>
+                <span>Dudas permanentes sobre cuánto grano queda libre para vender después de pagar el alquiler pactado en quintales.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-red-400 font-bold">✕</span>
+                <span>Fletes mandados a ciegas a Rosario sin calcular si la secada y el viaje largo te comen la diferencia de precio.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-red-400 font-bold">✕</span>
+                <span>Faltantes de kilos en balanza de destino que se descubren recién cuando llega la liquidación semanas después.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Columna: Con EduAgro -->
+          <div class="p-5 sm:p-8 space-y-3.5 bg-emerald-950/10">
+            <div class="flex items-center gap-2 text-agro-400 font-black text-sm sm:text-base">
+              <span>✓</span> Con EduAgro (Operación Blindada)
+            </div>
+            <ul class="space-y-3 text-slate-200">
+              <li class="flex items-start gap-2">
+                <span class="text-agro-400 font-bold">✓</span>
+                <span>Visor satelital con cada lote georreferenciado, rinde en $qq/ha$ y lluvias sincronizadas en vivo desde el celular.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-agro-400 font-bold">✓</span>
+                <span>Cuatro saldos concurrentes por silobolsa: sabés exactamente el grano físico, el reservado y tu plata libre.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-agro-400 font-bold">✓</span>
+                <span>Motor determinístico que te dice al dólar cuál es tu Precio Neto en Tranquera antes de cargar el camión.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-agro-400 font-bold">✓</span>
+                <span>Auditoría en tiempo real de balanzas: alerta automática ante cualquier merma mayor al 1% o 300 kg.</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 8. CONTACTO, SOLICITUD DE DEMO & ACCESO DIRECTO -->
+  <!-- ========================================================================= -->
+  <section id="contacto" class="py-12 lg:py-24 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 relative overflow-hidden">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 sm:space-y-8">
+      
+      <div class="space-y-2.5">
+        <span class="px-3 py-1 rounded-full bg-agro-500/10 border border-agro-500/30 text-agro-400 text-xs font-bold uppercase tracking-wider inline-block">
+          Da el Salto en tu Establecimiento
+        </span>
+        <h2 class="text-2xl sm:text-5xl font-black text-white tracking-tight">
+          Llevá tu Campo al Siguiente Nivel de Eficiencia
+        </h2>
+        <p class="text-slate-300 text-xs sm:text-base max-w-2xl mx-auto leading-relaxed">
+          Ponete en contacto con nuestro equipo agronómico y técnico. Configuramos tu campo, cargamos tus lotes y empezá a tomar decisiones con números claros desde esta misma campaña.
+        </p>
+      </div>
+
+      <!-- Tarjeta de Contacto Directo & WhatsApp -->
+      <div class="glass-card rounded-3xl p-5 sm:p-10 border border-agro-500/30 shadow-2xl max-w-2xl mx-auto text-left space-y-5">
+        
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-agro-500/10 border border-agro-500/20">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-agro-500 text-slate-950 flex items-center justify-center text-xl font-black shrink-0">
+              💬
+            </div>
+            <div>
+              <h4 class="font-black text-white text-sm sm:text-base">Atención Directa por WhatsApp</h4>
+              <p class="text-xs text-slate-300">Hablá con un asesor agropecuario en minutos.</p>
+            </div>
+          </div>
+          <a href="https://wa.me/5493510000000?text=Hola!%20Me%20interesa%20conocer%20m%C3%A1s%20sobre%20la%20plataforma%20EduAgro%20para%20mi%20campo." target="_blank" class="w-full sm:w-auto px-5 py-2.5 bg-agro-500 hover:bg-agro-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all text-center">
+            Escribir por WhatsApp
+          </a>
+        </div>
+
+        <div class="text-center pt-1">
+          <p class="text-xs text-slate-400">
+            ¿Ya sos cliente de EduAgro? 
+            <a href="/login" class="text-agro-400 font-bold hover:underline ml-1">Ingresá a tu cuenta aquí ➔</a>
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 9. FOOTER INSTITUCIONAL (Sin PDF familiar) -->
+  <!-- ========================================================================= -->
+  <footer class="bg-slate-950 border-t border-slate-800/80 py-8 text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-2">
+        <span class="text-base font-black text-white">Edu<span class="text-agro-500">Agro</span></span>
+        <span>— Sistema Integral de Gestión y Toma de Decisiones Agropecuarias.</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a href="/health" class="hover:text-slate-300 transition-colors">Estado del Sistema</a>
+        <a href="/login" class="hover:text-agro-400 transition-colors font-bold">Portal Clientes</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- 10. SCRIPT JAVASCRIPT: MENÚ MOBILE, SIMULADORES Y AUTO-PLAY -->
+  <!-- ========================================================================= -->
+  <script>
+    // =========================================================================
+    // TOGGLE MENÚ HAMBURGUESA MOBILE
+    // =========================================================================
+    function toggleMobileMenu() {
+      const drawer = document.getElementById('mobile-menu-drawer');
+      const iconOpen = document.getElementById('menu-icon-open');
+      const iconClose = document.getElementById('menu-icon-close');
+      
+      if (!drawer) return;
+
+      if (drawer.classList.contains('hidden')) {
+        drawer.classList.remove('hidden');
+        if (iconOpen) iconOpen.classList.add('hidden');
+        if (iconClose) iconClose.classList.remove('hidden');
+      } else {
+        drawer.classList.add('hidden');
+        if (iconOpen) iconOpen.classList.remove('hidden');
+        if (iconClose) iconClose.classList.add('hidden');
+      }
+    }
+
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    if (mobileMenuBtn) {
+      mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+    }
+
+    // =========================================================================
+    // DATOS DE LOTES PARA EL VISOR SATELITAL
+    // =========================================================================
+    const datosLotes = {
+      lote4: {
+        title: 'Lote 4 - "El Triángulo"',
+        subtitle: 'CUADRO SUR · PROPIO',
+        badge: 'LISTO COSECHA',
+        badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        ha: '142',
+        cultivo: 'Soja 1ra (DM 46i20)',
+        rinde: '38.5 qq/ha',
+        volumen: '546.7 Tn',
+        alertaTitulo: 'Lluvia Inminente en 48hs (32 mm)',
+        alertaDesc: 'Humedad actual: 15.2%. El motor recomienda cosechar e ingresar a secadora de inmediato para evitar pérdidas por vuelco o caminos intransitables.',
+        ahorro: '💰 Ahorro estimado por prevención de merma: US$ 3.850',
+        points: '160,230 680,220 640,470 120,460'
+      },
+      lote2: {
+        title: 'Lote 2 - "Bajo Este"',
+        subtitle: 'CUADRO CENTRAL · ALQUILADO',
+        badge: 'EN CRECIMIENTO',
+        badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        ha: '185',
+        cultivo: 'Maíz Tardío (DK 72-10)',
+        rinde: '88.0 qq/ha',
+        volumen: '1.628 Tn',
+        alertaTitulo: 'Ventana de Secado Natural Favorable',
+        alertaDesc: 'Humedad actual: 17.5%. Lluvias nulas en los próximos 7 días. Esperar secado en pie ahorra US$ 2.50/Tn/punto.',
+        ahorro: '💰 Ahorro estimado por esperar secado: US$ 4.070',
+        points: '275,35 540,25 520,200 255,210'
+      },
+      lote7: {
+        title: 'Lote 7 - "La Rinconada"',
+        subtitle: 'CUADRO NORTE · PROPIO',
+        badge: 'COSECHADO',
+        badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+        ha: '140',
+        cultivo: 'Trigo (Baguette 620)',
+        rinde: '34.0 qq/ha',
+        volumen: '476.0 Tn',
+        alertaTitulo: 'Stock en Silobolsa 3 Registrado',
+        alertaDesc: 'Cosecha completada. Grano guardado en bolsa con 13.2% de humedad. Reserva para arriendo completada.',
+        ahorro: '✅ 100% de cartas de porte y pesajes conciliados',
+        points: '555,25 820,40 800,205 535,195'
+      }
+    };
+
+    function cambiarLoteSatelital(key) {
+      const lote = datosLotes[key];
+      if (!lote) return;
+
+      document.getElementById('lote-card-title').innerText = lote.title;
+      document.getElementById('lote-card-subtitle').innerText = lote.subtitle;
+      document.getElementById('lote-card-ha').innerText = lote.ha;
+      document.getElementById('lote-card-cultivo').innerText = lote.cultivo;
+      document.getElementById('lote-card-rinde').innerText = lote.rinde;
+      document.getElementById('lote-card-volumen').innerText = lote.volumen;
+      document.getElementById('lote-card-alerta-titulo').innerText = lote.alertaTitulo;
+      document.getElementById('lote-card-alerta-desc').innerText = lote.alertaDesc;
+      document.getElementById('lote-card-alerta-ahorro').innerText = lote.ahorro;
+
+      const badge = document.getElementById('lote-card-badge');
+      badge.innerText = lote.badge;
+      badge.className = `px-2 py-0.5 rounded-full text-[10px] font-bold border ${lote.badgeClass}`;
+
+      const poly = document.getElementById('svg-poly-lote');
+      poly.setAttribute('points', lote.points);
+
+      // Botones estilo activo
+      ['lote4', 'lote2', 'lote7'].forEach(k => {
+        const btn = document.getElementById(`btn-${k}`);
+        if (btn) {
+          if (k === key) {
+            btn.className = 'px-3 py-1 rounded-lg text-xs font-bold transition-all bg-agro-600 text-slate-950 shadow-sm shrink-0';
+          } else {
+            btn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-all shrink-0';
+          }
+        }
+      });
+    }
+
+    // Rotación automática entre lotes satelitales cada 7 segundos
+    const lotesKeys = ['lote4', 'lote2', 'lote7'];
+    let currentLoteIdx = 0;
+    setInterval(() => {
+      currentLoteIdx = (currentLoteIdx + 1) % lotesKeys.length;
+      cambiarLoteSatelital(lotesKeys[currentLoteIdx]);
+    }, 7000);
+
+    // =========================================================================
+    // AUTO-PLAY REPRODUCTOR DE MÓDULOS CON BARRA DE PROGRESO
+    // =========================================================================
+    const TOTAL_MODULOS = 6;
+    const DURACION_MODULO_MS = 6000;
+    let moduloActivo = 0;
+    let progresoInterval = null;
+    let progresoActual = 0;
+
+    function activarModulo(idx) {
+      moduloActivo = idx;
+      progresoActual = 0;
+
+      for (let i = 0; i < TOTAL_MODULOS; i++) {
+        const pantalla = document.getElementById(`pantalla-${i}`);
+        const tab = document.getElementById(`tab-${i}`);
+        const bar = document.getElementById(`bar-${i}`);
+
+        if (pantalla && tab) {
+          if (i === idx) {
+            pantalla.classList.remove('hidden');
+            tab.classList.add('active', 'border-agro-500/50', 'bg-slate-900', 'text-white');
+            tab.classList.remove('bg-slate-900/60', 'border-slate-800', 'text-slate-400');
+          } else {
+            pantalla.classList.add('hidden');
+            tab.classList.remove('active', 'border-agro-500/50', 'bg-slate-900', 'text-white');
+            tab.classList.add('bg-slate-900/60', 'border-slate-800', 'text-slate-400');
+            if (bar) bar.style.width = '0%';
+          }
+        }
+      }
+    }
+
+    function iniciarAutoPlay() {
+      if (progresoInterval) clearInterval(progresoInterval);
+
+      const STEP_MS = 100;
+      const incremento = (STEP_MS / DURACION_MODULO_MS) * 100;
+
+      progresoInterval = setInterval(() => {
+        progresoActual += incremento;
+        const currentBar = document.getElementById(`bar-${moduloActivo}`);
+        if (currentBar) {
+          currentBar.style.width = `${Math.min(100, progresoActual)}%`;
+        }
+
+        if (progresoActual >= 100) {
+          moduloActivo = (moduloActivo + 1) % TOTAL_MODULOS;
+          activarModulo(moduloActivo);
+        }
+      }, STEP_MS);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      activarModulo(0);
+      iniciarAutoPlay();
+    });
+  </script>
+
+</body>
+</html>

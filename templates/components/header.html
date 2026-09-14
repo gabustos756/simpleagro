@@ -7,7 +7,7 @@
       
       <!-- LOGO & TITULO -->
       <div class="flex items-center space-x-2 shrink-0">
-        <a href="/" class="group flex items-center gap-1.5">
+        <a href="{% if user %}/portal{% else %}/{% endif %}" class="group flex items-center gap-1.5" title="EduAgro">
           <span class="text-xl font-black tracking-tight text-white group-hover:text-agro-300 transition-colors">
             Edu<span class="text-agro-500">Agro</span>
           </span>

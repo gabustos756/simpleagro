@@ -590,13 +590,13 @@ async def login_page(
             return RedirectResponse("/campo", status_code=status.HTTP_303_SEE_OTHER)
         elif user["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
             return RedirectResponse("/servicios/vencimientos", status_code=status.HTTP_303_SEE_OTHER)
-        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse("/portal", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
-            "next_url": next or "/",
+            "next_url": next or "/portal",
             "error": None,
             "demo_cliente": DEMO_CLIENTE,
         },
@@ -642,14 +642,14 @@ async def login_submit(
     if campos:
         request.session["campo_activo_id"] = campos[0]["id"]
 
-    target_url = next if next and next != "/" else None
+    target_url = next if next and next not in ("/", "/portal") else None
     if not target_url:
         if user_dict["rol"] == RolUsuario.OPERARIO_CAMPO:
             target_url = "/campo"
         elif user_dict["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
             target_url = "/servicios/vencimientos"
         else:
-            target_url = "/"
+            target_url = "/portal"
 
     return RedirectResponse(target_url, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -690,11 +690,54 @@ def health_check():
 
 
 @app.get("/", response_class=HTMLResponse)
+async def read_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Página web oficial de presentación y ventas de EduAgro."""
+    user = await get_current_user_from_session(request, db)
+
+    from app.services.mercado import obtener_snapshot_precios_mercado
+    try:
+        snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja", "maiz", "trigo"])
+    except Exception:
+        snapshot = []
+
+    dolar_ref = float(snapshot[0].get("dolar_referencia", 1487.00)) if snapshot else 1487.00
+    dolar_info = {
+        "monto": dolar_ref,
+        "fuente": snapshot[0].get("fuente", "Dólar CAC Rosario (BCR)") if snapshot else "Dólar CAC Rosario (BCR)",
+        "fecha": snapshot[0].get("fecha", str(date.today())) if snapshot else str(date.today()),
+        "es_hoy": snapshot[0].get("es_hoy", True) if snapshot else True,
+        "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
+    }
+
+    # Precios de pizarra para ticker
+    precios_pizarra = {}
+    for item in snapshot:
+        c = item.get("cultivo", "").lower()
+        if c:
+            precios_pizarra[c] = {
+                "ars": float(item.get("precio_ars", 0.0)),
+                "usd": float(item.get("precio_usd", 0.0)),
+            }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="landing.html",
+        context={
+            "user": user,
+            "cotizacion_dolar": dolar_ref,
+            "cotizacion_dolar_info": dolar_info,
+            "precios_pizarra": precios_pizarra,
+            "demo_cliente": DEMO_CLIENTE,
+        },
+    )
+
+
+@app.get("/portal", response_class=HTMLResponse)
 async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_db)):
-    """Portal de entrada por operador/área. Renderiza únicamente el portal de entrada."""
+    """Portal de entrada por operador/área para usuarios autenticados."""
     user = await get_current_user_from_session(request, db)
     if not user:
-        return RedirectResponse("/login?next=/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse("/login?next=/portal", status_code=status.HTTP_303_SEE_OTHER)
 
     campo_activo = await get_campo_activo_db(request, db)
     weather_data = get_weather_for_location(
@@ -712,7 +755,7 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
 
     from app.services.mercado import obtener_snapshot_precios_mercado
     snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja"])
-    dolar_ref = float(snapshot[0].get("dolar_referencia", 1486.00)) if snapshot else 1486.00
+    dolar_ref = float(snapshot[0].get("dolar_referencia", 1487.00)) if snapshot else 1487.00
     dolar_info = {
         "monto": dolar_ref,
         "fuente": snapshot[0].get("fuente", "Dólar CAC Rosario (BCR)") if snapshot else "Dólar CAC Rosario (BCR)",
@@ -2975,6 +3018,72 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
     )
     labores_lote = res_labores.scalars().all()
 
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    # 6. Consultar partidas de grano cosechadas de este lote (Stock 1A/1B)
+    from app.models import StockPartida, StorageLocation, Insumo, InsumoSaldoUbicacion
+    res_partidas = await db.execute(
+        select(StockPartida)
+        .options(selectinload(StockPartida.storage_location))
+        .where(StockPartida.lote_id == uuid.UUID(lote_id), StockPartida.estado == "activa")
+        .order_by(StockPartida.fecha_cosecha.desc())
+    )
+    partidas_lote = res_partidas.scalars().all()
+
+    # 7. Consultar ubicaciones de guarda de granos activas (Silos, Silobolsas, Acopios)
+    res_locs_grano = await db.execute(
+        select(StorageLocation)
+        .where(
+            StorageLocation.cliente_id == cliente_id,
+            StorageLocation.estado == "activo",
+            StorageLocation.tipo.in_(["silobolsa", "silo_propio", "acopio", "celda"]),
+        )
+        .order_by(StorageLocation.tipo, StorageLocation.nombre)
+    )
+    storage_locations_grano = res_locs_grano.scalars().all()
+
+    # 8. Consultar insumos con stock disponible en depósitos del cliente
+    res_insumos = await db.execute(
+        select(
+            Insumo.id,
+            Insumo.nombre,
+            Insumo.categoria,
+            Insumo.unidad_medida,
+            InsumoSaldoUbicacion.storage_location_id,
+            StorageLocation.nombre.label("deposito_nombre"),
+            InsumoSaldoUbicacion.cantidad_disponible,
+            InsumoSaldoUbicacion.costo_ppp_usd,
+        )
+        .join(InsumoSaldoUbicacion, InsumoSaldoUbicacion.insumo_id == Insumo.id)
+        .join(StorageLocation, StorageLocation.id == InsumoSaldoUbicacion.storage_location_id)
+        .where(Insumo.cliente_id == cliente_id, Insumo.activo == True, InsumoSaldoUbicacion.cantidad_disponible > 0)
+        .order_by(Insumo.nombre, StorageLocation.nombre)
+    )
+    insumos_disponibles = [
+        {
+            "id": str(r.id),
+            "nombre": r.nombre,
+            "categoria": r.categoria.value if hasattr(r.categoria, "value") else str(r.categoria),
+            "unidad": r.unidad_medida.value if hasattr(r.unidad_medida, "value") else str(r.unidad_medida),
+            "storage_location_id": str(r.storage_location_id),
+            "deposito_nombre": r.deposito_nombre,
+            "cantidad_disponible": float(r.cantidad_disponible),
+            "costo_ppp_usd": float(r.costo_ppp_usd),
+        }
+        for r in res_insumos.all()
+    ]
+
+    # Resumen de costos de insumos aplicados en labores históricas del lote
+    total_costo_insumos_usd = Decimal("0.0")
+    for lab in labores_lote:
+        if lab.insumos_utilizados and isinstance(lab.insumos_utilizados, list):
+            for ins in lab.insumos_utilizados:
+                if isinstance(ins, dict) and ins.get("costo_total_usd"):
+                    try:
+                        total_costo_insumos_usd += Decimal(str(ins["costo_total_usd"]))
+                    except Exception:
+                        pass
+
     return templates.TemplateResponse(
         request=request,
         name="productivo_lote_ficha.html",
@@ -2986,6 +3095,10 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
             "valorizacion": valorizacion_lote,
             "decision_insights": decision_insights,
             "labores": labores_lote,
+            "partidas_lote": partidas_lote,
+            "storage_locations_grano": storage_locations_grano,
+            "insumos_disponibles": insumos_disponibles,
+            "total_costo_insumos_usd": float(total_costo_insumos_usd),
         },
     )
 
@@ -3001,6 +3114,8 @@ async def crear_labor_rapida_lote(
     insumo_nombre: Optional[str] = Form(None),
     insumo_dosis: Optional[float] = Form(None),
     insumo_unidad: Optional[str] = Form("lt/ha"),
+    insumo_catalogado_id: Optional[str] = Form(None),
+    insumo_storage_location_id: Optional[str] = Form(None),
     volumen_agua_lts_ha: Optional[float] = Form(None),
     presion_bar: Optional[float] = Form(None),
     velocidad_kmh: Optional[float] = Form(None),
@@ -3011,6 +3126,9 @@ async def crear_labor_rapida_lote(
     humedad_porcentaje: Optional[float] = Form(None),
     rendimiento_qq_ha: Optional[float] = Form(None),
     total_cosechado_qq: Optional[float] = Form(None),
+    destino_grano_tipo: Optional[str] = Form(None),
+    storage_location_id: Optional[str] = Form(None),
+    nuevo_silobolsa_nombre: Optional[str] = Form(None),
     evaluacion_resultado: Optional[str] = Form(None),
     notas: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
@@ -3019,7 +3137,16 @@ async def crear_labor_rapida_lote(
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
+    from app.models import Campania, Lote, LaborCampo, StorageLocation
+    from app.enums import EstadoProductivoLoteEnum, TipoLabor
+
     l_uuid = uuid.UUID(lote_id)
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    user_id = get_uuid(user.get("id"))
+
+    # Buscar lote y campo
+    res_lote = await db.execute(select(Lote).where(Lote.id == l_uuid))
+    lote_obj = res_lote.scalars().first()
 
     # Buscar campaña activa
     res_camp = await db.execute(select(Campania).order_by(Campania.fecha_inicio.desc()).limit(1))
@@ -3039,6 +3166,8 @@ async def crear_labor_rapida_lote(
             "nombre": insumo_nombre.strip(),
             "dosis": float(insumo_dosis),
             "unidad": insumo_unidad or "lt/ha",
+            "insumo_id": insumo_catalogado_id if insumo_catalogado_id else None,
+            "storage_location_id": insumo_storage_location_id if insumo_storage_location_id else None,
         })
 
     # Parámetros por tipo de labor
@@ -3064,6 +3193,9 @@ async def crear_labor_rapida_lote(
             "humedad_porcentaje": humedad_porcentaje,
             "rendimiento_qq_ha": rendimiento_qq_ha,
             "total_cosechado_qq": total_cosechado_qq,
+            "destino_grano_tipo": destino_grano_tipo,
+            "storage_location_id": storage_location_id,
+            "nuevo_silobolsa_nombre": nuevo_silobolsa_nombre,
         }
 
     # Tipo enum
@@ -3087,24 +3219,125 @@ async def crear_labor_rapida_lote(
         blanco_biologico=blanco_biologico,
         evaluacion_resultado=evaluacion_resultado,
         notas=notas,
-        responsable_id=user.id if hasattr(user, "id") else None,
+        responsable_id=user_id,
     )
 
     db.add(nueva_labor)
+    await db.flush()
 
-    # Si es cosecha, actualizar métricas reales del lote
-    if tipo_labor == "cosecha" and (rendimiento_qq_ha or total_cosechado_qq):
-        res_lote = await db.execute(select(Lote).where(Lote.id == l_uuid))
-        lote_obj = res_lote.scalars().first()
+    # 1. INTEGRACIÓN INSUMOS: Descontar stock físico si el insumo está catalogado
+    if insumo_catalogado_id and insumo_storage_location_id and insumo_dosis:
+        try:
+            from app.services.insumos_service import registrar_consumo_labor
+            sup_calc = superficie_afectada_ha or (lote_obj.superficie_productiva_ha if lote_obj else 1.0)
+            consumo_total = Decimal(str(round(float(insumo_dosis) * float(sup_calc), 4)))
+            if consumo_total > Decimal("0.0"):
+                mov_insumo = await registrar_consumo_labor(
+                    db=db,
+                    cliente_id=cliente_id,
+                    insumo_id=uuid.UUID(insumo_catalogado_id),
+                    storage_location_id=uuid.UUID(insumo_storage_location_id),
+                    labor_campo_id=nueva_labor.id,
+                    fecha_consumo=fecha_dt,
+                    cantidad_real=consumo_total,
+                    clave_idempotencia=f"LABOR-{nueva_labor.id}-{insumo_catalogado_id}",
+                    registrado_por_usuario_id=user_id,
+                    observaciones=f"Consumo labor {t_enum.value} en lote {lote_obj.nombre if lote_obj else ''}",
+                )
+                if mov_insumo and insumos_list:
+                    insumos_list[0]["costo_total_usd"] = float(mov_insumo.costo_total_usd)
+                    insumos_list[0]["costo_total_ars"] = float(mov_insumo.costo_total_ars)
+                    insumos_list[0]["costo_unitario_usd"] = float(mov_insumo.costo_unitario_usd)
+                    nueva_labor.insumos_utilizados = insumos_list
+        except Exception as e:
+            logger.warning(f"[LABOR RAPIDA] No se pudo descontar stock de insumo: {e}")
+
+    # 2. INTEGRACIÓN COSECHA -> SILO & COMERCIAL:
+    if tipo_labor == "cosecha":
+        if rendimiento_qq_ha and lote_obj:
+            lote_obj.qq_ha_real = rendimiento_qq_ha
+        if total_cosechado_qq and lote_obj:
+            lote_obj.produccion_total_qq = total_cosechado_qq
+
+        # Calcular toneladas cosechadas
+        total_tn = 0.0
+        if total_cosechado_qq:
+            total_tn = total_cosechado_qq / 10.0
+        elif rendimiento_qq_ha and superficie_afectada_ha:
+            total_tn = (rendimiento_qq_ha * superficie_afectada_ha) / 10.0
+
+        target_loc_id = None
+        # Si se solicita crear nuevo Silobolsa rápido
+        if destino_grano_tipo == "nuevo_silobolsa" and nuevo_silobolsa_nombre and nuevo_silobolsa_nombre.strip():
+            from app.models import StorageLocation
+            s_nombre = nuevo_silobolsa_nombre.strip()
+            res_exist_loc = await db.execute(
+                select(StorageLocation).where(
+                    StorageLocation.cliente_id == cliente_id,
+                    StorageLocation.tipo == "silobolsa",
+                    func.lower(StorageLocation.nombre) == s_nombre.lower(),
+                )
+            )
+            exist_loc = res_exist_loc.scalars().first()
+            if exist_loc:
+                target_loc_id = exist_loc.id
+            else:
+                nuevo_loc = StorageLocation(
+                    id=uuid.uuid4(),
+                    cliente_id=cliente_id,
+                    nombre=s_nombre,
+                    tipo="silobolsa",
+                    campo_id=lote_obj.campo_id if lote_obj else None,
+                    capacidad_nominal_tn=Decimal(str(round(total_tn * 1.3, 2))) if total_tn > 0 else Decimal("250.0"),
+                    estado="activo",
+                    observaciones=f"Silobolsa creado automáticamente al registrar cosecha de {lote_obj.nombre if lote_obj else 'Lote'}",
+                )
+                db.add(nuevo_loc)
+                await db.flush()
+                target_loc_id = nuevo_loc.id
+        elif storage_location_id and storage_location_id.strip():
+            try:
+                target_loc_id = uuid.UUID(storage_location_id.strip())
+            except Exception:
+                target_loc_id = None
+
+        # Si hay ubicación de guarda y producción real positiva, crear Partida de Grano automáticamente
+        if target_loc_id and total_tn > 0:
+            try:
+                from app.services.stock_service import crear_partida_grano_desde_cosecha
+                cultivo_cosechado = lote_obj.cultivo_actual if (lote_obj and lote_obj.cultivo_actual) else "soja"
+                # Limpiar texto del cultivo (ej: 'Soja 1ra' -> 'soja')
+                c_clean = "soja" if "soja" in cultivo_cosechado.lower() else ("maiz" if "maiz" in cultivo_cosechado.lower() or "maíz" in cultivo_cosechado.lower() else ("trigo" if "trigo" in cultivo_cosechado.lower() else "soja"))
+
+                await crear_partida_grano_desde_cosecha(
+                    db=db,
+                    cliente_id=cliente_id,
+                    storage_location_id=target_loc_id,
+                    cultivo=c_clean,
+                    cantidad_tn=Decimal(str(round(total_tn, 2))),
+                    lote_id=l_uuid,
+                    campo_id=lote_obj.campo_id if lote_obj else None,
+                    campania_id=camp_id,
+                    fecha_cosecha=fecha_dt.date(),
+                    humedad_pct=Decimal(str(humedad_porcentaje)) if humedad_porcentaje else None,
+                    observaciones=f"Cosecha registrada: {round(total_tn, 2)} Tn ({rendimiento_qq_ha or 0} qq/ha) en lote {lote_obj.nombre if lote_obj else ''}",
+                    registrado_por_usuario_id=user_id,
+                )
+                logger.info(f"[COSECHA INTEGRADA] Partida de grano creada exitosamente: {round(total_tn, 2)} Tn en {target_loc_id}")
+            except Exception as e:
+                logger.warning(f"[COSECHA INTEGRADA] No se pudo crear partida de grano automática: {e}")
+
+        # Marcar lote como recién cosechado
         if lote_obj:
-            if rendimiento_qq_ha:
-                lote_obj.qq_ha_real = rendimiento_qq_ha
-            if total_cosechado_qq:
-                lote_obj.produccion_total_qq = total_cosechado_qq
+            meta = dict(lote_obj.metadatos_agronomicos or {})
+            meta["estado_productivo"] = EstadoProductivoLoteEnum.RECIEN_COSECHADO.value
+            lote_obj.metadatos_agronomicos = meta
 
     await db.commit()
 
-    return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg=Labor+registrada+exitosamente", status_code=status.HTTP_303_SEE_OTHER)
+    msg = "Cosecha+registrada+y+asignada+al+stock+de+granos+exitosamente" if (tipo_labor == "cosecha" and target_loc_id) else "Labor+registrada+exitosamente"
+    return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 
 @app.get("/productivo/lotes/{lote_id}/editar", response_class=HTMLResponse)

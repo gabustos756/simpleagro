@@ -464,6 +464,79 @@
         </div>
       </div>
 
+      <!-- 7.B. PRODUCCIÓN EN GUARDA / SILOS BOLSA (STOCK COMERCIAL ACTIVO) -->
+      {% if partidas_lote %}
+      <div class="space-y-2 pt-3 border-t border-slate-100">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🥖</span> Granos Cosechados en Guarda Física (Stock Comercial)
+          </h3>
+          <a href="/comercial/stock" class="text-3xs font-extrabold text-agro-700 hover:text-agro-800 bg-agro-50 px-2.5 py-1 rounded-lg border border-agro-200 transition-all">
+            Ver en Módulo de Stock ➔
+          </a>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% for part in partidas_lote %}
+          <div class="bg-amber-50/60 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-black shadow-xs">
+                  🌾
+                </span>
+                <div>
+                  <h4 class="text-xs font-black text-slate-900">
+                    {{ part.storage_location.nombre if part.storage_location else 'Silo Bolsa' }}
+                  </h4>
+                  <span class="text-3xs font-bold text-slate-500 uppercase">{{ part.tracking_number }} • {{ part.cultivo|upper }}</span>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded text-3xs font-black uppercase">
+                {{ part.estado }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-1 border-t border-amber-100 text-center">
+              <div class="bg-white/90 p-1.5 rounded-xl border border-amber-100">
+                <span class="text-3xs font-bold text-slate-400 block uppercase">Almacenado</span>
+                <strong class="text-xs font-black text-slate-900">{{ "%.2f"|format(part.cantidad_inicial_kg / 1000.0) }} Tn</strong>
+              </div>
+              <div class="bg-white/90 p-1.5 rounded-xl border border-amber-100">
+                <span class="text-3xs font-bold text-slate-400 block uppercase">Cosecha</span>
+                <strong class="text-xs font-black text-slate-900">{{ part.fecha_cosecha.strftime('%d/%m/%y') if part.fecha_cosecha else '-' }}</strong>
+              </div>
+              <div class="bg-white/90 p-1.5 rounded-xl border border-amber-100">
+                <span class="text-3xs font-bold text-slate-400 block uppercase">Disponibilidad</span>
+                <strong class="text-xs font-black text-emerald-700">Libre Venta</strong>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 7.C. RESUMEN DE COSTO DE INSUMOS APLICADOS -->
+      {% if total_costo_insumos_usd and total_costo_insumos_usd > 0 %}
+      <div class="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-3.5 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">💊</span>
+          <div>
+            <span class="font-black text-sky-950 block">Insumos Aplicados en Campaña</span>
+            <span class="text-3xs text-sky-700">Costo total valorizado a Precio Promedio Ponderado (PPP)</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <strong class="text-sm font-black text-sky-900">${{ total_costo_insumos_usd | formato_ar }} USD</strong>
+          <span class="text-3xs text-slate-500 block">
+            {% if lote.superficie_productiva_ha and lote.superficie_productiva_ha > 0 %}
+              (${{ "%.1f"|format(total_costo_insumos_usd / lote.superficie_productiva_ha) }} USD/ha)
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- 8. HISTORIAL DE LABORES DE CAMPO (CUADERNO AGRONÓMICO) -->
       <div class="space-y-3 pt-4 border-t border-slate-100">
         <div class="flex items-center justify-between">
@@ -665,15 +738,44 @@
 
         <!-- INSUMO UTILIZADO (PRINCIPAL) -->
         <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-          <span class="font-black text-slate-700 uppercase tracking-wider text-2xs block">💊 Insumo Principal Aplicado / Mezcla</span>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="flex items-center justify-between">
+            <span class="font-black text-slate-700 uppercase tracking-wider text-2xs block">💊 Insumo Principal Aplicado / Mezcla</span>
+            {% if insumos_disponibles %}
+            <button type="button" onclick="alternarModoInsumo()" class="text-3xs text-agro-700 font-extrabold hover:underline cursor-pointer">
+              ✏️ Alternar catálogo / manual
+            </button>
+            {% endif %}
+          </div>
+
+          {% if insumos_disponibles %}
+          <!-- Selector Insumo Catalogado con Stock en Galpón -->
+          <div id="contenedor-insumo-catalogo" class="space-y-1">
+            <select id="select-insumo-catalogado" onchange="seleccionarInsumoCatalogo(this)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-agro-500">
+              <option value="">-- Seleccionar insumo desde galpón/depósito (Descuenta stock) --</option>
+              {% for ins in insumos_disponibles %}
+              <option value="{{ ins.id }}" 
+                      data-nombre="{{ ins.nombre }}" 
+                      data-unidad="{{ ins.unidad }}" 
+                      data-loc="{{ ins.storage_location_id }}" 
+                      data-stock="{{ ins.cantidad_disponible }}"
+                      data-ppp="{{ ins.costo_ppp_usd }}">
+                {{ ins.nombre }} (Stock: {{ ins.cantidad_disponible }} {{ ins.unidad }} en {{ ins.deposito_nombre }})
+              </option>
+              {% endfor %}
+            </select>
+            <input type="hidden" name="insumo_catalogado_id" id="input-insumo-catalogado-id" value="">
+            <input type="hidden" name="insumo_storage_location_id" id="input-insumo-storage-location-id" value="">
+          </div>
+          {% endif %}
+
+          <div id="contenedor-insumo-libre" class="grid grid-cols-3 gap-2">
             <div class="col-span-2">
-              <input type="text" name="insumo_nombre" placeholder="Nombre (Ej: LT Box, Glifo Top, Urea, Stine 9720)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+              <input type="text" name="insumo_nombre" id="input-insumo-nombre" placeholder="Nombre (Ej: LT Box, Glifo Top, Urea, Stine 9720)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
             </div>
             <div>
               <div class="flex items-center gap-1">
-                <input type="number" step="0.001" name="insumo_dosis" placeholder="Dosis" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
-                <select name="insumo_unidad" class="px-1.5 py-2 bg-white border border-slate-300 rounded-xl font-extrabold text-2xs">
+                <input type="number" step="0.001" name="insumo_dosis" id="input-insumo-dosis" placeholder="Dosis" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+                <select name="insumo_unidad" id="select-insumo-unidad" class="px-1.5 py-2 bg-white border border-slate-300 rounded-xl font-extrabold text-2xs">
                   <option value="lt/ha">L/ha</option>
                   <option value="kg/ha">kg/ha</option>
                   <option value="sem/m">sem/m</option>
@@ -727,21 +829,55 @@
         </div>
 
         <!-- CAMPOS DINÁMICOS: COSECHA -->
-        <div id="campo-dinamico-cosecha" class="hidden bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+        <div id="campo-dinamico-cosecha" class="hidden bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-3">
           <span class="font-black text-amber-900 uppercase tracking-wider text-2xs block">🌾 Métricas de Cosecha</span>
           <div class="grid grid-cols-3 gap-2">
             <div>
               <label class="text-2xs font-bold text-amber-900 block">Humedad %</label>
-              <input type="number" step="0.1" name="humedad_porcentaje" placeholder="Ej: 12.5" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+              <input type="number" step="0.1" name="humedad_porcentaje" id="cosecha-humedad" placeholder="Ej: 12.5" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
             </div>
             <div>
               <label class="text-2xs font-bold text-amber-900 block">Rendimiento (qq/ha)</label>
-              <input type="number" step="0.1" name="rendimiento_qq_ha" placeholder="Ej: 96.07" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+              <input type="number" step="0.1" name="rendimiento_qq_ha" id="cosecha-rinde-qq" oninput="calcularTotalCosecha()" placeholder="Ej: 96.07" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
             </div>
             <div>
               <label class="text-2xs font-bold text-amber-900 block">Total Cosechado (qq)</label>
-              <input type="number" step="0.1" name="total_cosechado_qq" placeholder="Ej: 5480.4" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+              <input type="number" step="0.1" name="total_cosechado_qq" id="cosecha-total-qq" placeholder="Ej: 5480.4" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
             </div>
+          </div>
+
+          <!-- ASIGNACIÓN DIRECTA A SILO / STOCK COMERCIAL -->
+          <div class="pt-2.5 border-t border-amber-200/80 space-y-2">
+            <span class="font-black text-amber-950 uppercase tracking-wider text-3xs flex items-center gap-1.5">
+              <span>📦</span> Destino de Guarda (Ingreso Automático a Silo / Stock Comercial)
+            </span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="text-3xs font-extrabold text-amber-900 block mb-0.5">Asignar a Silo / Acopio Existente</label>
+                <select name="storage_location_id" id="cosecha-storage-id" onchange="verificarDestinoSilo(this)" class="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                  <option value="">-- Sin asignar / Ingresar más tarde --</option>
+                  {% if storage_locations_grano %}
+                    {% for loc in storage_locations_grano %}
+                    <option value="{{ loc.id }}">
+                      {% if loc.tipo == 'silobolsa' %}🥖 Silobolsa: {% elif loc.tipo == 'acopio' %}🏭 Acopio: {% else %}🏢 Silo: {% endif %}
+                      {{ loc.nombre }} {% if loc.capacidad_nominal_tn %}(Cap: {{ loc.capacidad_nominal_tn }} Tn){% endif %}
+                    </option>
+                    {% endfor %}
+                  {% endif %}
+                </select>
+              </div>
+
+              <div>
+                <label class="text-3xs font-extrabold text-amber-900 block mb-0.5">O Crear Nuevo Silobolsa Rápido</label>
+                <div class="flex items-center gap-1.5">
+                  <input type="text" name="nuevo_silobolsa_nombre" id="cosecha-nuevo-silobolsa" oninput="alEscribirNuevoSilobolsa(this)" placeholder="Ej: Silo Bolsa N° 1 - {{ lote.nombre }}" class="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                  <input type="hidden" name="destino_grano_tipo" id="cosecha-destino-tipo" value="existente">
+                </div>
+              </div>
+            </div>
+            <p class="text-3xs text-amber-800 font-medium">
+              💡 <em>Al asignar un silo, las toneladas cosechadas se cargarán automáticamente al <strong>Módulo Comercial</strong> y se valuarán con la cotización Pizarra Rosario del día.</em>
+            </p>
           </div>
         </div>
 
@@ -753,10 +889,10 @@
 
         <!-- ACCIONES -->
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-          <button type="button" onclick="cerrarModalLabor()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
+          <button type="button" onclick="cerrarModalLabor()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all cursor-pointer">
             Cancelar
           </button>
-          <button type="submit" class="px-5 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black rounded-xl shadow-md transition-all">
+          <button type="submit" class="px-5 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black rounded-xl shadow-md transition-all cursor-pointer">
             Guardar Labor 👍
           </button>
         </div>
@@ -795,8 +931,77 @@
       if (divSiem) divSiem.classList.toggle('hidden', !(val === 'siembra' || val === 'tratamiento_semilla'));
       if (divCose) divCose.classList.toggle('hidden', val !== 'cosecha');
     }
+
+    function calcularTotalCosecha() {
+      const rindeInput = document.getElementById('cosecha-rinde-qq');
+      const totalInput = document.getElementById('cosecha-total-qq');
+      const supHa = parseFloat("{{ lote.superficie_productiva_ha or 0 }}");
+      if (rindeInput && totalInput && rindeInput.value && supHa > 0) {
+        const total = parseFloat(rindeInput.value) * supHa;
+        totalInput.value = total.toFixed(1);
+      }
+    }
+
+    function seleccionarInsumoCatalogo(sel) {
+      const opt = sel.options[sel.selectedIndex];
+      const idInp = document.getElementById('input-insumo-catalogado-id');
+      const locInp = document.getElementById('input-insumo-storage-location-id');
+      const nomInp = document.getElementById('input-insumo-nombre');
+      const undSel = document.getElementById('select-insumo-unidad');
+
+      if (!opt || !opt.value) {
+        if (idInp) idInp.value = '';
+        if (locInp) locInp.value = '';
+        return;
+      }
+
+      if (idInp) idInp.value = opt.value;
+      if (locInp) locInp.value = opt.getAttribute('data-loc') || '';
+      if (nomInp) nomInp.value = opt.getAttribute('data-nombre') || '';
+
+      const und = (opt.getAttribute('data-unidad') || '').toLowerCase();
+      if (undSel) {
+        for (let i = 0; i < undSel.options.length; i++) {
+          const v = undSel.options[i].value.toLowerCase();
+          if (v.includes(und) || und.includes(v) || (und === 'litro' && v === 'lt/ha') || (und === 'kg' && v === 'kg/ha')) {
+            undSel.selectedIndex = i;
+            break;
+          }
+        }
+      }
+    }
+
+    function alternarModoInsumo() {
+      const contCat = document.getElementById('contenedor-insumo-catalogo');
+      if (contCat) {
+        contCat.classList.toggle('hidden');
+        if (contCat.classList.contains('hidden')) {
+          document.getElementById('input-insumo-catalogado-id').value = '';
+          document.getElementById('input-insumo-storage-location-id').value = '';
+        }
+      }
+    }
+
+    function verificarDestinoSilo(sel) {
+      const tipoInp = document.getElementById('cosecha-destino-tipo');
+      const nuevoInp = document.getElementById('cosecha-nuevo-silobolsa');
+      if (sel.value && tipoInp) {
+        tipoInp.value = 'existente';
+        if (nuevoInp) nuevoInp.value = '';
+      }
+    }
+
+    function alEscribirNuevoSilobolsa(inp) {
+      const tipoInp = document.getElementById('cosecha-destino-tipo');
+      const selSilo = document.getElementById('cosecha-storage-id');
+      if (inp.value.trim() && tipoInp) {
+        tipoInp.value = 'nuevo_silobolsa';
+        if (selSilo) selSilo.value = '';
+      }
+    }
   </script>
 
 </body>
 </html>
+
 

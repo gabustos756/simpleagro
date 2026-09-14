@@ -1470,3 +1470,104 @@ def format_compromiso_dict(
         "toneladas_comprometidas": float(c_tn) if c_tn is not None else 0.0,
     }
 
+
+async def crear_partida_grano_desde_cosecha(
+    db: AsyncSession,
+    cliente_id: UUID,
+    storage_location_id: UUID,
+    cultivo: str,
+    cantidad_tn: Decimal,
+    lote_id: Optional[UUID] = None,
+    campo_id: Optional[UUID] = None,
+    campania_id: Optional[UUID] = None,
+    fecha_cosecha: Optional[date] = None,
+    humedad_pct: Optional[Decimal] = None,
+    observaciones: Optional[str] = None,
+    registrado_por_usuario_id: Optional[UUID] = None,
+) -> StockPartida:
+    """
+    Crea automáticamente una Partida de Grano (StockPartida) y su Movimiento Inicial (StockMovement)
+    a partir del resultado de una labor de Cosecha en lote.
+    """
+    import uuid as _uuid_mod
+
+    loc_stmt = select(StorageLocation).where(
+        StorageLocation.id == storage_location_id,
+        StorageLocation.cliente_id == cliente_id,
+    )
+    loc_res = await db.execute(loc_stmt)
+    loc_obj = loc_res.scalars().first()
+    if not loc_obj:
+        raise ValueError("Ubicación de almacenamiento de granos no encontrada o no autorizada.")
+
+    cantidad_kg = (Decimal(str(cantidad_tn)) * Decimal("1000.0")).quantize(Decimal("0.01"))
+    if cantidad_kg <= Decimal("0.0"):
+        raise ValueError("La cantidad cosechada debe ser superior a 0.")
+
+    # Validar capacidad disponible (en Silobolsa se auto-expande para no trabar la cosecha)
+    occ = await get_storage_location_occupancy(db, cliente_id, loc_obj.id)
+    if occ["capacity_kg"] is not None and cantidad_kg > occ["available_capacity_kg"]:
+        if loc_obj.tipo == "silobolsa":
+            nueva_cap_kg = (occ["occupied_kg"] or Decimal("0.0")) + cantidad_kg + Decimal("20000.0")
+            loc_obj.capacidad_nominal_tn = (nueva_cap_kg / Decimal("1000.0")).quantize(Decimal("0.01"))
+            await db.flush()
+        else:
+            disp_tn = max(Decimal("0.0"), (occ["available_capacity_kg"] / Decimal("1000.0"))).quantize(Decimal("0.01"))
+            raise ValueError(f"La ubicación '{loc_obj.nombre}' solo dispone de {disp_tn} Tn de capacidad libre.")
+
+    date_str = datetime.now().strftime("%Y%m%d")
+    unique_suffix = _uuid_mod.uuid4().hex[:4].upper()
+    tracking_number = f"STK-{date_str}-{unique_suffix}"
+
+    f_cosecha = fecha_cosecha or date.today()
+
+    partida = StockPartida(
+        cliente_id=cliente_id,
+        tracking_number=tracking_number,
+        cultivo=(cultivo or "soja").strip().lower(),
+        storage_location_id=loc_obj.id,
+        fecha_ingreso=f_cosecha,
+        fecha_cosecha=f_cosecha,
+        origen_conocido=True if lote_id else False,
+        campo_id=campo_id,
+        lote_id=lote_id,
+        campania_id=campania_id,
+        cantidad_inicial_kg=cantidad_kg,
+        estado="activa",
+        observaciones=observaciones,
+        created_by_user_id=registrado_por_usuario_id,
+    )
+    db.add(partida)
+    await db.flush()
+
+    mov_inicial = StockMovement(
+        cliente_id=cliente_id,
+        stock_partida_id=partida.id,
+        tipo="ingreso_inicial",
+        cantidad_kg=cantidad_kg,
+        motivo="Ingreso Cosecha de Lote",
+        observaciones=f"Cosecha ingresada: {cantidad_tn} Tn en {loc_obj.nombre}",
+        created_by_user_id=registrado_por_usuario_id,
+    )
+    db.add(mov_inicial)
+
+    if humedad_pct is not None:
+        try:
+            h_val = Decimal(str(humedad_pct))
+            medicion = StockQualityMeasurement(
+                cliente_id=cliente_id,
+                stock_partida_id=partida.id,
+                measured_at=datetime.now(),
+                humedad_pct=h_val,
+                estado_calidad="apto",
+                fuente="propia",
+                observaciones="Humedad registrada en cosecha",
+                created_by_user_id=registrado_por_usuario_id,
+            )
+            db.add(medicion)
+        except Exception:
+            pass
+
+    return partida
+
+
