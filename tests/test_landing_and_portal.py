@@ -31,6 +31,10 @@ async def test_landing_page_renders_successfully():
         assert "Motor Precio Neto" in html
         assert "Silobolsas" in html
         assert "Modo Camioneta" in html
+        # Verificación de datos de contacto personalizados y autoría
+        assert "3515994792" in html
+        assert "Gabriel" in html
+        assert "ggsolutions.com.ar" in html
 
 @pytest.mark.asyncio
 async def test_portal_unauthenticated_redirects_to_login():
