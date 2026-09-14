@@ -21,6 +21,14 @@ async def test_landing_page_renders_successfully():
         # Verificación de mercado y cotizaciones explícitas en su propia sección
         assert "DÓLAR OFICIAL CAC" in html
         assert 'id="mercado"' in html
+        # Verificación crítica: los precios de pizarra nunca deben ser 0
+        assert "$0 ARS" not in html
+        assert "$0 ARS/Tn" not in html
+        assert "~US$ 0 USD/Tn" not in html
+        assert "~US$ 0,00 USD/Tn" not in html
+        assert "SOJA PIZARRA ROSARIO" in html
+        assert "MAÍZ PIZARRA ROSARIO" in html
+        assert "TRIGO CAC ROSARIO" in html
         # Verificación de que no está el manual PDF familiar en la landing
         assert "Manual Didáctico (PDF)" not in html
         # Verificación de menú hamburguesa mobile

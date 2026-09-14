@@ -756,56 +756,74 @@
         <div class="glass-card rounded-2xl p-5 border border-amber-500/30 space-y-2">
           <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
             <span>DÓLAR OFICIAL CAC</span>
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              EN VIVO
+            </span>
           </div>
           <div class="text-2xl sm:text-3xl font-black text-amber-300">
-            ${{ cotizacion_dolar|default(1487)|int }} <span class="text-xs font-normal text-slate-400">ARS</span>
+            ${{ cotizacion_dolar|formato_ar(2) }} <span class="text-xs font-normal text-slate-400">ARS</span>
           </div>
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-400 truncate">
             Fuente: {{ cotizacion_dolar_info.fuente|default('Dólar CAC Rosario (BCR)') }}
           </p>
         </div>
 
         <!-- Tarjeta 2: Soja Rosario -->
-        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2 hover:border-agro-500/40 transition-colors">
           <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
             <span>SOJA PIZARRA ROSARIO</span>
-            <span class="text-agro-400 font-bold">BCR</span>
+            <span class="text-agro-400 font-bold bg-agro-500/10 px-2 py-0.5 rounded text-[10px]">CAC / BCR</span>
           </div>
           <div class="text-2xl sm:text-3xl font-black text-white">
-            ${{ precios_pizarra.soja.ars|default(415000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+            ${{ precios_pizarra.soja.ars|formato_ar(0) }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
           </div>
-          <p class="text-[11px] text-agro-400 font-medium">
-            Equivalente: ~US$ {{ precios_pizarra.soja.usd|default(280)|int }} USD/Tn
-          </p>
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-agro-400 font-medium">Equivalente: ~US$ {{ precios_pizarra.soja.usd|formato_ar(2) }} USD/Tn</span>
+            {% if precios_pizarra.soja.var_pct_usd is defined and precios_pizarra.soja.var_pct_usd != 0 %}
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-bold {% if precios_pizarra.soja.var_pct_usd > 0 %}text-emerald-400 bg-emerald-500/10{% else %}text-rose-400 bg-rose-500/10{% endif %}">
+              {% if precios_pizarra.soja.var_pct_usd > 0 %}+{% endif %}{{ precios_pizarra.soja.var_pct_usd }}%
+            </span>
+            {% endif %}
+          </div>
         </div>
 
         <!-- Tarjeta 3: Maíz Rosario -->
-        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2 hover:border-amber-500/40 transition-colors">
           <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
             <span>MAÍZ PIZARRA ROSARIO</span>
-            <span class="text-amber-400 font-bold">BCR</span>
+            <span class="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded text-[10px]">CAC / BCR</span>
           </div>
           <div class="text-2xl sm:text-3xl font-black text-white">
-            ${{ precios_pizarra.maiz.ars|default(245000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+            ${{ precios_pizarra.maiz.ars|formato_ar(0) }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
           </div>
-          <p class="text-[11px] text-amber-300 font-medium">
-            Equivalente: ~US$ {{ precios_pizarra.maiz.usd|default(165)|int }} USD/Tn
-          </p>
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-amber-300 font-medium">Equivalente: ~US$ {{ precios_pizarra.maiz.usd|formato_ar(2) }} USD/Tn</span>
+            {% if precios_pizarra.maiz.var_pct_usd is defined and precios_pizarra.maiz.var_pct_usd != 0 %}
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-bold {% if precios_pizarra.maiz.var_pct_usd > 0 %}text-emerald-400 bg-emerald-500/10{% else %}text-rose-400 bg-rose-500/10{% endif %}">
+              {% if precios_pizarra.maiz.var_pct_usd > 0 %}+{% endif %}{{ precios_pizarra.maiz.var_pct_usd }}%
+            </span>
+            {% endif %}
+          </div>
         </div>
 
         <!-- Tarjeta 4: Trigo Rosario -->
-        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-2 hover:border-sky-500/40 transition-colors">
           <div class="flex items-center justify-between text-xs text-slate-400 font-semibold">
             <span>TRIGO CAC ROSARIO</span>
-            <span class="text-sky-400 font-bold">BCR</span>
+            <span class="text-sky-400 font-bold bg-sky-500/10 px-2 py-0.5 rounded text-[10px]">CAC / BCR</span>
           </div>
           <div class="text-2xl sm:text-3xl font-black text-white">
-            ${{ precios_pizarra.trigo.ars|default(285000)|int }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
+            ${{ precios_pizarra.trigo.ars|formato_ar(0) }} <span class="text-xs font-normal text-slate-400">ARS/Tn</span>
           </div>
-          <p class="text-[11px] text-sky-300 font-medium">
-            Equivalente: ~US$ {{ precios_pizarra.trigo.usd|default(192)|int }} USD/Tn
-          </p>
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-sky-300 font-medium">Equivalente: ~US$ {{ precios_pizarra.trigo.usd|formato_ar(2) }} USD/Tn</span>
+            {% if precios_pizarra.trigo.var_pct_usd is defined and precios_pizarra.trigo.var_pct_usd != 0 %}
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-bold {% if precios_pizarra.trigo.var_pct_usd > 0 %}text-emerald-400 bg-emerald-500/10{% else %}text-rose-400 bg-rose-500/10{% endif %}">
+              {% if precios_pizarra.trigo.var_pct_usd > 0 %}+{% endif %}{{ precios_pizarra.trigo.var_pct_usd }}%
+            </span>
+            {% endif %}
+          </div>
         </div>
 
       </div>

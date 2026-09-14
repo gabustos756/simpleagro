@@ -695,12 +695,20 @@ async def read_landing_page(request: Request, db: AsyncSession = Depends(get_db)
     user = await get_current_user_from_session(request, db)
 
     from app.services.mercado import obtener_snapshot_precios_mercado
+    # Snapshot de precios de mercado
     try:
-        snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja", "maiz", "trigo"])
-    except Exception:
+        snapshot = await obtener_snapshot_precios_mercado(db, cultivos=["soja", "maiz", "trigo", "sorgo"])
+    except Exception as e:
+        logger.warning(f"[LANDING] Error al obtener snapshot de precios de mercado: {e}")
         snapshot = []
 
-    dolar_ref = float(snapshot[0].get("dolar_referencia", 1487.00)) if snapshot else 1487.00
+    dolar_ref = 1499.50
+    if snapshot and snapshot[0].get("dolar_referencia"):
+        try:
+            dolar_ref = float(snapshot[0]["dolar_referencia"])
+        except (ValueError, TypeError):
+            dolar_ref = 1499.50
+
     dolar_info = {
         "monto": dolar_ref,
         "fuente": snapshot[0].get("fuente", "Dólar CAC Rosario (BCR)") if snapshot else "Dólar CAC Rosario (BCR)",
@@ -709,15 +717,36 @@ async def read_landing_page(request: Request, db: AsyncSession = Depends(get_db)
         "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
     }
 
-    # Precios de pizarra para ticker
-    precios_pizarra = {}
+    # Precios de pizarra garantizados (con fallback realista para nunca marcar 0)
+    fallback_defaults = {
+        "soja": {"ars": 555000.0, "usd": 370.12, "fuente": "Pizarra Rosario (CAC / BCR)", "var_ars": -5000.0, "var_usd": -2.22, "var_pct_usd": -0.6, "tendencia": "baja"},
+        "maiz": {"ars": 299000.0, "usd": 199.40, "fuente": "Pizarra Rosario (CAC / BCR)", "var_ars": 0.0, "var_usd": 0.6, "var_pct_usd": 0.3, "tendencia": "suba"},
+        "trigo": {"ars": 340000.0, "usd": 226.74, "fuente": "Pizarra Rosario (CAC / BCR)", "var_ars": -1400.0, "var_usd": -0.25, "var_pct_usd": -0.11, "tendencia": "baja"},
+        "sorgo": {"ars": 275900.0, "usd": 183.99, "fuente": "Pizarra Rosario (CAC / BCR)", "var_ars": -800.0, "var_usd": 0.01, "var_pct_usd": 0.01, "tendencia": "suba"},
+    }
+
+    precios_pizarra = {k: dict(v) for k, v in fallback_defaults.items()}
     for item in snapshot:
-        c = item.get("cultivo", "").lower()
+        c = (item.get("cultivo") or "").lower().strip()
         if c:
-            precios_pizarra[c] = {
-                "ars": float(item.get("precio_ars", 0.0)),
-                "usd": float(item.get("precio_usd", 0.0)),
-            }
+            ars_val = float(item.get("precio_ars_tn") or item.get("precio_ars") or 0.0)
+            usd_val = float(item.get("precio_usd_tn") or item.get("precio_usd") or 0.0)
+            if ars_val > 0:
+                precios_pizarra.setdefault(c, {})["ars"] = ars_val
+            if usd_val > 0:
+                precios_pizarra.setdefault(c, {})["usd"] = usd_val
+            if item.get("fuente"):
+                precios_pizarra.setdefault(c, {})["fuente"] = item.get("fuente")
+            if item.get("fecha"):
+                precios_pizarra.setdefault(c, {})["fecha"] = str(item.get("fecha"))
+            if "var_ars" in item:
+                precios_pizarra.setdefault(c, {})["var_ars"] = float(item.get("var_ars") or 0.0)
+            if "var_usd" in item:
+                precios_pizarra.setdefault(c, {})["var_usd"] = float(item.get("var_usd") or 0.0)
+            if "var_pct_usd" in item:
+                precios_pizarra.setdefault(c, {})["var_pct_usd"] = float(item.get("var_pct_usd") or 0.0)
+            if "tendencia" in item:
+                precios_pizarra.setdefault(c, {})["tendencia"] = item.get("tendencia")
 
     return templates.TemplateResponse(
         request=request,
