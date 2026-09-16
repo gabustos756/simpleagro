@@ -54,6 +54,7 @@
         <a href="/servicios/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">⚡ Por Campo</a>
         <a href="/servicios" class="px-3.5 py-2 bg-purple-600 text-white font-extrabold text-xs rounded-xl shadow-xs">📋 Listado</a>
         <a href="/servicios/vencimientos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">📅 Vencimientos</a>
+        <a href="/servicios-prestados" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">🚜 Trabajos a Terceros</a>
       </div>
     </div>
 
@@ -72,11 +73,11 @@
         
         <!-- Filtro Campo -->
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Campo</label>
+          <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Establecimiento / Campo</label>
           <select name="campo" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
-            <option value="">Todos los Campos</option>
+            <option value="" {% if not campo_filtro %}selected{% endif %}>🌾 Todos los Establecimientos</option>
             {% for c in campos %}
-            <option value="{{ c.id }}" {% if campo_filtro == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+            <option value="{{ c.id }}" {% if campo_filtro|string == c.id|string %}selected{% endif %}>{{ c.nombre }}</option>
             {% endfor %}
           </select>
         </div>

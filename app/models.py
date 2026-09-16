@@ -13,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -371,6 +372,35 @@ class LaborCampo(Base):
 
     campania: Mapped["Campania"] = relationship("Campania", back_populates="labores")
     responsable: Mapped[Optional["Usuario"]] = relationship("Usuario", back_populates="labores")
+
+
+class PlantillaLaborCampo(Base):
+    __tablename__ = "plantillas_labores_campo"
+    __table_args__ = (
+        Index("ix_plantillas_labores_tipo", "tipo_labor"),
+        Index("ix_plantillas_labores_cliente", "cliente_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    cliente_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=True
+    )
+    tipo_labor: Mapped[TipoLabor] = mapped_column(
+        SQLEnum(TipoLabor, name="tipo_labor_enum", native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    titulo: Mapped[str] = mapped_column(String(200), nullable=False)
+    categoria_subtipo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    descripcion_receta: Mapped[str] = mapped_column(Text, nullable=False)
+    insumos_default: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    dosis_unidad_default: Mapped[Optional[str]] = mapped_column(String(50), default="lt/ha", nullable=True)
+    es_sistema: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    veces_utilizada: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    cliente: Mapped[Optional["Cliente"]] = relationship("Cliente")
 
 
 class RegistroLluvia(Base):

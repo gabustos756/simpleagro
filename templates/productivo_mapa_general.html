@@ -350,8 +350,18 @@
       'Girasol': '#ec4899',
     };
 
-    function getCropColor(cultivo) {
-      return CROP_COLORS[cultivo] || '#059669';
+    function getCropColor(cultivo, estado) {
+      if (!cultivo) return '#b45309';
+      const c = cultivo.toLowerCase();
+      const e = (estado || '').toLowerCase();
+      if (c.includes('barbecho') || e.includes('barbecho') || e.includes('cosechado') || e.includes('recien_cosechado')) {
+        return '#b45309'; // Tono rastrojo / post-cosecha
+      }
+      if (c.includes('soja')) return '#10b981';
+      if (c.includes('maiz') || c.includes('maíz')) return '#f59e0b';
+      if (c.includes('trigo')) return '#0284c7';
+      if (c.includes('girasol')) return '#ec4899';
+      return '#b45309';
     }
 
     function initMap() {
@@ -379,7 +389,7 @@
         if (lote.geometria_geojson && lote.geometria_geojson.coordinates) {
           const coordsRing = lote.geometria_geojson.coordinates[0];
           const path = coordsRing.map(pt => ({ lat: pt[1], lng: pt[0] }));
-          const color = getCropColor(lote.cultivo_actual);
+          const color = getCropColor(lote.cultivo_actual, lote.estado_productivo);
 
           const polygon = new google.maps.Polygon({
             paths: path,
@@ -431,7 +441,7 @@
           }
         } else if (lat && lng) {
           // Lote con Latitud y Longitud asignadas pero sin polígono trazado aún
-          const color = getCropColor(lote.cultivo_actual);
+          const color = getCropColor(lote.cultivo_actual, lote.estado_productivo);
           const marker = new google.maps.Marker({
             position: { lat: lat, lng: lng },
             map: map,

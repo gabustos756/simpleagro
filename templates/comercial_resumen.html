@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduAgro - Posición Comercial & Mercado de Granos</title>
+  <title>EduAgro - Granos, Silos & Comercialización</title>
   {% include 'components/pwa_head.html' %}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -33,991 +33,447 @@
 
   <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
-    <!-- BANNER FEEDBACK DE ÉXITO -->
+    <!-- FEEDBACK DE ACCIONES -->
     {% if mensaje_exito %}
-    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-sm flex items-center justify-between shadow-sm">
+    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-sm flex items-center justify-between shadow-xs">
       <div class="flex items-center gap-2">
         <span class="text-xl">✅</span>
         <span>{{ mensaje_exito }}</span>
       </div>
-      <a href="/comercial?cultivo={{ cultivo_seleccionado }}" class="text-xs text-emerald-700 hover:text-emerald-900 underline">Descartar</a>
+      <a href="/comercial" class="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline">✕ Descartar</a>
     </div>
     {% endif %}
 
-    <!-- CABECERA DE SECCIÓN Y PESTAÑAS COMERCIALES -->
+    <!-- CABECERA PRINCIPAL -->
     <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="flex items-center space-x-4">
         <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
-          📈
+          🏢
         </div>
         <div>
           <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <span>Posición Comercial de Granos</span>
-            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Mercado</span>
+            <span>Granos, Silos & Ventas</span>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">Campaña {{ campania_activa }}</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre }}</strong> • Campaña Activa: <strong class="text-slate-800 font-bold">{{ campania_activa }}</strong>
+            Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre }}</strong> • Control de stock físico, custodia y fijación de precios.
           </p>
         </div>
       </div>
 
-      <!-- Selector de Cultivo en Pantalla (Soja y Maíz) -->
-      <div class="flex items-center gap-2">
-        <a href="/comercial?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+      <!-- Selector de Cultivo (Pills Táctiles) -->
+      <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+        <a href="/comercial?cultivo=todos" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all border {% if cultivo_seleccionado == 'todos' %} bg-slate-900 text-white border-slate-900 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌾 Todos los Granos
+        </a>
+        <a href="/comercial?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌱 Soja
         </a>
-        <a href="/comercial?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+        <a href="/comercial?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-black transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
           🌽 Maíz
         </a>
       </div>
     </div>
 
-    <!-- NAVEGACIÓN INTERNA DEL MÓDULO COMERCIAL -->
-    {% set active_tab = 'resumen' %}
-    {% include 'components/comercial_tabs.html' %}
-
-    <!-- 1. SECCIÓN MERCADO Y VALORIZACIÓN ENRIQUECIDA -->
-    <div id="punto-enganche-mercado-v1" class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-700 relative overflow-hidden">
-      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-        <div class="space-y-2 max-w-2xl">
-          <div class="flex items-center space-x-2">
-            <span class="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
-              Mercado V1.1 • {{ posicion.fuente_precio_mercado|default('Pizarra Rosario') }}
-            </span>
-            {% if posicion.fecha_precio_mercado %}
-            <span class="text-xs text-slate-400 font-semibold">• Ref: {{ posicion.fecha_precio_mercado }}</span>
-            {% endif %}
-          </div>
-          <h3 class="text-xl sm:text-2xl font-black text-white">
-            Cotización de Mercado & Valorización de Stock Libre
-          </h3>
-          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Cotización oficial de referencia para {{ cultivo_seleccionado | capitalize }}. Valorización estimada sobre tus <strong>{{ posicion.tn_libres | formato_ar }} Tn libres de riesgo</strong>:
-          </p>
-          {% if posicion.valorizacion_stock_libre_usd %}
-          <div class="inline-block bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-4 py-2 rounded-xl text-sm font-bold mt-2">
-            💰 Valor Estimado Stock Libre: <strong class="text-white text-base">$ {{ posicion.valorizacion_stock_libre_usd | formato_ar }} USD</strong>
-            {% if posicion.valorizacion_stock_libre_ars %}
-            <span class="text-xs font-normal text-emerald-200 block sm:inline sm:ml-2">($ {{ posicion.valorizacion_stock_libre_ars | formato_ar }} ARS)</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-
-        <div class="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/15 text-right shrink-0 space-y-2 w-full md:w-auto">
-          <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">Precio Referencia {{ cultivo_seleccionado | capitalize }}</span>
-          {% if posicion.precio_mercado_usd_tn %}
-          <div class="text-3xl font-black text-white">$ {{ posicion.precio_mercado_usd_tn | formato_ar }} <span class="text-xs font-normal text-slate-300">USD/Tn</span></div>
-          {% if posicion.precio_mercado_ars_tn %}
-          <span class="text-xs text-amber-200 font-bold block">$ {{ posicion.precio_mercado_ars_tn | formato_ar }} ARS/Tn</span>
-          {% endif %}
-          {% if posicion.dolar_referencia %}
-          <span class="text-[10px] text-slate-300 font-medium block pt-1 border-t border-white/10" title="Fuente Oficial: Pizarra Cámara Arbitral de Cereales Rosario">Dólar CAC Rosario (BCR): $ {{ posicion.dolar_referencia | formato_ar }} ARS</span>
-          {% endif %}
-          {% else %}
-          <div class="text-lg font-bold text-slate-300">Sin Cotización Vigente</div>
-          {% endif %}
-          <div class="pt-2">
-            <a href="/comercial/mercado/refrescar?cultivo={{ cultivo_seleccionado }}" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-colors">
-              <span>⚡ Refrescar Cotizaciones</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
-
-    <!-- 2.C REFERENCIA SIMPLE DE FUTUROS (MATBA ROFEX - SOJA & MAÍZ) -->
-    {% if futuros_mercado %}
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
-        <div>
-          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>🏛️</span> Mercado a Término & Futuros de Referencia (Matba Rofex)
-          </h2>
-          <p class="text-xs text-slate-500">Cotizaciones de posiciones futuras clave para Soja y Maíz comparadas contra el precio spot físico de hoy.</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-            Referencia Matba Rofex
-          </span>
-          <a href="https://www.matbarofex.com.ar" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all">
-            <span>Matba Rofex Oficial</span> ↗
-          </a>
-        </div>
-      </div>
-
-      <!-- Grid de Referencias de Futuros -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {% for fut in futuros_mercado %}
-        <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow space-y-3 flex flex-col justify-between">
-          
-          <!-- Header Futuro -->
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xl">
-                {% if fut.cultivo.lower() == 'soja' %}🌱{% else %}🌽{% endif %}
-              </span>
-              <div>
-                <span class="font-extrabold text-sm text-slate-900 block leading-tight">{{ fut.contrato }}</span>
-                <span class="text-3xs text-slate-400 font-bold uppercase tracking-wider">{{ fut.posicion_label }}</span>
-              </div>
-            </div>
-            <span class="text-3xs font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500">
-              {{ fut.mercado }}
-            </span>
-          </div>
-
-          <!-- Precios y Comparativa vs Físico -->
-          <div class="space-y-2">
-            <div class="flex items-baseline justify-between">
-              <span class="text-3xs text-slate-400 font-bold uppercase">Precio Futuro USD</span>
-              <span class="text-xl font-black text-amber-700">US$ {{ fut.precio_futuro_usd | formato_ar }}</span>
-            </div>
-
-            <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
-              <span class="text-slate-500 text-2xs">Físico Spot Hoy:</span>
-              <span class="font-bold text-slate-800 text-2xs">US$ {{ fut.precio_fisico_usd | formato_ar }}</span>
-            </div>
-
-            <div class="flex items-center justify-between text-2xs pt-1">
-              <span class="text-slate-500 font-medium">Spread vs Spot:</span>
-              {% if fut.spread_usd > 0 %}
-              <span class="font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
-                Pase +US$ {{ fut.spread_usd | formato_ar }} (+{{ fut.spread_pct | formato_ar }}%)
-              </span>
-              {% elif fut.spread_usd < 0 %}
-              <span class="font-extrabold text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-200">
-                Descuento -US$ {{ (fut.spread_usd * -1) | formato_ar }} ({{ fut.spread_pct | formato_ar }}%)
-              </span>
-              {% else %}
-              <span class="font-extrabold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded border border-slate-300">
-                Paridad (US$ 0.00)
-              </span>
-              {% endif %}
-            </div>
-          </div>
-
-          <!-- Pie informativo -->
-          <div class="pt-2 border-t border-slate-200/60 text-3xs text-slate-400 font-medium flex items-center justify-between">
-            <span>Ref: {{ fut.fecha }}</span>
-            <span title="Dato de referencia informativa. No constituye recomendación financiera.">Informativo ℹ️</span>
-          </div>
-
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- 2.B HISTÓRICO RECIENTE DE PRECIOS Y TENDENCIA CON NAVEGACIÓN POR TABS POR CULTIVO -->
-    {% if historicos_mercado %}
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+    <!-- 1. HERO DE 4 NÚMEROS GRANDES (KPIs EJECUTIVOS) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       
-      <!-- Encabezado y Navegación por Tabs -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
-        <div>
-          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>📈</span> Histórico Reciente de Precios
-          </h2>
-          <p class="text-xs text-slate-500">Evolución física y variaciones diarias registradas en Pizarra Rosario (CAC/BCR).</p>
+      <!-- TOTAL COSECHADO -->
+      <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-3xl border border-slate-700 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-slate-400">Total Cosechado (25/26)</span>
+          <span class="text-lg">🚜</span>
         </div>
-
-        <!-- Botones de Tabs (Soja y Maíz) -->
-        <div class="inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200/80 self-start sm:self-auto" id="historico-tabs">
-          <button type="button" onclick="cambiarTabHistorico('soja')" id="tab-btn-soja" class="tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer {% if cultivo_seleccionado == 'soja' or cultivo_seleccionado != 'maiz' %}bg-white text-slate-900 shadow-xs font-black{% else %}text-slate-600 hover:text-slate-900 font-bold{% endif %}">
-            <span>🌱</span> Soja
-          </button>
-          <button type="button" onclick="cambiarTabHistorico('maiz')" id="tab-btn-maiz" class="tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer {% if cultivo_seleccionado == 'maiz' %}bg-white text-slate-900 shadow-xs font-black{% else %}text-slate-600 hover:text-slate-900 font-bold{% endif %}">
-            <span>🌽</span> Maíz
-          </button>
+        <div class="mt-2 text-3xl font-black text-white">
+          {{ posicion.produccion_total_tn | formato_ar }} <span class="text-sm font-normal text-slate-400">Tn</span>
+        </div>
+        <div class="mt-1 text-2xs text-slate-400">
+          Equivale a <strong>{{ (posicion.produccion_total_tn * 10) | formato_ar }} qq</strong> en lotes propios
         </div>
       </div>
 
-      <!-- Tab Content: SOJA -->
-      <div id="tab-pane-soja" class="space-y-4 {% if cultivo_seleccionado != 'soja' and cultivo_seleccionado in ['maiz', 'sorgo'] %}hidden{% endif %}">
-        <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
-          <span>Evolución de cotización para <strong>🌱 Soja</strong></span>
-          <span class="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">{{ historicos_mercado['soja'] | length }} jornadas registradas</span>
+      <!-- EN CAMPO (SILOS Y BOLSAS) -->
+      <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs hover:shadow-xs transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">En Campo (Silos / Bolsas)</span>
+          <span class="text-lg">🏭</span>
         </div>
-
-        {% set sp_soja = sparklines_mercado['soja'] %}
-        {% if sp_soja and sp_soja.points %}
-        <div class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-          <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
-            <div class="flex items-center gap-2">
-              <span class="font-extrabold text-slate-900">Curva de Tendencia Reciente (USD/Tn)</span>
-              {% if sp_soja.tendencia_global == 'suba' %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
-                ▲ +US$ {{ sp_soja.var_total_usd | formato_ar }}
-              </span>
-              {% elif sp_soja.tendencia_global == 'baja' %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300">
-                ▼ -US$ {{ (sp_soja.var_total_usd * -1) | formato_ar }}
-              </span>
-              {% else %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300">
-                = Sin cambio
-              </span>
-              {% endif %}
-            </div>
-            <div class="text-2xs text-slate-500 font-semibold flex items-center gap-3">
-              <span>Mín: <strong>US$ {{ sp_soja.min_usd | formato_ar }}</strong></span>
-              <span>Máx: <strong>US$ {{ sp_soja.max_usd | formato_ar }}</strong></span>
-              <span>Último: <strong class="text-amber-700 font-extrabold">US$ {{ sp_soja.ultimo_precio_usd | formato_ar }}</strong></span>
-            </div>
-          </div>
-
-          <div class="w-full overflow-hidden pt-1">
-            <svg viewBox="0 0 500 70" class="w-full h-16 overflow-visible">
-              <defs>
-                <linearGradient id="grad-soja" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.25"/>
-                  <stop offset="100%" stop-color="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.0"/>
-                </linearGradient>
-              </defs>
-              <path d="{{ sp_soja.svg_area_path }}" fill="url(#grad-soja)" />
-              <path d="{{ sp_soja.svg_path }}" fill="none" stroke="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-              {% for pt in sp_soja.points %}
-              {% if loop.last %}
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{% if sp_soja.tendencia_global == 'suba' %}#10b981{% elif sp_soja.tendencia_global == 'baja' %}#ef4444{% else %}#64748b{% endif %}" opacity="0.3" />
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#475569{% endif %}" stroke="#ffffff" stroke-width="1.5" />
-              {% else %}
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="2.5" fill="{% if sp_soja.tendencia_global == 'suba' %}#059669{% elif sp_soja.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" />
-              {% endif %}
-              {% endfor %}
-            </svg>
-          </div>
+        <div class="mt-2 text-3xl font-black text-slate-900">
+          {{ posicion.tn_stock_silo_bolsa | formato_ar }} <span class="text-sm font-normal text-slate-500">Tn</span>
         </div>
-        {% endif %}
-
-        {% if historicos_mercado['soja'] %}
-        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
-              <tr>
-                <th class="p-3.5">Fecha</th>
-                <th class="p-3.5">Fuente</th>
-                <th class="p-3.5 text-right">Precio ARS/Tn</th>
-                <th class="p-3.5 text-right">Dólar Ref.</th>
-                <th class="p-3.5 text-right">Precio USD/Tn</th>
-                <th class="p-3.5 text-center">Variación USD (Día ant.)</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
-              {% for hp in historicos_mercado['soja'] %}
-              <tr class="hover:bg-slate-50/80 transition-colors">
-                <td class="p-3.5 font-bold text-slate-900">{{ hp.fecha }}</td>
-                <td class="p-3.5 text-slate-600 font-semibold">{{ hp.fuente }}</td>
-                <td class="p-3.5 text-right font-black text-slate-900">$ {{ hp.precio_ars_tn | formato_ar }} ARS</td>
-                <td class="p-3.5 text-right text-slate-600">$ {{ hp.dolar_referencia | formato_ar }} ARS</td>
-                <td class="p-3.5 text-right font-black text-amber-700">$ {{ hp.precio_usd_tn | formato_ar }} USD</td>
-                <td class="p-3.5 text-center font-bold">
-                  {% if hp.tendencia == 'suba' %}
-                  <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 inline-block">
-                    🟢 +$ {{ hp.var_usd | formato_ar }} USD (+{{ hp.var_pct_usd | formato_ar }}%)
-                  </span>
-                  {% elif hp.tendencia == 'baja' %}
-                  <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg border border-red-300 inline-block">
-                    🔴 -$ {{ (hp.var_usd * -1) | formato_ar }} USD ({{ hp.var_pct_usd | formato_ar }}%)
-                  </span>
-                  {% else %}
-                  <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200 inline-block">
-                    ⚪ Sin cambio
-                  </span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="mt-1 text-2xs text-emerald-700 font-bold flex items-center gap-1">
+          <span>🟢</span> <span>Stock físico disponible en estancia</span>
         </div>
-        {% else %}
-        <div class="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
-          No hay registros históricos almacenados para Soja.
-        </div>
-        {% endif %}
       </div>
 
-      <!-- Tab Content: MAÍZ -->
-      <div id="tab-pane-maiz" class="space-y-4 {% if cultivo_seleccionado != 'maiz' %}hidden{% endif %}">
-        <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
-          <span>Evolución de cotización para <strong>🌽 Maíz</strong></span>
-          <span class="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">{{ historicos_mercado['maiz'] | length }} jornadas registradas</span>
+      <!-- EN ACOPIO (AFA / PUERTO) -->
+      <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs hover:shadow-xs transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">En Acopio (AFA)</span>
+          <span class="text-lg">🏢</span>
         </div>
-
-        {% set sp_maiz = sparklines_mercado['maiz'] %}
-        {% if sp_maiz and sp_maiz.points %}
-        <div class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-          <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
-            <div class="flex items-center gap-2">
-              <span class="font-extrabold text-slate-900">Curva de Tendencia Reciente (USD/Tn)</span>
-              {% if sp_maiz.tendencia_global == 'suba' %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
-                ▲ +US$ {{ sp_maiz.var_total_usd | formato_ar }}
-              </span>
-              {% elif sp_maiz.tendencia_global == 'baja' %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-red-100 text-red-800 rounded-md border border-red-300">
-                ▼ -US$ {{ (sp_maiz.var_total_usd * -1) | formato_ar }}
-              </span>
-              {% else %}
-              <span class="px-2 py-0.5 text-2xs font-extrabold bg-slate-200/80 text-slate-700 rounded-md border border-slate-300">
-                = Sin cambio
-              </span>
-              {% endif %}
-            </div>
-            <div class="text-2xs text-slate-500 font-semibold flex items-center gap-3">
-              <span>Mín: <strong>US$ {{ sp_maiz.min_usd | formato_ar }}</strong></span>
-              <span>Máx: <strong>US$ {{ sp_maiz.max_usd | formato_ar }}</strong></span>
-              <span>Último: <strong class="text-amber-700 font-extrabold">US$ {{ sp_maiz.ultimo_precio_usd | formato_ar }}</strong></span>
-            </div>
-          </div>
-
-          <div class="w-full overflow-hidden pt-1">
-            <svg viewBox="0 0 500 70" class="w-full h-16 overflow-visible">
-              <defs>
-                <linearGradient id="grad-maiz" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.25"/>
-                  <stop offset="100%" stop-color="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#94a3b8{% endif %}" stop-opacity="0.0"/>
-                </linearGradient>
-              </defs>
-              <path d="{{ sp_maiz.svg_area_path }}" fill="url(#grad-maiz)" />
-              <path d="{{ sp_maiz.svg_path }}" fill="none" stroke="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-              {% for pt in sp_maiz.points %}
-              {% if loop.last %}
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{% if sp_maiz.tendencia_global == 'suba' %}#10b981{% elif sp_maiz.tendencia_global == 'baja' %}#ef4444{% else %}#64748b{% endif %}" opacity="0.3" />
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#475569{% endif %}" stroke="#ffffff" stroke-width="1.5" />
-              {% else %}
-              <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="2.5" fill="{% if sp_maiz.tendencia_global == 'suba' %}#059669{% elif sp_maiz.tendencia_global == 'baja' %}#dc2626{% else %}#64748b{% endif %}" />
-              {% endif %}
-              {% endfor %}
-            </svg>
-          </div>
+        <div class="mt-2 text-3xl font-black text-slate-900">
+          {{ posicion.tn_stock_acopio | formato_ar }} <span class="text-sm font-normal text-slate-500">Tn</span>
         </div>
-        {% endif %}
-
-        {% if historicos_mercado['maiz'] %}
-        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
-              <tr>
-                <th class="p-3.5">Fecha</th>
-                <th class="p-3.5">Fuente</th>
-                <th class="p-3.5 text-right">Precio ARS/Tn</th>
-                <th class="p-3.5 text-right">Dólar Ref.</th>
-                <th class="p-3.5 text-right">Precio USD/Tn</th>
-                <th class="p-3.5 text-center">Variación USD (Día ant.)</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
-              {% for hp in historicos_mercado['maiz'] %}
-              <tr class="hover:bg-slate-50/80 transition-colors">
-                <td class="p-3.5 font-bold text-slate-900">{{ hp.fecha }}</td>
-                <td class="p-3.5 text-slate-600 font-semibold">{{ hp.fuente }}</td>
-                <td class="p-3.5 text-right font-black text-slate-900">$ {{ hp.precio_ars_tn | formato_ar }} ARS</td>
-                <td class="p-3.5 text-right text-slate-600">$ {{ hp.dolar_referencia | formato_ar }} ARS</td>
-                <td class="p-3.5 text-right font-black text-amber-700">$ {{ hp.precio_usd_tn | formato_ar }} USD</td>
-                <td class="p-3.5 text-center font-bold">
-                  {% if hp.tendencia == 'suba' %}
-                  <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 inline-block">
-                    🟢 +$ {{ hp.var_usd | formato_ar }} USD (+{{ hp.var_pct_usd | formato_ar }}%)
-                  </span>
-                  {% elif hp.tendencia == 'baja' %}
-                  <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg border border-red-300 inline-block">
-                    🔴 -$ {{ (hp.var_usd * -1) | formato_ar }} USD ({{ hp.var_pct_usd | formato_ar }}%)
-                  </span>
-                  {% else %}
-                  <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200 inline-block">
-                    ⚪ Sin cambio
-                  </span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="mt-1 text-2xs text-amber-700 font-bold flex items-center gap-1">
+          <span>🟡</span> <span>Entregado a fijar precio</span>
         </div>
-        {% else %}
-        <div class="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
-          No hay registros históricos almacenados para Maíz.
-        </div>
-        {% endif %}
       </div>
 
-    <!-- Script ligero para alternar pestañas en el cliente -->
-    <script>
-      function cambiarTabHistorico(cultivo) {
-        const cultivos = ['soja', 'maiz'];
-        cultivos.forEach(c => {
-          const tabPane = document.getElementById('tab-pane-' + c);
-          const tabBtn = document.getElementById('tab-btn-' + c);
-          if (tabPane && tabBtn) {
-            if (c === cultivo) {
-              tabPane.classList.remove('hidden');
-              tabBtn.className = 'tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer bg-white text-slate-900 shadow-xs font-black';
-            } else {
-              tabPane.classList.add('hidden');
-              tabBtn.className = 'tab-historico-btn px-4 py-2 text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 font-bold';
-            }
-          }
-        });
-      }
-    </script>
-    {% endif %}
-
-    <!-- 2.D ASISTENTE DE DECISIONES DE COSECHA & VENTA (CRUCE CLIMA + MERCADO + OPERATIVO) -->
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
-        <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white text-xl flex items-center justify-center shadow-md shadow-amber-500/20 font-black">
-            💡
-          </div>
-          <div>
-            <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-              Asistente de Decisiones Cosecha & Venta <span class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">Simulador 1.0</span>
-            </h2>
-            <p class="text-xs text-slate-500">Evaluador agrometeorológico y comercial determinístico. Simula el impacto del costo de secada, el pase de futuros y ventanas de clima.</p>
-          </div>
+      <!-- VALORIZACIÓN ESTIMADA USD -->
+      <div class="bg-gradient-to-br from-emerald-950 to-slate-900 text-white p-5 rounded-3xl border border-emerald-800/40 shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-emerald-300">Valor Estimado Grano Libre</span>
+          <span class="text-lg">💰</span>
         </div>
-        <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
-          Cruce Clima + Mercado
-        </span>
-      </div>
-
-      <!-- Barra de Simulación Interactivas (Inputs del Productor) -->
-      <div class="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
-        <span class="text-xs font-black uppercase text-slate-700 block tracking-wider">
-          ⚙️ Simular Condición Operativa del Lote / Grano
-        </span>
-
-        <form id="form-simulador-decision" onsubmit="event.preventDefault(); simularDecision();" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-          
-          <div>
-            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Cultivo</label>
-            <select id="sim-cultivo" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none">
-              <option value="soja" {% if cultivo_seleccionado == 'soja' or cultivo_seleccionado != 'maiz' %}selected{% endif %}>🌱 Soja</option>
-              <option value="maiz" {% if cultivo_seleccionado == 'maiz' %}selected{% endif %}>🌽 Maíz</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Humedad Grano (%)</label>
-            <input type="number" step="0.1" id="sim-humedad" value="{% if cultivo_seleccionado == 'maiz' %}17.5{% else %}15.0{% endif %}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="17.5">
-          </div>
-
-          <div>
-            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Costo Secada (USD/pt)</label>
-            <input type="number" step="0.1" id="sim-costo-secada" value="2.50" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="2.50">
-          </div>
-
-          <div>
-            <label class="block text-3xs font-extrabold uppercase text-slate-500 mb-1">Lluvia 48h (mm)</label>
-            <input type="number" step="0.5" id="sim-lluvia" value="0.0" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none" placeholder="0.0">
-          </div>
-
-          <div>
-            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-              <span>⚡</span> Simular & Reevaluar
-            </button>
-          </div>
-
-        </form>
-      </div>
-
-      <!-- Contenedor de Insights del Motor de Decisión -->
-      <div id="contenedor-insights-decision" class="space-y-3">
-        {% if decision_insights %}
-        {% for ins in decision_insights %}
-        <div class="p-4 rounded-2xl border flex items-start gap-3 transition-all {% if ins.nivel == 'danger' %}bg-red-50/80 border-red-200 text-red-950{% elif ins.nivel == 'warning' %}bg-amber-50/80 border-amber-200 text-amber-950{% elif ins.nivel == 'success' %}bg-emerald-50/80 border-emerald-200 text-emerald-950{% else %}bg-sky-50/80 border-sky-200 text-sky-950{% endif %}">
-          <div class="text-xl pt-0.5">
-            {% if ins.nivel == 'danger' %}🚨{% elif ins.nivel == 'warning' %}⚠️{% elif ins.nivel == 'success' %}✅{% else %}ℹ️{% endif %}
-          </div>
-          <div class="space-y-1 flex-1">
-            <div class="flex items-center justify-between flex-wrap gap-2">
-              <h4 class="font-black text-sm tracking-tight">{{ ins.titulo }}</h4>
-              <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md {% if ins.nivel == 'danger' %}bg-red-200 text-red-900{% elif ins.nivel == 'warning' %}bg-amber-200 text-amber-900{% elif ins.nivel == 'success' %}bg-emerald-200 text-emerald-900{% else %}bg-sky-200 text-sky-900{% endif %}">
-                {{ ins.codigo }}
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed opacity-90">{{ ins.mensaje }}</p>
-          </div>
+        <div class="mt-2 text-2xl sm:text-3xl font-black text-emerald-400">
+          US$ {{ posicion.valorizacion_stock_libre_usd | formato_ar }}
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
-          Sin alertas críticas o recomendaciones especiales para la condición operativa seleccionada.
+        <div class="mt-1 text-2xs text-slate-300">
+          Ref: <strong>US$ {{ posicion.precio_mercado_usd_tn | formato_ar }}/Tn</strong> (Pizarra Rosario)
         </div>
-        {% endif %}
       </div>
 
-    </div>
+    </section>
 
-    <!-- Script de Simulación Interactivo JS -->
-    <script>
-      async function simularDecision() {
-        const cultivo = document.getElementById('sim-cultivo').value;
-        const humedad = document.getElementById('sim-humedad').value;
-        const costo = document.getElementById('sim-costo-secada').value;
-        const lluvia = document.getElementById('sim-lluvia').value;
-        const container = document.getElementById('contenedor-insights-decision');
-
-        container.style.opacity = '0.5';
-
-        try {
-          const resp = await fetch(`/api/comercial/decision/evaluar?cultivo=${cultivo}&humedad_grano_pct=${humedad}&costo_secada_punto_usd=${costo}&lluvia_esperada_mm=${lluvia}`);
-          const data = await resp.json();
-
-          if (data.success && data.insights_generados) {
-            if (data.insights_generados.length === 0) {
-              container.innerHTML = `<div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">Sin observaciones críticas para los valores ingresados. Condición estándar.</div>`;
-            } else {
-              let html = '';
-              data.insights_generados.forEach(ins => {
-                let colorBg = 'bg-sky-50/80 border-sky-200 text-sky-950';
-                let badgeBg = 'bg-sky-200 text-sky-900';
-                let icon = 'ℹ️';
-                if (ins.nivel === 'danger') {
-                  colorBg = 'bg-red-50/80 border-red-200 text-red-950';
-                  badgeBg = 'bg-red-200 text-red-900';
-                  icon = '🚨';
-                } else if (ins.nivel === 'warning') {
-                  colorBg = 'bg-amber-50/80 border-amber-200 text-amber-950';
-                  badgeBg = 'bg-amber-200 text-amber-900';
-                  icon = '⚠️';
-                } else if (ins.nivel === 'success') {
-                  colorBg = 'bg-emerald-50/80 border-emerald-200 text-emerald-950';
-                  badgeBg = 'bg-emerald-200 text-emerald-900';
-                  icon = '✅';
-                }
-
-                html += `
-                  <div class="p-4 rounded-2xl border flex items-start gap-3 transition-all ${colorBg}">
-                    <div class="text-xl pt-0.5">${icon}</div>
-                    <div class="space-y-1 flex-1">
-                      <div class="flex items-center justify-between flex-wrap gap-2">
-                        <h4 class="font-black text-sm tracking-tight">${ins.titulo}</h4>
-                        <span class="text-3xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${badgeBg}">
-                          ${ins.codigo}
-                        </span>
-                      </div>
-                      <p class="text-xs leading-relaxed opacity-90">${ins.mensaje}</p>
-                    </div>
-                  </div>
-                `;
-              });
-              container.innerHTML = html;
-            }
-          }
-        } catch (e) {
-          console.error("Error al simular decisión:", e);
-        } finally {
-          container.style.opacity = '1';
-        }
-      }
-    </script>
-
-    <!-- 3. PANEL DE INSIGHTS DEL AGENTE COMERCIAL -->
-    {% if insights %}
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-xl bg-purple-600 text-white text-xl flex items-center justify-center shadow-md">
-            🤖
-          </div>
-          <div>
-            <h2 class="text-lg font-black text-slate-900">Agente Comercial • Diagnóstico e Insights</h2>
-            <p class="text-xs text-slate-500">Interpretación automática basada en reglas de posición comercial y mercado.</p>
-          </div>
-        </div>
-        <span class="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-extrabold rounded-full border border-purple-200">
-          {{ insights | length }} Observaciones
-        </span>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {% for ins in insights %}
-        <div class="p-5 rounded-2xl border transition-all shadow-2xs space-y-2.5 flex flex-col justify-between
-          {% if ins.nivel == 'warning' %} bg-amber-50/70 border-amber-200 text-amber-950
-          {% elif ins.nivel == 'danger' %} bg-red-50/70 border-red-200 text-red-950
-          {% elif ins.nivel == 'success' %} bg-emerald-50/70 border-emerald-200 text-emerald-950
-          {% else %} bg-purple-50/70 border-purple-200 text-purple-950 {% endif %}">
-          
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between gap-2">
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border
-                {% if ins.nivel == 'warning' %} bg-amber-100 text-amber-800 border-amber-300
-                {% elif ins.nivel == 'danger' %} bg-red-100 text-red-800 border-red-300
-                {% elif ins.nivel == 'success' %} bg-emerald-100 text-emerald-800 border-emerald-300
-                {% else %} bg-purple-100 text-purple-800 border-purple-300 {% endif %}">
-                [{{ ins.codigo }}]
-              </span>
-              <span class="text-xs font-bold opacity-75">
-                {% if ins.nivel == 'warning' %} ⚠️ Atención
-                {% elif ins.nivel == 'danger' %} 🚨 Alerta
-                {% elif ins.nivel == 'success' %} ✅ Favorable
-                {% else %} ℹ️ Diagnóstico {% endif %}
-              </span>
-            </div>
-            <h3 class="text-sm font-black tracking-tight leading-snug">{{ ins.titulo }}</h3>
-            <p class="text-xs opacity-90 leading-relaxed">{{ ins.mensaje }}</p>
-          </div>
-
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- 1. BLOQUE 1: KPIS DE STOCK FÍSICO REGISTRADO (STOCK 1A/1B/1C) -->
-    <div class="space-y-3">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>📦</span> Stock Físico Registrado & Saldos Comerciales V2
-          </h2>
-          <p class="text-xs text-slate-500">Balances reales derivados exclusivamente de movimientos transaccionales de stock (Stock 1A/1B/1C).</p>
-        </div>
-        <span class="text-2xs font-bold text-slate-400 font-mono">Actualizado: {{ dashboard_summary.as_of.strftime('%H:%M:%S') }}</span>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- KPI 1: Físico Total -->
-        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs hover:shadow-md transition-all group space-y-2 block">
-          <div class="flex items-center justify-between text-slate-500">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Stock Físico Registrado</span>
-            <span class="text-xl group-hover:scale-110 transition-transform">🚜</span>
-          </div>
-          <div class="text-3xl font-black text-slate-900 tracking-tight">
-            {{ dashboard_summary.stock_fisico_total_tn | formato_ar }} <span class="text-sm font-bold text-slate-500">Tn</span>
-          </div>
-          <div class="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
-            <span>En silos y silobolsas</span>
-            <span class="text-amber-700 font-bold group-hover:underline">Ver stock ➔</span>
-          </div>
-        </a>
-
-        <!-- KPI 2: Reservado -->
-        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="bg-purple-50/50 p-5 rounded-3xl border border-purple-200/80 shadow-2xs hover:shadow-md transition-all group space-y-2 block">
-          <div class="flex items-center justify-between text-purple-700">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-purple-900">Stock Reservado</span>
-            <span class="text-xl group-hover:scale-110 transition-transform">🤝</span>
-          </div>
-          <div class="text-3xl font-black text-purple-950 tracking-tight">
-            {{ dashboard_summary.stock_reservado_total_tn | formato_ar }} <span class="text-sm font-bold text-purple-700">Tn</span>
-          </div>
-          <div class="text-[11px] text-purple-800 flex items-center justify-between pt-1 border-t border-purple-100">
-            <span>Reservas por compromisos</span>
-            <span class="text-purple-900 font-bold group-hover:underline">Administrar ➔</span>
-          </div>
-        </a>
-
-        <!-- KPI 3: Asignado -->
-        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="bg-blue-50/50 p-5 rounded-3xl border border-blue-200/80 shadow-2xs hover:shadow-md transition-all group space-y-2 block">
-          <div class="flex items-center justify-between text-blue-700">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-blue-900">Asignado a Entregas</span>
-            <span class="text-xl group-hover:scale-110 transition-transform">🚚</span>
-          </div>
-          <div class="text-3xl font-black text-blue-950 tracking-tight">
-            {{ dashboard_summary.stock_asignado_total_tn | formato_ar }} <span class="text-sm font-bold text-blue-700">Tn</span>
-          </div>
-          <div class="text-[11px] text-blue-800 flex items-center justify-between pt-1 border-t border-blue-100">
-            <span>Camiones a despachar</span>
-            <span class="text-blue-900 font-bold group-hover:underline">Ver asignaciones ➔</span>
-          </div>
-        </a>
-
-        <!-- KPI 4: Disponible Libre -->
-        <a href="/comercial/stock?cultivo={{ cultivo_seleccionado }}" class="bg-emerald-50/60 p-5 rounded-3xl border border-emerald-300 shadow-2xs hover:shadow-md transition-all group space-y-2 block">
-          <div class="flex items-center justify-between text-emerald-800">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-950">Disponible Libre</span>
-            <span class="text-xl group-hover:scale-110 transition-transform">🌱</span>
-          </div>
-          <div class="text-3xl font-black text-emerald-950 tracking-tight">
-            {{ dashboard_summary.stock_disponible_libre_tn | formato_ar }} <span class="text-sm font-bold text-emerald-700">Tn</span>
-          </div>
-          <div class="text-[11px] text-emerald-800 flex items-center justify-between pt-1 border-t border-emerald-200/60">
-            <span>Físico − Reservado − Asignado</span>
-            <span class="text-emerald-900 font-bold group-hover:underline">Libre de riesgo ➔</span>
-          </div>
-        </a>
-      </div>
-    </div>
-
-    <!-- 2. BLOQUE 2: PRIORIDADES DE HOY (ACCIONES CRÍTICAS OPERATIVAS) -->
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+    <!-- 2. SECCIÓN: ⚠️ PROCESOS ABIERTOS & A MEDIAS (ACCIONES ACCIONABLES) -->
+    <section class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-          <span>⚡</span> Prioridades de Hoy
+          <span>⚠️</span> <span>Procesos Abiertos & Pendientes de Decisión</span>
         </h2>
-        <span class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-          {{ dashboard_summary.priorities | length }} ítems accionables
-        </span>
+        <span class="text-xs text-slate-500 font-bold">Tareas que requieren tu atención</span>
       </div>
 
-      <div class="space-y-3">
-        {% if dashboard_summary.priorities %}
-        {% for pri in dashboard_summary.priorities %}
-        <div class="p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all {% if pri.nivel == 'critical' %}bg-rose-50/80 border-rose-200 text-rose-950{% elif pri.nivel == 'warning' %}bg-amber-50/80 border-amber-200 text-amber-950{% else %}bg-sky-50/80 border-sky-200 text-sky-950{% endif %}">
-          <div class="flex items-start gap-3">
-            <div class="text-2xl pt-0.5">
-              {% if pri.nivel == 'critical' %}🚨{% elif pri.nivel == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        <!-- PROCESO 1: ENTREGA AFA A FIJAR -->
+        {% if contratos_a_fijar %}
+        {% set c_pend = contratos_a_fijar[0] %}
+        <div class="bg-amber-50/80 border-2 border-amber-300 rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 bg-amber-200 text-amber-950 font-black text-2xs rounded-full uppercase tracking-wider">
+                🟡 Acopio AFA • Pendiente Fijar
+              </span>
+              <span class="text-xs text-amber-800 font-bold">{{ c_pend.fecha_contrato.strftime('%d/%m/%Y') }}</span>
             </div>
-            <div class="space-y-0.5">
-              <div class="flex items-center gap-2">
-                <h3 class="font-black text-sm tracking-tight">{{ pri.titulo }}</h3>
-                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md {% if pri.nivel == 'critical' %}bg-rose-200 text-rose-900{% elif pri.nivel == 'warning' %}bg-amber-200 text-amber-900{% else %}bg-sky-200 text-sky-900{% endif %}">
-                  {{ pri.codigo }}
-                </span>
-              </div>
-              <p class="text-xs opacity-90 font-medium">{{ pri.motivo }}</p>
-            </div>
+            <h3 class="text-base font-black text-slate-900">
+              Entrega de {{ c_pend.toneladas | formato_ar }} Tn {{ c_pend.cultivo | upper }}
+            </h3>
+            <p class="text-xs text-slate-700 leading-relaxed">
+              {{ c_pend.observaciones or 'Grano entregado físicamente en Acopio AFA San Lorenzo. Falta definir precio de venta.' }}
+            </p>
           </div>
-          <a href="{{ pri.cta_url }}" class="px-4 py-2 text-xs font-black rounded-xl shadow-2xs shrink-0 text-center transition-all {% if pri.nivel == 'critical' %}bg-rose-600 hover:bg-rose-700 text-white{% elif pri.nivel == 'warning' %}bg-amber-600 hover:bg-amber-700 text-white{% else %}bg-sky-600 hover:bg-sky-700 text-white{% endif %}">
-            {{ pri.cta_texto }} ➔
+
+          <button onclick="abrirModalFijarPrecio('{{ c_pend.id }}', '{{ c_pend.cultivo }}', '{{ c_pend.toneladas }}', '{{ c_pend.comprador_acopio }}')"
+                  class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5">
+            <span>💵</span> <span>Fijar Precio con Acopio</span>
+          </button>
+        </div>
+        {% endif %}
+
+        <!-- PROCESO 2: CONTRATISTAS DE TRILLA -->
+        {% if contratistas_pendientes %}
+        <div class="bg-purple-50/80 border-2 border-purple-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 bg-purple-200 text-purple-950 font-black text-2xs rounded-full uppercase tracking-wider">
+                🚜 Contratistas de Trilla
+              </span>
+              <span class="text-xs text-purple-800 font-bold">{{ contratistas_pendientes|length }} Facturas Pendientes</span>
+            </div>
+            <h3 class="text-base font-black text-slate-900">
+              Liquidaciones de Cosecha 25/26
+            </h3>
+            <ul class="text-xs text-slate-700 space-y-1">
+              {% for tx in contratistas_pendientes[:3] %}
+              <li class="flex items-center justify-between border-b border-purple-100 pb-1">
+                <span class="truncate max-w-[180px] font-medium">{{ tx.concepto.split('-')[-1] if '-' in tx.concepto else tx.concepto }}</span>
+                <strong class="text-slate-900 font-extrabold">${{ tx.monto_ars | formato_ar }}</strong>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <a href="/servicios/campos"
+             class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5">
+            <span>⚡</span> <span>Ver Servicios & Finanzas</span>
           </a>
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs font-medium">
-          ✅ No hay prioridades críticas ni diferencias pendientes para la condición comercial actual.
-        </div>
         {% endif %}
-      </div>
-    </div>
 
-    <!-- 3. BLOQUE 3 Y BLOQUE 4 EN GRID 2 COLUMNAS -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      <!-- BLOQUE 3: COMPROMISOS PRÓXIMOS -->
-      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
-              <span>🤝</span> Compromisos Próximos
-            </h2>
-            <a href="/comercial/contratos" class="text-xs font-extrabold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-200 transition-colors">
-              + Ver todos los contratos ➔
-            </a>
+        <!-- PROCESO 3: MONITOREO DE SILOBOLSAS -->
+        <div class="bg-emerald-50/80 border-2 border-emerald-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-1 bg-emerald-200 text-emerald-950 font-black text-2xs rounded-full uppercase tracking-wider">
+                🥖 Silobolsas en Campo
+              </span>
+              <span class="text-xs text-emerald-800 font-bold">Excelente Estado</span>
+            </div>
+            <h3 class="text-base font-black text-slate-900">
+              Guarda y Conservación 25/26
+            </h3>
+            <p class="text-xs text-slate-700 leading-relaxed">
+              Silobolsas activas en Grasso, Gontero y Venier con <strong>{{ posicion.tn_stock_silo_bolsa | formato_ar }} Tn</strong> de resguardo. Se aconseja monitorear humedad tras lluvias.
+            </p>
           </div>
 
-          <div class="space-y-2.5">
-            {% if dashboard_summary.upcoming_commitments %}
-            {% for comp in dashboard_summary.upcoming_commitments %}
-            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-              <div class="flex items-start justify-between gap-2">
+          <a href="#galeria-silos"
+             class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5">
+            <span>🔍</span> <span>Ver Estado de Silos y Bolsas</span>
+          </a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. SECCIÓN PRINCIPAL: 🏢 CARDS GRANDES DE SILOS, SILOBOLSAS Y ACOPIOS -->
+    <section id="galeria-silos" class="space-y-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+            <span>🏢</span> <span>Silos, Silobolsas y Acopios Físicos</span>
+          </h2>
+          <p class="text-xs text-slate-500">Capacidad, existencias reales y estado comercial de cada ubicación física.</p>
+        </div>
+        <div class="text-xs text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs font-bold">
+          Total de Ubicaciones: <strong class="text-slate-900 font-black">{{ silos_cards|length }}</strong>
+        </div>
+      </div>
+
+      <!-- GRID DE CARDS GRANDES -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for silo in silos_cards %}
+        <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative overflow-hidden group">
+          
+          <!-- Encabezado de la Card -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-3xl">{{ silo.icon }}</span>
                 <div>
-                  <span class="font-extrabold text-xs text-slate-900 block">{{ comp.display_label }}</span>
-                  <span class="text-[11px] text-slate-500 font-medium">{{ comp.concepto }} • Beneficiario: <strong>{{ comp.beneficiario }}</strong></span>
+                  <h3 class="text-base font-black text-slate-900 group-hover:text-amber-600 transition-colors">
+                    {{ silo.nombre }}
+                  </h3>
+                  <span class="text-2xs font-bold text-slate-400 uppercase tracking-wider">
+                    📍 {{ silo.campo_nombre }}
+                  </span>
                 </div>
-                <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded shrink-0 {% if comp.estado_cobertura == 'cubierto' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% elif comp.estado_cobertura == 'parcial' %}bg-amber-100 text-amber-800 border border-amber-200{% else %}bg-rose-100 text-rose-800 border border-rose-200{% endif %}">
-                  {{ comp.estado_cobertura | replace('_', ' ') }}
+              </div>
+
+              <!-- Badge de Estado -->
+              <span class="px-2.5 py-1 text-2xs font-black rounded-full border
+                {% if silo.badge_color == 'emerald' %} bg-emerald-100 text-emerald-900 border-emerald-200
+                {% elif silo.badge_color == 'amber' %} bg-amber-100 text-amber-950 border-amber-200
+                {% else %} bg-slate-100 text-slate-600 border-slate-200 {% endif %}">
+                {{ silo.badge_estado }}
+              </span>
+            </div>
+
+            <!-- Datos de Capacidad y Contenido -->
+            <div class="pt-2">
+              <div class="flex items-baseline justify-between">
+                <span class="text-xs text-slate-500 font-medium">Contenido:</span>
+                <span class="text-2xl font-black text-slate-900">
+                  {{ silo.toneladas_almacenadas | formato_ar }} <span class="text-xs font-normal text-slate-500">Tn</span>
                 </span>
               </div>
-              <div class="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-600 pt-1 border-t border-slate-200/60">
-                <div>Saldo Pendiente: <strong class="text-slate-900">{{ comp.saldo_pendiente_tn | formato_ar }} Tn</strong></div>
-                <div>Reservado: <strong class="text-purple-800">{{ comp.toneladas_reservadas_tn | formato_ar }} Tn</strong></div>
+              {% if silo.cultivo %}
+              <div class="text-xs font-extrabold text-amber-700 mt-0.5">
+                🌾 Cultivo: {{ silo.cultivo }}
               </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs font-medium">
-              No registrás compromisos comerciales pendientes de cumplimiento.
-            </div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
+              {% endif %}
 
-      <!-- BLOQUE 4: STOCK POR CULTIVO Y GUARDA -->
-      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
-              <span>🌾</span> Stock por Cultivo y Guarda
-            </h2>
-            <a href="/comercial/stock" class="text-xs font-extrabold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors">
-              Ir a Stock ➔
-            </a>
-          </div>
-
-          <div class="space-y-2.5">
-            {% if dashboard_summary.stock_by_crop %}
-            {% for item in dashboard_summary.stock_by_crop %}
-            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="text-lg">
-                    {% if item.cultivo.lower() == 'soja' %}🌱{% elif item.cultivo.lower() == 'maiz' %}🌽{% elif item.cultivo.lower() == 'sorgo' %}🌾{% else %}🌾{% endif %}
-                  </span>
-                  <span class="font-extrabold text-sm text-slate-900">{{ item.cultivo }}</span>
-                  {% if item.tiene_stock_acopio %}
-                  <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">En Custodia/Acopio</span>
-                  {% endif %}
+              <!-- Barra de Ocupación Visual -->
+              {% if silo.capacidad_nominal_tn > 0 %}
+              <div class="mt-3 space-y-1">
+                <div class="flex items-center justify-between text-2xs font-bold text-slate-400">
+                  <span>Capacidad: {{ silo.capacidad_nominal_tn | formato_ar }} Tn</span>
+                  <span class="{% if silo.ocupacion_pct > 80 %}text-amber-700{% else %}text-slate-600{% endif %} font-black">{{ silo.ocupacion_pct }}% lleno</span>
                 </div>
-                <a href="/comercial/stock?cultivo={{ item.cultivo | lower }}" class="text-xs font-bold text-amber-800 hover:underline">
-                  {{ item.partidas_count }} partida(s) ➔
-                </a>
+                <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                  <div class="h-2.5 rounded-full transition-all duration-500 
+                    {% if silo.tipo == 'acopio' %} bg-amber-500
+                    {% elif silo.ocupacion_pct > 80 %} bg-amber-500
+                    {% elif silo.ocupacion_pct > 0 %} bg-emerald-500
+                    {% else %} bg-slate-300 {% endif %}" 
+                    style="width: {{ silo.ocupacion_pct }}%"></div>
+                </div>
               </div>
-              <div class="grid grid-cols-3 gap-2 text-[11px] font-mono text-slate-600 pt-1 border-t border-slate-200/60">
-                <div>Físico: <strong class="text-slate-900">{{ item.stock_fisico_tn | formato_ar }} Tn</strong></div>
-                <div>Reservado: <strong class="text-purple-800">{{ item.stock_reservado_tn | formato_ar }} Tn</strong></div>
-                <div>Disponible: <strong class="text-emerald-800">{{ item.stock_disponible_tn | formato_ar }} Tn</strong></div>
-              </div>
+              {% endif %}
             </div>
-            {% endfor %}
-            {% else %}
-            <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs font-medium">
-              No registrás partidas de stock físico guardadas todavía.
-            </div>
+
+            {% if silo.observaciones %}
+            <p class="text-2xs text-slate-500 pt-1 leading-relaxed border-t border-slate-100 mt-2">
+              {{ silo.observaciones }}
+            </p>
             {% endif %}
           </div>
-        </div>
-      </div>
 
-    <!-- 3.B SECCIÓN EJECUTIVA: STOCK POR UBICACIÓN Y CUSTODIA -->
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex items-center justify-between flex-wrap gap-2">
+          <!-- Botones de Acción Rápida -->
+          <div class="pt-2 border-t border-slate-100 flex items-center gap-2">
+            {% if silo.tipo == 'acopio' %}
+            <button onclick="abrirModalFijarPrecio('{{ silo.id }}', 'SOJA', '{{ silo.toneladas_almacenadas }}', 'AFA San Lorenzo')"
+                    class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1">
+              <span>💵</span> <span>Fijar Precio</span>
+            </button>
+            {% elif silo.toneladas_almacenadas > 0 %}
+            <button onclick="alert('Mover o despachar {{ silo.toneladas_almacenadas }} Tn desde {{ silo.nombre }} a Acopio AFA.');"
+                    class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1">
+              <span>🚚</span> <span>Mover a Acopio / Vender</span>
+            </button>
+            {% else %}
+            <button onclick="alert('Ubicación {{ silo.nombre }} disponible para recibir granos de la próxima cosecha.');"
+                    class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1">
+              <span>➕</span> <span>Cargar Grano</span>
+            </button>
+            {% endif %}
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- 4. LÍNEA DE TIEMPO SIMPLE DE MOVIMIENTOS RECIENTES -->
+    {% if movimientos_recientes %}
+    <section class="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+      <div class="flex items-center justify-between">
         <div>
           <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>🏬</span> Stock por Ubicación y Custodia
+            <span>📜</span> <span>Historial Reciente de Movimientos y Cosecha</span>
           </h2>
-          <p class="text-xs text-slate-500">Existencias físicas discriminadas por silos de la casa principal, silobolsas del campo y acopios en custodia (AFA, Murature, AGD).</p>
+          <p class="text-xs text-slate-500">Últimos ingresos, traslados y entregas registrados en el sistema.</p>
         </div>
-        <a href="/comercial/stock" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-200 transition-colors">
-          Gestionar Ubicaciones ➔
-        </a>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-        {% for grp in dashboard_summary.location_groups %}
-        <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-          <div class="flex items-center justify-between border-b border-slate-200/60 pb-2">
-            <div class="flex items-center gap-2">
-              <span class="text-base">
-                {% if 'CUSTODIA' in grp.nombre_grupo %}🏢{% else %}🚜{% endif %}
-              </span>
-              <h3 class="font-extrabold text-xs uppercase tracking-wider text-slate-800">{{ grp.nombre_grupo }}</h3>
-            </div>
-            <div class="text-xs font-mono font-bold text-slate-700">
-              Físico: <strong class="text-slate-900 font-black">{{ grp.stock_fisico_tn | formato_ar }} Tn</strong>
+      <div class="divide-y divide-slate-100">
+        {% for mov in movimientos_recientes %}
+        <div class="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base shrink-0">
+              {% if 'ingreso' in mov.tipo %}🌾{% elif 'salida' in mov.tipo or 'entrega' in mov.tipo %}🚚{% else %}📦{% endif %}
+            </span>
+            <div>
+              <div class="text-xs font-black text-slate-900">
+                {{ mov.motivo or mov.tipo }}
+              </div>
+              <div class="text-2xs text-slate-500">
+                {{ mov.observaciones or 'Movimiento de stock registrado.' }}
+              </div>
             </div>
           </div>
 
-          <div class="space-y-2">
-            {% if grp.locations %}
-            {% for loc in grp.locations %}
-            <div class="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-amber-300 transition-all flex items-center justify-between gap-3">
-              <div class="space-y-0.5 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-black text-xs text-slate-900 truncate">{{ loc.nombre }}</span>
-                  {% if loc.es_custodia_acopio %}
-                  <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">En Custodia — No Vendido</span>
-                  {% endif %}
-                </div>
-                <div class="text-[11px] text-slate-500 font-medium">
-                  Tipo: <strong class="text-slate-700 capitalize">{{ loc.tipo | replace('_', ' ') }}</strong>
-                  {% if loc.campo_nombre %} • {{ loc.campo_nombre }}{% endif %}
-                </div>
-              </div>
-
-              <div class="text-right shrink-0 font-mono text-[11px] space-y-0.5">
-                <div>Físico: <strong class="text-slate-900 font-bold">{{ loc.stock_fisico_tn | formato_ar }} Tn</strong></div>
-                <div>Disponible: <strong class="text-emerald-700 font-extrabold">{{ loc.stock_disponible_tn | formato_ar }} Tn</strong></div>
-              </div>
+          <div class="text-right shrink-0">
+            <span class="text-xs font-black text-slate-900">
+              {{ (mov.cantidad_kg / 1000) | formato_ar }} Tn
+            </span>
+            <div class="text-3xs text-slate-400 font-semibold">
+              {{ mov.fecha_movimiento.strftime('%d/%m/%Y') if mov.fecha_movimiento else 'Reciente' }}
             </div>
-            {% endfor %}
-            {% else %}
-            <div class="p-4 text-center text-slate-400 text-xs font-medium bg-white/50 rounded-xl border border-dashed border-slate-200">
-              Sin existencias físicas en este grupo.
-            </div>
-            {% endif %}
           </div>
         </div>
         {% endfor %}
       </div>
-    </div>
+    </section>
+    {% endif %}
 
-    <!-- 4. BLOQUE 5: OPERACIONES RECIENTES & ALERTAS LOGÍSTICAS -->
-    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-          <span>🚚</span> Operaciones Recientes y Logística
-        </h2>
-        <a href="/comercial/entregas" class="text-xs font-extrabold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-xl border border-slate-200 transition-colors">
-          Ver todas las entregas ➔
-        </a>
-      </div>
-
-      <div class="space-y-2">
-        {% if dashboard_summary.recent_operations %}
-        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider">
-              <tr>
-                <th class="p-3">Tracking</th>
-                <th class="p-3">Descripción / Operación</th>
-                <th class="p-3 text-center">Estado</th>
-                <th class="p-3 text-right">Fecha</th>
-                <th class="p-3 text-center">Acción</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
-              {% for op in dashboard_summary.recent_operations %}
-              <tr class="hover:bg-slate-50/80 transition-colors">
-                <td class="p-3 font-mono font-extrabold text-amber-900">{{ op.tracking_number }}</td>
-                <td class="p-3 font-bold text-slate-900">{{ op.descripcion }}</td>
-                <td class="p-3 text-center">
-                  <span class="text-[10px] font-black uppercase px-2.5 py-0.5 rounded bg-slate-200 text-slate-800">
-                    {{ op.estado }}
-                  </span>
-                </td>
-                <td class="p-3 text-right font-mono text-slate-500">{{ op.fecha_str }}</td>
-                <td class="p-3 text-center">
-                  <a href="{{ op.cta_url }}" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] rounded-lg shadow-2xs inline-block">
-                    Ver ➔
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <!-- 5. COTIZACIONES MATBA ROFEX & MERCADO SPOT (COLAPSABLE) -->
+    {% if futuros_mercado %}
+    <details class="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-md group">
+      <summary class="cursor-pointer font-black text-base flex items-center justify-between list-none">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📈</span>
+          <span>Cotizaciones Matba Rofex & Precios Pizarra en Vivo</span>
         </div>
-        {% else %}
-        <div class="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs font-medium">
-          No hay entregas u operaciones logísticas recientes.
+        <span class="text-xs text-amber-300 font-bold group-open:rotate-180 transition-transform">▼ Desplegar</span>
+      </summary>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5 pt-4 border-t border-slate-800">
+        {% for fut in futuros_mercado %}
+        <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black text-amber-300">{{ fut.contrato }}</span>
+            <span class="text-3xs bg-slate-700 px-2 py-0.5 rounded text-slate-300">{{ fut.posicion_label }}</span>
+          </div>
+          <div class="text-2xl font-black text-white">
+            US$ {{ fut.precio_futuro_usd | formato_ar }} <span class="text-2xs font-normal text-slate-400">/Tn</span>
+          </div>
+          <div class="text-2xs text-slate-400 flex items-center justify-between pt-1 border-t border-slate-700/60">
+            <span>Spot Hoy: US$ {{ fut.precio_fisico_usd | formato_ar }}</span>
+            <span class="{% if fut.spread_usd >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %} font-bold">
+              {{ "+" if fut.spread_usd >= 0 else "" }}{{ fut.spread_usd | formato_ar }}
+            </span>
+          </div>
         </div>
-        {% endif %}
+        {% endfor %}
       </div>
-    </div>
-
-    <!-- SECCIÓN SECUNDARIA INFORMATIVA: PRODUCCIÓN ESTIMADA DE LOTES -->
-    <div class="bg-slate-50 border border-slate-200/80 rounded-3xl p-5 space-y-2 text-slate-700">
-      <div class="flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-2 text-xs font-extrabold uppercase text-slate-600 tracking-wider">
-          <span>🌾 Referencia Agronómica Secundaria</span>
-        </div>
-        <span class="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
-          No suma a Stock Físico Libre
-        </span>
-      </div>
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-        <div>
-          <h4 class="font-extrabold text-sm text-slate-900">
-            Producción Estimada de Lotes ({{ cultivo_seleccionado | capitalize }}):
-            <strong class="text-amber-800 font-black text-base">{{ dashboard_summary.produccion_estimada_lotes_tn | formato_ar }} Tn</strong>
-          </h4>
-          <p class="text-xs text-slate-500 font-medium">
-            Calculado en vivo multiplicando superficie por rendimiento estimado/real de lotes. Es un indicador agronómico de referencia que no constituye stock físico ingresado.
-          </p>
-        </div>
-        <a href="/lotes" class="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-300 shrink-0 shadow-2xs">
-          Ver Lotes ➔
-        </a>
-      </div>
-    </div>
+    </details>
+    {% endif %}
 
   </main>
+
+  <!-- MODAL RÁPIDO: FIJAR PRECIO CON ACOPIO -->
+  <div id="modal-fijar-precio" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs hidden items-center justify-center p-4 animate-fadeIn">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">💵</span>
+          <div>
+            <h3 class="text-base font-black text-slate-900">Fijar Precio de Venta</h3>
+            <p class="text-2xs text-slate-400">Cierra el precio comercial con el acopio receptor.</p>
+          </div>
+        </div>
+        <button onclick="cerrarModalFijarPrecio()" class="text-slate-400 hover:text-slate-700 font-black text-sm p-1">✕</button>
+      </div>
+
+      <form method="POST" action="/comercial/granos/fijar-precio" class="space-y-4">
+        <input type="hidden" id="modal-contrato-id" name="contrato_id" value="">
+        
+        <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
+          <div class="text-2xs font-bold text-amber-800 uppercase tracking-wider">Detalles de Entrega</div>
+          <div class="text-xs font-black text-slate-900" id="modal-entrega-info">270 Tn Soja en Acopio AFA</div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-extrabold text-slate-700 mb-1">Precio Acordado (USD / Tn):</label>
+          <div class="relative">
+            <span class="absolute left-3.5 top-2.5 text-xs font-black text-slate-400">US$</span>
+            <input type="number" step="0.01" name="precio_usd_tn" required placeholder="Ej: 295.50"
+                   class="w-full pl-12 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <span class="text-3xs text-slate-400 mt-1 block">Referencia spot Pizarra Rosario: US$ {{ posicion.precio_mercado_usd_tn | formato_ar }}/Tn</span>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="cerrarModalFijarPrecio()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">
+            Cancelar
+          </button>
+          <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs">
+            Confirmar y Cerrar Precio
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function abrirModalFijarPrecio(id, cultivo, toneladas, acopio) {
+      document.getElementById('modal-contrato-id').value = id;
+      document.getElementById('modal-entrega-info').innerText = toneladas + ' Tn de ' + cultivo + ' en ' + acopio;
+      const m = document.getElementById('modal-fijar-precio');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function cerrarModalFijarPrecio() {
+      const m = document.getElementById('modal-fijar-precio');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+  </script>
 
 </body>
 </html>

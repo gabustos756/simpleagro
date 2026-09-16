@@ -202,6 +202,29 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
     r_real = float(l.qq_ha_real) if l.qq_ha_real is not None else 0.0
     prod_qq = float(l.produccion_total_qq) if l.produccion_total_qq is not None else (float(l.superficie_productiva_ha) * r_real)
 
+    meta = l.metadatos_agronomicos or {}
+    estado_raw = meta.get("estado_productivo")
+    cultivo_act_lower = (l.cultivo_actual or "").lower()
+
+    if "barbecho" in cultivo_act_lower or estado_raw in ["barbecho", "cosechado", "recien_cosechado"] or "cosechado" in (l.cultivo_anterior or "").lower() or (l.qq_ha_real is not None and l.qq_ha_real > 0):
+        estado_prod = "barbecho"
+        estado_label = "Barbecho / Post-Cosecha"
+    elif estado_raw == "recien_sembrado":
+        estado_prod = "recien_sembrado"
+        estado_label = "Recién Sembrado"
+    elif estado_raw == "con_alerta":
+        estado_prod = "con_alerta"
+        estado_label = "Con Alerta Fitosanitaria"
+    elif estado_raw == "listo_cosecha":
+        estado_prod = "listo_cosecha"
+        estado_label = "Listo para Cosecha"
+    elif estado_raw:
+        estado_prod = estado_raw
+        estado_label = estado_raw.replace("_", " ").title()
+    else:
+        estado_prod = "barbecho"
+        estado_label = "Barbecho / Post-Cosecha"
+
     return {
         "id": str(l.id),
         "campo_id": str(l.campo_id) if l.campo_id else "campo-001",
@@ -215,8 +238,8 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
         "vencimiento_alquiler": str(l.vencimiento_alquiler) if l.vencimiento_alquiler else None,
         "notas_alquiler": l.notas_alquiler or "Contrato de arrendamiento rural.",
         "cultivo_anterior": l.cultivo_anterior or "Trigo 24/25",
-        "cultivo_actual": l.cultivo_actual or "Soja 1ra",
-        "cultivo_planificado": l.cultivo_planificado or "Maíz Tardío 26/27",
+        "cultivo_actual": l.cultivo_actual or "Barbecho Químico",
+        "cultivo_planificado": l.cultivo_planificado or "Próxima Campaña 26/27",
         "tipo_suelo": l.tipo_suelo or "Argiudol Típico",
         "qq_ha_estimado": float(l.qq_ha_estimado) if l.qq_ha_estimado is not None else 0.0,
         "qq_ha_real": r_real,
@@ -233,8 +256,8 @@ def lote_to_dict(l: Lote, campo_nombre: str = "Campo General") -> dict:
         "longitud": float(l.centroide_lng) if getattr(l, "centroide_lng", None) is not None else (l.geolocalizacion_lat_lng.get("lng") if isinstance(getattr(l, "geolocalizacion_lat_lng", None), dict) else None),
         "fuente_geometria": getattr(l, "fuente_geometria", None) or "DIBUJO_MANUAL",
         "fecha_actualizacion_geometria": str(l.fecha_actualizacion_geometria) if getattr(l, "fecha_actualizacion_geometria", None) else None,
-        "estado_productivo": "en_crecimiento",
-        "estado_productivo_label": "En Crecimiento",
+        "estado_productivo": estado_prod,
+        "estado_productivo_label": estado_label,
     }
 
 
@@ -793,6 +816,9 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
         "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
     }
 
+    from app.services.labores_plantillas import obtener_plantillas_agrupadas
+    plantillas_labores = await obtener_plantillas_agrupadas(db, get_uuid(user.get("cliente_id")))
+
     return templates.TemplateResponse(
         request=request,
         name="portal_entrada.html",
@@ -800,11 +826,13 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
             "user": user,
             "campo_activo": campo_activo,
             "campos": campos,
-            "lotes_count": len(lotes_campo_activo),
+            "lotes": lotes,
+            "lotes_count": len(lotes),
             "weather": weather_data,
             "servicios_vencidos_count": servicios_vencidos_count,
             "cotizacion_dolar": dolar_ref,
             "cotizacion_dolar_info": dolar_info,
+            "plantillas_labores": plantillas_labores,
             "campania_activa": "2025-2026",
         },
     )
@@ -2796,17 +2824,27 @@ async def list_lotes(
     campos = await fetch_campos_dicts(db)
     lotes_filtrados = await fetch_lotes_dicts(db)
 
-    if campo:
-        lotes_filtrados = [l for l in lotes_filtrados if l["campo_id"] == campo]
-    elif campo_activo:
-        lotes_filtrados = [l for l in lotes_filtrados if l["campo_id"] == campo_activo["id"]]
+    # Filtrar por campo sólo si se especificó explícitamente y no es 'todos' o vacío
+    if campo and campo.strip() and campo.strip().lower() not in ("todos", "all", ""):
+        lotes_filtrados = [l for l in lotes_filtrados if str(l["campo_id"]) == campo.strip()]
+        campo_filtro_val = campo.strip()
+    else:
+        campo_filtro_val = ""
 
-    if tenencia:
-        lotes_filtrados = [l for l in lotes_filtrados if l["tenencia_tipo"] == tenencia]
-    if cultivo:
-        lotes_filtrados = [l for l in lotes_filtrados if l["cultivo_actual"] == cultivo]
-    if q:
-        q_lower = q.lower()
+    if tenencia and tenencia.strip() and tenencia.strip().lower() not in ("todos", "all", ""):
+        lotes_filtrados = [l for l in lotes_filtrados if l["tenencia_tipo"] == tenencia.strip()]
+        tenencia_filtro_val = tenencia.strip()
+    else:
+        tenencia_filtro_val = ""
+
+    if cultivo and cultivo.strip() and cultivo.strip().lower() not in ("todos", "all", ""):
+        lotes_filtrados = [l for l in lotes_filtrados if l["cultivo_actual"] == cultivo.strip()]
+        cultivo_filtro_val = cultivo.strip()
+    else:
+        cultivo_filtro_val = ""
+
+    if q and q.strip():
+        q_lower = q.strip().lower()
         lotes_filtrados = [
             l for l in lotes_filtrados if q_lower in l["nombre"].lower() or q_lower in l["campo_nombre"].lower()
         ]
@@ -2819,10 +2857,10 @@ async def list_lotes(
             "campo_activo": campo_activo,
             "lotes": lotes_filtrados,
             "campos": campos,
-            "campo_filtro": campo or campo_activo["id"],
-            "tenencia_filtro": tenencia,
-            "cultivo_filtro": cultivo,
-            "search_q": q,
+            "campo_filtro": campo_filtro_val,
+            "tenencia_filtro": tenencia_filtro_val,
+            "cultivo_filtro": cultivo_filtro_val,
+            "search_q": q or "",
         },
     )
 
@@ -3113,6 +3151,9 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
                     except Exception:
                         pass
 
+    from app.services.labores_plantillas import obtener_plantillas_agrupadas
+    plantillas_labores = await obtener_plantillas_agrupadas(db, get_uuid(user.get("cliente_id")))
+
     return templates.TemplateResponse(
         request=request,
         name="productivo_lote_ficha.html",
@@ -3128,6 +3169,7 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
             "storage_locations_grano": storage_locations_grano,
             "insumos_disponibles": insumos_disponibles,
             "total_costo_insumos_usd": float(total_costo_insumos_usd),
+            "plantillas_labores": plantillas_labores,
         },
     )
 
@@ -3167,7 +3209,7 @@ async def crear_labor_rapida_lote(
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
     from app.models import Campania, Lote, LaborCampo, StorageLocation
-    from app.enums import EstadoProductivoLoteEnum, TipoLabor
+    from app.enums import EstadoProductivoLoteEnum, TipoLabor, UbicacionStockEnum
 
     l_uuid = uuid.UUID(lote_id)
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
@@ -3188,21 +3230,26 @@ async def crear_labor_rapida_lote(
     except Exception:
         fecha_dt = datetime.now(timezone.utc)
 
-    # Insumos utilizados
+    # Convertir tipo_labor a Enum
+    try:
+        tipo_labor_enum = TipoLabor(tipo_labor)
+    except Exception:
+        tipo_labor_enum = TipoLabor.PULVERIZACION
+
     insumos_list = []
-    if insumo_nombre and insumo_dosis:
+    if insumo_nombre:
         insumos_list.append({
             "nombre": insumo_nombre.strip(),
-            "dosis": float(insumo_dosis),
-            "unidad": insumo_unidad or "lt/ha",
-            "insumo_id": insumo_catalogado_id if insumo_catalogado_id else None,
-            "storage_location_id": insumo_storage_location_id if insumo_storage_location_id else None,
+            "dosis": float(insumo_dosis) if insumo_dosis else None,
+            "unidad": insumo_unidad.strip() if insumo_unidad else "lt/ha",
+            "insumo_catalogado_id": insumo_catalogado_id,
+            "insumo_storage_location_id": insumo_storage_location_id,
         })
 
-    # Parámetros por tipo de labor
-    parametros_aplicacion = None
-    if tipo_labor in ["pulverizacion", "fertilizacion"] and (volumen_agua_lts_ha or presion_bar or velocidad_kmh or pastilla_boquilla):
-        parametros_aplicacion = {
+    # Parámetros agronómicos específicos
+    parametros_app = None
+    if volumen_agua_lts_ha or presion_bar or velocidad_kmh or pastilla_boquilla:
+        parametros_app = {
             "volumen_agua_lts_ha": volumen_agua_lts_ha,
             "presion_bar": presion_bar,
             "velocidad_kmh": velocidad_kmh,
@@ -3210,39 +3257,32 @@ async def crear_labor_rapida_lote(
         }
 
     detalles_siembra = None
-    if tipo_labor in ["siembra", "tratamiento_semilla"] and (densidad_semillas_m or variedad_hibrido):
+    if densidad_semillas_m or variedad_hibrido:
         detalles_siembra = {
             "densidad_semillas_m": densidad_semillas_m,
             "variedad_hibrido": variedad_hibrido,
         }
 
     detalles_cosecha = None
-    if tipo_labor == "cosecha" and (humedad_porcentaje or rendimiento_qq_ha or total_cosechado_qq):
+    if rendimiento_qq_ha or total_cosechado_qq or humedad_porcentaje:
         detalles_cosecha = {
-            "humedad_porcentaje": humedad_porcentaje,
             "rendimiento_qq_ha": rendimiento_qq_ha,
             "total_cosechado_qq": total_cosechado_qq,
+            "humedad_porcentaje": humedad_porcentaje,
             "destino_grano_tipo": destino_grano_tipo,
             "storage_location_id": storage_location_id,
-            "nuevo_silobolsa_nombre": nuevo_silobolsa_nombre,
         }
-
-    # Tipo enum
-    try:
-        t_enum = TipoLabor(tipo_labor)
-    except Exception:
-        t_enum = TipoLabor.PULVERIZACION
 
     nueva_labor = LaborCampo(
         id=uuid.uuid4(),
         lote_id=l_uuid,
         campania_id=camp_id,
-        tipo_labor=t_enum,
+        tipo_labor=tipo_labor_enum,
         fecha=fecha_dt,
-        superficie_afectada_ha=superficie_afectada_ha,
-        sector_zona=sector_zona,
+        superficie_afectada_ha=superficie_afectada_ha or (lote_obj.superficie_productiva_ha if lote_obj else 0.0),
+        sector_zona=sector_zona or "Lote Completo",
         insumos_utilizados=insumos_list,
-        parametros_aplicacion=parametros_aplicacion,
+        parametros_aplicacion=parametros_app,
         detalles_siembra=detalles_siembra,
         detalles_cosecha=detalles_cosecha,
         blanco_biologico=blanco_biologico,
@@ -3250,7 +3290,6 @@ async def crear_labor_rapida_lote(
         notas=notas,
         responsable_id=user_id,
     )
-
     db.add(nueva_labor)
     await db.flush()
 
@@ -3271,7 +3310,7 @@ async def crear_labor_rapida_lote(
                     cantidad_real=consumo_total,
                     clave_idempotencia=f"LABOR-{nueva_labor.id}-{insumo_catalogado_id}",
                     registrado_por_usuario_id=user_id,
-                    observaciones=f"Consumo labor {t_enum.value} en lote {lote_obj.nombre if lote_obj else ''}",
+                    observaciones=f"Consumo labor {tipo_labor_enum.value} en lote {lote_obj.nombre if lote_obj else ''}",
                 )
                 if mov_insumo and insumos_list:
                     insumos_list[0]["costo_total_usd"] = float(mov_insumo.costo_total_usd)
@@ -3281,61 +3320,76 @@ async def crear_labor_rapida_lote(
         except Exception as e:
             logger.warning(f"[LABOR RAPIDA] No se pudo descontar stock de insumo: {e}")
 
-    # 2. INTEGRACIÓN COSECHA -> SILO & COMERCIAL:
+    # Motor de Pensamiento & Auto-Aprendizaje de Plantillas de Labor
+    es_nueva_plantilla = False
+    try:
+        from app.services.labores_plantillas import evaluar_y_aprender_nueva_labor
+        titulo_labor = sector_zona or insumo_nombre or tipo_labor_enum.value.capitalize()
+        _, es_nueva_plantilla = await evaluar_y_aprender_nueva_labor(
+            db=db,
+            tipo_labor=tipo_labor_enum,
+            titulo=titulo_labor,
+            descripcion_o_insumos=f"{insumo_nombre or ''} {notas or ''}".strip(),
+            cliente_id=cliente_id,
+            dosis_unidad=insumo_unidad or "lt/ha",
+            insumos_list=insumos_list,
+        )
+    except Exception as e:
+        logger.warning(f"[PLANTILLAS APRENDIZAJE] Error evaluando labor: {e}")
+
+    # Manejo de cosecha integrada
+    target_loc_id = None
     if tipo_labor == "cosecha":
-        if rendimiento_qq_ha and lote_obj:
-            lote_obj.qq_ha_real = rendimiento_qq_ha
-        if total_cosechado_qq and lote_obj:
-            lote_obj.produccion_total_qq = total_cosechado_qq
+        if lote_obj:
+            if rendimiento_qq_ha:
+                lote_obj.qq_ha_real = float(rendimiento_qq_ha)
+            if total_cosechado_qq:
+                lote_obj.produccion_total_qq = float(total_cosechado_qq)
+            meta = dict(lote_obj.metadatos_agronomicos or {})
+            meta["estado_productivo"] = EstadoProductivoLoteEnum.RECIEN_COSECHADO.value
+            lote_obj.metadatos_agronomicos = meta
 
-        # Calcular toneladas cosechadas
-        total_tn = 0.0
-        if total_cosechado_qq:
-            total_tn = total_cosechado_qq / 10.0
-        elif rendimiento_qq_ha and superficie_afectada_ha:
-            total_tn = (rendimiento_qq_ha * superficie_afectada_ha) / 10.0
+        ha_cosechadas = float(superficie_afectada_ha or (lote_obj.superficie_productiva_ha if lote_obj else 0.0))
+        rinde_qq = float(rendimiento_qq_ha or 0.0)
+        total_qq = float(total_cosechado_qq or (ha_cosechadas * rinde_qq))
+        total_tn = total_qq / 10.0
 
-        target_loc_id = None
-        # Si se solicita crear nuevo Silobolsa rápido
-        if destino_grano_tipo == "nuevo_silobolsa" and nuevo_silobolsa_nombre and nuevo_silobolsa_nombre.strip():
-            from app.models import StorageLocation
-            s_nombre = nuevo_silobolsa_nombre.strip()
-            res_exist_loc = await db.execute(
+        if nuevo_silobolsa_nombre and nuevo_silobolsa_nombre.strip():
+            nombre_silo = nuevo_silobolsa_nombre.strip()
+            campo_loc_id = lote_obj.campo_id if lote_obj else None
+            res_exist = await db.execute(
                 select(StorageLocation).where(
                     StorageLocation.cliente_id == cliente_id,
                     StorageLocation.tipo == "silobolsa",
-                    func.lower(StorageLocation.nombre) == s_nombre.lower(),
+                    StorageLocation.nombre == nombre_silo,
                 )
             )
-            exist_loc = res_exist_loc.scalars().first()
-            if exist_loc:
-                target_loc_id = exist_loc.id
+            silo_existente = res_exist.scalars().first()
+            if silo_existente:
+                target_loc_id = silo_existente.id
             else:
-                nuevo_loc = StorageLocation(
+                nuevo_silo = StorageLocation(
                     id=uuid.uuid4(),
                     cliente_id=cliente_id,
-                    nombre=s_nombre,
+                    campo_id=campo_loc_id,
+                    nombre=nombre_silo,
                     tipo="silobolsa",
-                    campo_id=lote_obj.campo_id if lote_obj else None,
-                    capacidad_nominal_tn=Decimal(str(round(total_tn * 1.3, 2))) if total_tn > 0 else Decimal("250.0"),
+                    capacidad_nominal_tn=Decimal("250.0"),
                     estado="activo",
-                    observaciones=f"Silobolsa creado automáticamente al registrar cosecha de {lote_obj.nombre if lote_obj else 'Lote'}",
                 )
-                db.add(nuevo_loc)
+                db.add(nuevo_silo)
                 await db.flush()
-                target_loc_id = nuevo_loc.id
+                target_loc_id = nuevo_silo.id
         elif storage_location_id and storage_location_id.strip():
             try:
                 target_loc_id = uuid.UUID(storage_location_id.strip())
             except Exception:
                 target_loc_id = None
 
-        # Si hay ubicación de guarda y producción real positiva, crear Partida de Grano automáticamente
         if target_loc_id and total_tn > 0:
             try:
                 from app.services.stock_service import crear_partida_grano_desde_cosecha
                 cultivo_cosechado = lote_obj.cultivo_actual if (lote_obj and lote_obj.cultivo_actual) else "soja"
-                # Limpiar texto del cultivo (ej: 'Soja 1ra' -> 'soja')
                 c_clean = "soja" if "soja" in cultivo_cosechado.lower() else ("maiz" if "maiz" in cultivo_cosechado.lower() or "maíz" in cultivo_cosechado.lower() else ("trigo" if "trigo" in cultivo_cosechado.lower() else "soja"))
 
                 await crear_partida_grano_desde_cosecha(
@@ -3356,7 +3410,6 @@ async def crear_labor_rapida_lote(
             except Exception as e:
                 logger.warning(f"[COSECHA INTEGRADA] No se pudo crear partida de grano automática: {e}")
 
-        # Marcar lote como recién cosechado
         if lote_obj:
             meta = dict(lote_obj.metadatos_agronomicos or {})
             meta["estado_productivo"] = EstadoProductivoLoteEnum.RECIEN_COSECHADO.value
@@ -3364,9 +3417,36 @@ async def crear_labor_rapida_lote(
 
     await db.commit()
 
-    msg = "Cosecha+registrada+y+asignada+al+stock+de+granos+exitosamente" if (tipo_labor == "cosecha" and target_loc_id) else "Labor+registrada+exitosamente"
-    return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg={msg}", status_code=status.HTTP_303_SEE_OTHER)
+    if tipo_labor == "cosecha" and target_loc_id:
+        msg = "Cosecha+registrada+y+asignada+al+stock+de+granos+exitosamente"
+    elif es_nueva_plantilla:
+        msg = "Labor+registrada+y+aprendida+como+nueva+plantilla+en+el+catalogo"
+    else:
+        msg = "Labor+registrada+exitosamente"
 
+    if "application/json" in request.headers.get("accept", "") or request.headers.get("x-requested-with") == "XMLHttpRequest":
+        campo_nombre = "Establecimiento"
+        if lote_obj and lote_obj.campo_id:
+            from app.models import Campo
+            res_c_name = await db.execute(select(Campo.nombre).where(Campo.id == lote_obj.campo_id))
+            c_val = res_c_name.scalar_one_or_none()
+            if c_val:
+                campo_nombre = c_val
+
+        return JSONResponse(
+            {
+                "status": "success",
+                "message": msg.replace("+", " "),
+                "labor_id": str(nueva_labor.id),
+                "lote_id": str(lote_id),
+                "lote_nombre": lote_obj.nombre if lote_obj else "",
+                "campo_nombre": campo_nombre,
+                "tipo_labor": tipo_labor,
+                "es_nueva_plantilla": es_nueva_plantilla,
+            }
+        )
+
+    return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg={msg}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/productivo/lotes/{lote_id}/editar", response_class=HTMLResponse)
@@ -3537,17 +3617,26 @@ async def list_servicios(
     campos = await fetch_campos_dicts(db)
     servicios_filtrados = await fetch_servicios_dicts(db)
 
-    if campo:
-        servicios_filtrados = [s for s in servicios_filtrados if s["campo_id"] == campo]
-    elif campo_activo:
-        servicios_filtrados = [s for s in servicios_filtrados if s["campo_id"] == campo_activo["id"]]
+    if campo and campo.strip() and campo.strip().lower() not in ("todos", "all", ""):
+        servicios_filtrados = [s for s in servicios_filtrados if str(s["campo_id"]) == campo.strip()]
+        campo_filtro_val = campo.strip()
+    else:
+        campo_filtro_val = ""
 
-    if tipo:
-        servicios_filtrados = [s for s in servicios_filtrados if s["tipo_servicio"] == tipo]
-    if estado:
-        servicios_filtrados = [s for s in servicios_filtrados if s["estado"] == estado]
-    if q:
-        q_lower = q.lower()
+    if tipo and tipo.strip() and tipo.strip().lower() not in ("todos", "all", ""):
+        servicios_filtrados = [s for s in servicios_filtrados if s["tipo_servicio"] == tipo.strip()]
+        tipo_filtro_val = tipo.strip()
+    else:
+        tipo_filtro_val = ""
+
+    if estado and estado.strip() and estado.strip().lower() not in ("todos", "all", ""):
+        servicios_filtrados = [s for s in servicios_filtrados if s["estado"] == estado.strip()]
+        estado_filtro_val = estado.strip()
+    else:
+        estado_filtro_val = ""
+
+    if q and q.strip():
+        q_lower = q.strip().lower()
         servicios_filtrados = [
             s for s in servicios_filtrados
             if q_lower in s["concepto"].lower() or q_lower in s["proveedor"].lower()
@@ -3561,10 +3650,10 @@ async def list_servicios(
             "campo_activo": campo_activo,
             "servicios": servicios_filtrados,
             "campos": campos,
-            "campo_filtro": campo or campo_activo["id"],
-            "tipo_filtro": tipo,
-            "estado_filtro": estado,
-            "search_q": q,
+            "campo_filtro": campo_filtro_val,
+            "tipo_filtro": tipo_filtro_val,
+            "estado_filtro": estado_filtro_val,
+            "search_q": q or "",
         },
     )
 
@@ -4740,6 +4829,95 @@ async def read_comercial_resumen(
     }
     decision_insights = evaluar_motor_decisiones(contexto_decision_ini)
 
+    # -------------------------------------------------------------------------
+    # 5. CARGA DE CARDS GRANDES DE SILOS Y ACOPIOS (StorageLocations + Partidas)
+    # -------------------------------------------------------------------------
+    from app.models import StorageLocation, StockPartida, StockMovement, ContratoVentaGrano, TransaccionFinanciera, GrainDelivery
+    stmt_locs = select(StorageLocation).options(
+        selectinload(StorageLocation.campo),
+        selectinload(StorageLocation.partidas).selectinload(StockPartida.lote)
+    ).where(
+        StorageLocation.cliente_id == cliente_id,
+        StorageLocation.estado == "activo"
+    ).order_by(StorageLocation.tipo, StorageLocation.nombre)
+    res_locs = await db.execute(stmt_locs)
+    locs_db = res_locs.scalars().all()
+
+    silos_cards = []
+    for loc in locs_db:
+        partidas_activas = [p for p in loc.partidas if p.estado != "anulada"]
+        if cultivo_sel in ["soja", "maiz"]:
+            partidas_crop = [p for p in partidas_activas if p.cultivo.lower() == cultivo_sel]
+        else:
+            partidas_crop = partidas_activas
+        
+        kg_total = sum(p.cantidad_inicial_kg for p in partidas_crop)
+        tn_total = (kg_total / Decimal("1000.0")).quantize(Decimal("0.01"))
+        cap_tn = loc.capacidad_nominal_tn or Decimal("0.0")
+        pct = ((tn_total / cap_tn) * Decimal("100.0")).quantize(Decimal("0.1")) if cap_tn > 0 else Decimal("0.0")
+        
+        if loc.tipo == "acopio":
+            badge_estado = "En Acopio (A Fijar)"
+            badge_color = "amber"
+            icon = "🏢"
+        elif "silobolsa" in loc.tipo.lower() or "silobolsa" in loc.nombre.lower():
+            badge_estado = "En Campo (Silobolsa)" if tn_total > 0 else "Vacío"
+            badge_color = "emerald" if tn_total > 0 else "slate"
+            icon = "🥖"
+        else:
+            badge_estado = "Silo Propio (Libre)" if tn_total > 0 else "Vacío / Disponible"
+            badge_color = "emerald" if tn_total > 0 else "slate"
+            icon = "🏭"
+
+        # Cultivo predominante
+        crop_label = None
+        if partidas_crop:
+            c_set = set(p.cultivo.upper() for p in partidas_crop)
+            crop_label = ", ".join(c_set)
+
+        silos_cards.append({
+            "id": str(loc.id),
+            "nombre": loc.nombre,
+            "tipo": loc.tipo,
+            "icon": icon,
+            "campo_nombre": loc.campo.nombre if loc.campo else (loc.ubicacion_referencia or "Instalación General"),
+            "capacidad_nominal_tn": cap_tn,
+            "toneladas_almacenadas": tn_total,
+            "ocupacion_pct": min(pct, Decimal("100.0")),
+            "cultivo": crop_label,
+            "badge_estado": badge_estado,
+            "badge_color": badge_color,
+            "partidas_count": len(partidas_crop),
+            "observaciones": loc.observaciones,
+        })
+
+    # -------------------------------------------------------------------------
+    # 6. CARGA DE PROCESOS ABIERTOS Y A MEDIAS (Alertas Accionables)
+    # -------------------------------------------------------------------------
+    stmt_caf = select(ContratoVentaGrano).where(
+        ContratoVentaGrano.cliente_id == cliente_id,
+        ContratoVentaGrano.tipo_precio == TipoPrecioEnum.A_FIJAR
+    ).order_by(ContratoVentaGrano.fecha_contrato.desc())
+    res_caf = await db.execute(stmt_caf)
+    contratos_a_fijar = res_caf.scalars().all()
+
+    stmt_tx = select(TransaccionFinanciera).options(
+        selectinload(TransaccionFinanciera.lote)
+    ).where(
+        TransaccionFinanciera.pagado == False
+    ).order_by(TransaccionFinanciera.monto_ars.desc())
+    res_tx = await db.execute(stmt_tx)
+    contratistas_pendientes = res_tx.scalars().all()
+
+    # Movimientos recientes
+    stmt_movs = select(StockMovement).options(
+        selectinload(StockMovement.stock_partida).selectinload(StockPartida.storage_location)
+    ).where(
+        StockMovement.cliente_id == cliente_id
+    ).order_by(StockMovement.fecha_movimiento.desc()).limit(8)
+    res_movs = await db.execute(stmt_movs)
+    movimientos_recientes = res_movs.scalars().all()
+
     return templates.TemplateResponse(
         request=request,
         name="comercial_resumen.html",
@@ -4756,9 +4934,73 @@ async def read_comercial_resumen(
             "sparklines_mercado": sparklines_mercado,
             "historico_precios": historico_precios,
             "decision_insights": decision_insights,
+            "silos_cards": silos_cards,
+            "contratos_a_fijar": contratos_a_fijar,
+            "contratistas_pendientes": contratistas_pendientes,
+            "movimientos_recientes": movimientos_recientes,
             "mensaje_exito": mensaje,
         },
     )
+
+
+@app.post("/comercial/granos/fijar-precio")
+async def fijar_precio_contrato_grano(
+    request: Request,
+    contrato_id: str = Form(...),
+    precio_usd_tn: float = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fija el precio de venta en un contrato/entrega que estaba a fijar.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    stmt = select(ContratoVentaGrano).where(
+        ContratoVentaGrano.id == get_uuid(contrato_id),
+        ContratoVentaGrano.cliente_id == cliente_id
+    )
+    res = await db.execute(stmt)
+    contrato = res.scalars().first()
+    if contrato:
+        contrato.tipo_precio = TipoPrecioEnum.FIJO
+        contrato.precio_usd_tn = Decimal(str(precio_usd_tn))
+        contrato.observaciones = f"Precio fijado a US$ {precio_usd_tn:.2f}/Tn el {date.today().strftime('%d/%m/%Y')}."
+        await db.commit()
+        msg = f"Precio fijado con éxito: US$ {precio_usd_tn:.2f}/Tn para el contrato {contrato.numero_contrato}."
+    else:
+        msg = "No se encontró el contrato especificado."
+
+    return RedirectResponse(f"/comercial?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/comercial/contratistas/{tx_id}/pagar")
+async def marcar_pago_contratista(
+    request: Request,
+    tx_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Marca una transacción financiera de contratista como pagada.
+    """
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(TransaccionFinanciera).where(TransaccionFinanciera.id == get_uuid(tx_id))
+    res = await db.execute(stmt)
+    tx = res.scalars().first()
+    if tx:
+        tx.pagado = True
+        await db.commit()
+        msg = f"Pago registrado con éxito para: {tx.concepto}"
+    else:
+        msg = "No se encontró la transacción."
+
+    return RedirectResponse(f"/comercial?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 
 @app.get("/comercial/stock", response_class=HTMLResponse)

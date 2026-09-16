@@ -703,6 +703,33 @@
 
       <form method="POST" action="/productivo/lotes/{{ lote.id }}/labores/rapida" class="space-y-4 text-xs">
         
+        <!-- PLANTILLAS / RECETAS RECURRENTES DEL CAMPO -->
+        <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-200 rounded-2xl p-3 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="font-extrabold text-emerald-950 text-2xs uppercase tracking-wider flex items-center gap-1.5">
+              <span>⚡ Plantillas Rápidas del Campo</span>
+              <span class="bg-emerald-200 text-emerald-900 text-3xs font-black px-2 py-0.5 rounded-full">1-Clic</span>
+            </label>
+            <span class="text-3xs text-emerald-700 font-medium">Recetas frecuentes de la zona</span>
+          </div>
+          <select id="select-plantilla-labor" onchange="aplicarPlantillaLaborDinamica(this)" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 shadow-sm">
+            <option value="">-- Seleccionar tarea predefinida del catálogo inteligente --</option>
+            {% if plantillas_labores %}
+            {% for tipo_k, items in plantillas_labores.items() %}
+            {% if items %}
+            <optgroup label="{% if tipo_k == 'pulverizacion' %}🚜 Pulverizaciones / Barbechos{% elif tipo_k == 'siembra' %}🌱 Siembras{% elif tipo_k == 'fertilizacion' %}🌾 Fertilizaciones{% elif tipo_k == 'labranza' %}🛠️ Labranzas / Mecánico{% elif tipo_k == 'cosecha' %}🌾 Cosechas{% else %}🧬 Curado de Semilla{% endif %}">
+              {% for p in items %}
+              <option value="{{ p.id }}" data-tipo="{{ p.tipo_labor }}" data-receta="{{ p.descripcion_receta }}" data-titulo="{{ p.titulo }}" data-unidad="{{ p.dosis_unidad_default }}">
+                {{ p.titulo }} — {{ p.descripcion_receta }}
+              </option>
+              {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+
         <!-- TIPO DE LABOR & FECHA -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -991,13 +1018,233 @@
       }
     }
 
-    function alEscribirNuevoSilobolsa(inp) {
-      const tipoInp = document.getElementById('cosecha-destino-tipo');
-      const selSilo = document.getElementById('cosecha-storage-id');
-      if (inp.value.trim() && tipoInp) {
-        tipoInp.value = 'nuevo_silobolsa';
-        if (selSilo) selSilo.value = '';
+    const PLANTILLAS_LABOR = {
+      barbecho_largo_invierno: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "LT Box + 2,4-D + Picloram + Atrazina + Coadyuvante",
+        insumo_dosis: 1.5,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 52,
+        presion: 2.0,
+        velocidad: 18,
+        pastilla: "Cono hueco 0.20",
+        blanco: "Barbecho largo de invierno (Rama Negra, Parietaria)",
+        evaluacion: "Barbecho largo invernal para control residual de malezas."
+      },
+      barbecho_con_dicamba: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "Tijereta Box + 2,4-D + Dicamba + Atrazina + Altiva Pro",
+        insumo_dosis: 1.5,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 65,
+        presion: 2.5,
+        velocidad: 17,
+        pastilla: "Cono hueco 0.20",
+        blanco: "Barbecho lote hacia maíz",
+        evaluacion: "Aplicación de barbecho con Dicamba y Atrazina."
+      },
+      barbecho_corto_ligate: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "LT Box + 2,4-D Avstok + Atrazina Gesaprim + Ligate",
+        insumo_dosis: 1.5,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 40,
+        pastilla: "Abanico plano 0.15",
+        blanco: "Barbecho primaveral previo a siembra",
+        evaluacion: "Control de malezas nacidas en primavera."
+      },
+      barbecho_post_cosecha: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "LT Box + Atrazina + 2,4-D + Picloram + Altiva Pro + Dash",
+        insumo_dosis: 1.6,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 50,
+        blanco: "Barbecho químico post-cosecha inicio nueva campaña",
+        evaluacion: "Barbecho químico post-cosecha para iniciar nueva campaña limpio."
+      },
+      preemergente_maiz: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "S-metolacloro (1.1 L/ha) + Atrazina (1.0 kg/ha)",
+        insumo_dosis: 1.1,
+        insumo_unidad: "lt/ha",
+        volumen_agua: 58,
+        pastilla: "Antideriva 0.15",
+        blanco: "Pre-emergente Maíz (Gramíneas y Hoja Ancha)",
+        evaluacion: "Pre-emergente aplicado con pastilla antideriva 0.15 a 58 L/ha."
+      },
+      presiembra_maiz_zidua: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "LT Box + 2,4-D + Flumioxazin Gemmitop + Zidua + Mictec",
+        insumo_dosis: 1.5,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 50,
+        blanco: "Pre-siembra Maíz residual",
+        evaluacion: "Aplicación pre-siembra de alta residualidad con Pyroxasulfone."
+      },
+      presiembra_soja_capaz: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "Sulfentrazone Capaz + Graminicida Latium + Dash MSO + Altiva Pro",
+        insumo_dosis: 0.533,
+        insumo_unidad: "lt/ha",
+        volumen_agua: 50,
+        blanco: "Pre-siembra Soja (Yuyo Colorado / Gramíneas)",
+        evaluacion: "Pre-siembra Soja con Sulfentrazone y Graminicida."
+      },
+      presiembra_soja_doblegolpe: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "Capaz + Glufosinato Liberty + Sulfato Amonio + Dash + Altiva Pro",
+        insumo_dosis: 2.5,
+        insumo_unidad: "lt/ha",
+        volumen_agua: 60,
+        blanco: "Doble golpe pre-siembra Soja",
+        evaluacion: "Doble golpe químico con Glufosinato y Sulfentrazone."
+      },
+      siembra_maiz_4_2: {
+        tipo_labor: "siembra",
+        insumo_nombre: "Semilla Maíz Híbrido + MicroEssentials SZ",
+        insumo_dosis: 4.2,
+        insumo_unidad: "sem/m",
+        densidad_semillas: 4.2,
+        variedad_hibrido: "Stine / Dekalb / Limagrain / Nidera",
+        evaluacion: "Siembra de Maíz a 4.2 semillas por metro con arrancador en línea."
+      },
+      siembra_soja_28: {
+        tipo_labor: "siembra",
+        insumo_nombre: "Semilla Soja Fiscalizada / Tratada",
+        insumo_dosis: 28.0,
+        insumo_unidad: "sem/m",
+        densidad_semillas: 28.0,
+        variedad_hibrido: "DM 46i20 / AW 4326 / NS 5030 / A4927",
+        evaluacion: "Siembra de Soja a 28 granos/metro a 4 cm de profundidad (~60 kg/ha)."
+      },
+      siembra_soja_35cm: {
+        tipo_labor: "siembra",
+        insumo_nombre: "Semilla Soja (Doble pasada)",
+        insumo_dosis: 11.0,
+        insumo_unidad: "sem/m",
+        densidad_semillas: 11.0,
+        variedad_hibrido: "AW 4326",
+        evaluacion: "Siembra estrecha a 0.35m pasada 2 veces a 11 granos/m."
+      },
+      fertilizacion_sps: {
+        tipo_labor: "fertilizacion",
+        insumo_nombre: "Superfosfato Simple (SPS)",
+        insumo_dosis: 102.0,
+        insumo_unidad: "kg/ha",
+        blanco: "Fertilización fosfatada y azufrada de base",
+        evaluacion: "Fertilización SPS al voleo a 102-104 kg/ha."
+      },
+      fertilizacion_urea: {
+        tipo_labor: "fertilizacion",
+        insumo_nombre: "Urea N-Total",
+        insumo_dosis: 118.0,
+        insumo_unidad: "kg/ha",
+        blanco: "Fertilización nitrogenada en V4-V6 Maíz",
+        evaluacion: "Fertilización Urea N-Total al voleo (114-120 kg/ha) previa a lluvia pronosticada."
+      },
+      postemergente_maiz: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "Glifo Top + Coadyuvante Mictec",
+        insumo_dosis: 2.5,
+        insumo_unidad: "lt/ha",
+        volumen_agua: 50,
+        blanco: "Escape de pastillo, maizbón, porotillo y malvón",
+        evaluacion: "Post-emergente Maíz para rescate de lote por malezas estivales."
+      },
+      fitosanitario_soja_r3: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "Melyra + Latium + Coragen + Talstar Xtra + Sett Stoller/Crescere + Dash",
+        insumo_dosis: 0.5,
+        insumo_unidad: "lt/ha",
+        volumen_agua: 57,
+        blanco: "Fungicida fin de ciclo + Graminicida + Orugas/Chinches + Foliar",
+        evaluacion: "Tratamiento sanitario completo en Soja R3 con nutrición foliar."
+      },
+      rotativa_planchado: {
+        tipo_labor: "labranza",
+        insumo_nombre: "Pasada de Rotativa Ligera",
+        insumo_dosis: 0,
+        insumo_unidad: "lt/ha",
+        blanco: "Rotura de costra y planchado por lluvia fuerte post-siembra",
+        evaluacion: "Pasada de rotativa ligera para romper sellado superficial y facilitar emergencia."
       }
+    };
+
+    function aplicarPlantillaLaborDinamica(sel) {
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.value) return;
+
+      const tipo = opt.getAttribute('data-tipo');
+      const titulo = opt.getAttribute('data-titulo');
+      const receta = opt.getAttribute('data-receta');
+      const unidad = opt.getAttribute('data-unidad');
+
+      const selTipo = document.getElementById('select-tipo-labor');
+      if (selTipo && tipo) {
+        selTipo.value = tipo;
+        cambiarCamposLabor();
+      }
+
+      const inpNom = document.getElementById('input-insumo-nombre');
+      if (inpNom && receta) {
+        inpNom.value = `${titulo}: ${receta}`;
+      }
+
+      const selUnd = document.getElementById('select-insumo-unidad');
+      if (selUnd && unidad) {
+        selUnd.value = unidad;
+      }
+    }
+
+    function aplicarPlantillaLabor(sel) {
+      const val = sel.value;
+      if (!val || !PLANTILLAS_LABOR[val]) return;
+
+      const p = PLANTILLAS_LABOR[val];
+
+      // 1. Tipo de labor
+      const selTipo = document.getElementById('select-tipo-labor');
+      if (selTipo && p.tipo_labor) {
+        selTipo.value = p.tipo_labor;
+        cambiarCamposLabor();
+      }
+
+      // 2. Insumo libre
+      const inpNom = document.getElementById('input-insumo-nombre');
+      if (inpNom && p.insumo_nombre) inpNom.value = p.insumo_nombre;
+
+      const inpDos = document.getElementById('input-insumo-dosis');
+      if (inpDos && p.insumo_dosis !== undefined) inpDos.value = p.insumo_dosis;
+
+      const selUnd = document.getElementById('select-insumo-unidad');
+      if (selUnd && p.insumo_unidad) selUnd.value = p.insumo_unidad;
+
+      // 3. Parámetros Pulverización
+      const inpAgua = document.querySelector('input[name="volumen_agua_lts_ha"]');
+      if (inpAgua && p.volumen_agua !== undefined) inpAgua.value = p.volumen_agua;
+
+      const inpPres = document.querySelector('input[name="presion_bar"]');
+      if (inpPres && p.presion !== undefined) inpPres.value = p.presion;
+
+      const inpVel = document.querySelector('input[name="velocidad_kmh"]');
+      if (inpVel && p.velocidad !== undefined) inpVel.value = p.velocidad;
+
+      const inpPas = document.querySelector('input[name="pastilla_boquilla"]');
+      if (inpPas && p.pastilla) inpPas.value = p.pastilla;
+
+      const inpBlanco = document.querySelector('input[name="blanco_biologico"]');
+      if (inpBlanco && p.blanco) inpBlanco.value = p.blanco;
+
+      // 4. Siembra
+      const inpDens = document.querySelector('input[name="densidad_semillas_m"]');
+      if (inpDens && p.densidad_semillas !== undefined) inpDens.value = p.densidad_semillas;
+
+      const inpHibrido = document.querySelector('input[name="variedad_hibrido"]');
+      if (inpHibrido && p.variedad_hibrido) inpHibrido.value = p.variedad_hibrido;
+
+      // 5. Evaluación / Notas
+      const txtEval = document.querySelector('textarea[name="evaluacion_resultado"]');
+      if (txtEval && p.evaluacion) txtEval.value = p.evaluacion;
     }
   </script>
 

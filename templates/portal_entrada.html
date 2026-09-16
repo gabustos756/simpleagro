@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduAgro - Portal de Entrada</title>
+  <title>EduAgro - Centro de Trabajo</title>
   {% include 'components/pwa_head.html' %}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -15,6 +15,8 @@
               50: '#f0fdf4',
               100: '#dcfce7',
               200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
               500: '#22c55e',
               600: '#16a34a',
               700: '#15803d',
@@ -34,232 +36,744 @@
 
   <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
-    <!-- 1. BIENVENIDA -->
-    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-agro-950 text-white rounded-3xl p-6 sm:p-8 shadow-md relative overflow-hidden">
-      <div class="absolute -right-8 -bottom-8 opacity-10 text-9xl select-none pointer-events-none">
-        🚜
-      </div>
-      <div class="relative z-10">
-        <span class="inline-block px-3 py-1 bg-agro-500/20 text-agro-300 border border-agro-500/30 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
-          Centro de Operaciones de la Estancia
-        </span>
-        <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-white mb-2">
-          ¡Hola, {{ user.nombre.split()[0] if user and user.nombre else 'Familia' }}! 👋
-        </h2>
-        <p class="text-sm text-slate-300 leading-relaxed max-w-2xl">
-          Bienvenido a <strong class="text-agro-300 font-bold">{{ campo_activo.nombre|default('Establecimiento') }}</strong>. Elegí a qué área querés ingresar según la tarea que vas a realizar hoy.
+    <!-- CABECERA PRINCIPAL LIMPIA Y DIRECTA -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-2xs">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-agro-50 text-agro-800 border border-agro-200 rounded-full text-xs font-black uppercase tracking-wider mb-2">
+          <span>🚜</span> {{ user.cliente_nombre|default('Establecimiento Familiar') }}
+        </div>
+        <h1 class="text-2xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+          <span>¿Qué vas a hacer hoy?</span>
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+          Elegí la tarea o área de trabajo para ingresar de forma rápida y sencilla.
         </p>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button type="button" onclick="abrirModalCargarTarea()" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-agro-600 to-emerald-600 hover:from-agro-700 hover:to-emerald-700 text-white font-black text-sm rounded-2xl shadow-md shadow-emerald-600/30 flex items-center justify-center gap-2 transition-transform active:scale-95">
+          <span class="text-lg">⚡</span> Cargar Tarea Rápida
+        </button>
       </div>
     </div>
 
-    <!-- 2. PUERTAS DE ACCESO (6 MÓDULOS EN 3 COLUMNAS DE ANCHO 100%) -->
-    <section class="space-y-4">
-      <div class="flex items-center justify-between px-1">
-        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
-          <span>🚪</span> Módulos & Accesos de la Estancia
-        </h3>
-        <span class="text-xs text-slate-500 font-semibold">Seleccioná tu área habitual de trabajo</span>
+    <!-- LAS 4 OPCIONES PRINCIPALES (TARJETAS GRANDES Y TÁCTILES) -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+
+      <!-- 1. VER CAMPOS Y LOTES -->
+      <a href="/productivo/lotes" class="group bg-white rounded-3xl p-6 sm:p-8 border-2 border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-0 group-hover:bg-emerald-100 transition-colors"></div>
+        
+        <div class="relative z-10 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="w-16 h-16 rounded-2xl bg-emerald-600 text-white text-3xl flex items-center justify-center shadow-lg shadow-emerald-600/30 group-hover:scale-105 transition-transform">
+              🌾
+            </div>
+            <span class="px-3.5 py-1.5 bg-emerald-100 text-emerald-900 text-xs font-black rounded-full border border-emerald-200">
+              {{ lotes|length|default(7) }} Lotes en Producción
+            </span>
+          </div>
+
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center justify-between">
+              <span>Ver Campos y Lotes</span>
+              <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+              Consultá el estado productivo de los lotes, cultivos sembrados (soja y maíz), mapa satelital, hectáreas y rendimientos.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+          <span class="text-slate-600 font-bold">📍 Grasso • Gontero • Venier</span>
+          <span class="text-emerald-800 font-black bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+            Abrir Campos ➔
+          </span>
+        </div>
+      </a>
+
+      <!-- 2. CARGAR TAREA EN LOTE (MODAL INTERACTIVO FÁCIL) -->
+      <div onclick="abrirModalCargarTarea()" class="cursor-pointer group bg-gradient-to-br from-emerald-50 via-white to-green-50/50 rounded-3xl p-6 sm:p-8 border-2 border-agro-500 hover:border-agro-600 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-agro-200/50 rounded-bl-full -z-0 group-hover:bg-agro-200 transition-colors"></div>
+        
+        <div class="relative z-10 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="w-16 h-16 rounded-2xl bg-agro-700 text-white text-3xl flex items-center justify-center shadow-lg shadow-agro-700/30 group-hover:scale-105 transition-transform">
+              📝
+            </div>
+            <span class="px-3.5 py-1.5 bg-agro-600 text-white text-xs font-black rounded-full shadow-sm flex items-center gap-1.5 animate-pulse">
+              <span>⚡</span> Catálogo Inteligente
+            </span>
+          </div>
+
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 group-hover:text-agro-800 transition-colors flex items-center justify-between">
+              <span>Cargar Tarea o Labor</span>
+              <span class="text-agro-600 group-hover:translate-x-1 transition-transform">⚡</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed font-medium">
+              Anotá en el momento siembra, pulverización, fertilización o cosecha. El motor aprende nuevas labores automáticamente.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative z-10 mt-6 pt-4 border-t border-agro-200/60 flex items-center justify-between text-xs">
+          <span class="text-agro-900 font-bold">🚜 Barbechos, Siembra y Fitosanitarios</span>
+          <span class="text-white font-black bg-agro-600 px-3.5 py-1.5 rounded-xl shadow-sm group-hover:bg-agro-700 transition-colors">
+            Cargar Labor Ahora ➕
+          </span>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 w-full">
+      <!-- 3. SERVICIOS Y TRÁMITES -->
+      <a href="/servicios/campos" class="group bg-white rounded-3xl p-6 sm:p-8 border-2 border-slate-200 hover:border-purple-500 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -z-0 group-hover:bg-purple-100 transition-colors"></div>
         
-        <!-- CARD 1: MÓDULO PRODUCTIVO -->
-        <a href="/productivo/lotes" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-emerald-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:bg-emerald-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-emerald-600 text-white text-3xl flex items-center justify-center shadow-md shadow-emerald-600/30 group-hover:scale-110 transition-transform">
-                🌾
-              </div>
-              <span class="px-3 py-1 bg-emerald-100 text-emerald-900 text-xs font-bold rounded-full border border-emerald-200">
-                Agronomía & Lotes
-              </span>
+        <div class="relative z-10 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="w-16 h-16 rounded-2xl bg-purple-600 text-white text-3xl flex items-center justify-center shadow-lg shadow-purple-600/30 group-hover:scale-105 transition-transform">
+              ⚡
             </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center justify-between">
-                <span>Módulo Productivo</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Seguimiento de lotes en producción (soja y maíz), rotación de cultivos, estimación de quintales por hectárea y contratos de alquiler.
-              </p>
-            </div>
+            {% if servicios_vencidos_count and servicios_vencidos_count > 0 %}
+            <span class="px-3.5 py-1.5 bg-red-100 text-red-800 text-xs font-black rounded-full border border-red-200 animate-pulse">
+              ⚠️ {{ servicios_vencidos_count }} Vencimiento{% if servicios_vencidos_count > 1 %}s{% endif %}
+            </span>
+            {% else %}
+            <span class="px-3.5 py-1.5 bg-purple-100 text-purple-900 text-xs font-black rounded-full border border-purple-200">
+              Luz EPEC & Facturas
+            </span>
+            {% endif %}
           </div>
 
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">📍 {{ lotes_count|default(0) }} Lotes en {{ campo_activo.nombre }}</span>
-            <span class="text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">Campaña 25/26</span>
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 group-hover:text-purple-700 transition-colors flex items-center justify-between">
+              <span>Servicios y Trámites</span>
+              <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+              Control de facturas de Luz Rural (EPEC), proveedores de combustible, servicios de campo, patentes e impuestos rurales.
+            </p>
           </div>
-        </a>
+        </div>
 
-        <!-- CARD 2: COMERCIALIZACIÓN Y GRANOS -->
-        <a href="/comercial" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-amber-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-0 group-hover:bg-amber-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-amber-500 text-white text-3xl flex items-center justify-center shadow-md shadow-amber-500/30 group-hover:scale-110 transition-transform">
-                📈
-              </div>
-              <span class="px-3 py-1 bg-amber-100 text-amber-900 text-xs font-bold rounded-full border border-amber-200">
-                Mercado & Granos
-              </span>
+        <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+          <span class="text-slate-600 font-bold">🏛️ Administración & Vencimientos</span>
+          <span class="text-purple-800 font-black bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+            Ver Trámites ➔
+          </span>
+        </div>
+      </a>
+
+      <!-- 4. MERCADO Y GRANOS -->
+      <a href="/comercial" class="group bg-white rounded-3xl p-6 sm:p-8 border-2 border-slate-200 hover:border-amber-500 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-bl-full -z-0 group-hover:bg-amber-100 transition-colors"></div>
+        
+        <div class="relative z-10 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="w-16 h-16 rounded-2xl bg-amber-500 text-white text-3xl flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-105 transition-transform">
+              📈
             </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-amber-700 transition-colors flex items-center justify-between">
-                <span>Comercialización</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Posición física de cosecha, cotizaciones pizarra CAC/BCR, referencia de futuros Matba Rofex y asistente de decisión para venta y secado.
-              </p>
-            </div>
-          </div>
-
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">🌱 Soja & 🌽 Maíz</span>
-            <span class="text-amber-800 font-bold bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">Ver Posición →</span>
-          </div>
-        </a>
-
-        <!-- CARD 3: CLIMA Y PRECIPITACIONES -->
-        <a href="/clima/campos" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-sky-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-sky-50 rounded-bl-full -z-0 group-hover:bg-sky-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-sky-500 text-white text-3xl flex items-center justify-center shadow-md shadow-sky-500/30 group-hover:scale-110 transition-transform">
-                🌤️
-              </div>
-              <span class="px-3 py-1 bg-sky-100 text-sky-900 text-xs font-bold rounded-full border border-sky-200">
-                Pronóstico Real
-              </span>
-            </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-sky-700 transition-colors flex items-center justify-between">
-                <span>Clima & Precipitaciones</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Información agrometeorológica geolocalizada por campo (Google Weather API), serie horaria táctica a 72h y alertas por heladas o viento.
-              </p>
-            </div>
+            <span class="px-3.5 py-1.5 bg-amber-100 text-amber-900 text-xs font-black rounded-full border border-amber-200">
+              💵 ${{ cotizacion_dolar|formato_ar }} CAC
+            </span>
           </div>
 
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">📍 {{ campo_activo.localidad_referencia|default('Laguna Larga') }}</span>
-            <span class="text-sky-800 font-bold bg-sky-50 px-2.5 py-1 rounded-xl border border-sky-200">Ver Pronóstico →</span>
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 group-hover:text-amber-700 transition-colors flex items-center justify-between">
+              <span>Mercado y Precios</span>
+              <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+              Pizarra CAC Rosario en vivo, cotizaciones de Soja y Maíz, posición física cosechada y asistente comercial de venta.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+          <span class="text-slate-600 font-bold">🌱 Soja & 🌽 Maíz</span>
+          <span class="text-amber-800 font-black bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+            Ver Cotizaciones ➔
+          </span>
+        </div>
+      </a>
+
+    </section>
+
+    <!-- BARRA SECUNDARIA DE HERRAMIENTAS ADICIONALES -->
+    <section class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+          <span>🛠️</span> Accesos Directos Secundarios
+        </h3>
+        <span class="text-3xs text-slate-400 font-medium">Herramientas operativas de apoyo</span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <a href="/clima/campos" class="p-3 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 rounded-2xl transition flex items-center gap-2.5">
+          <span class="text-xl">🌤️</span>
+          <div>
+            <span class="block text-xs font-black text-slate-800">Clima & Lluvias</span>
+            <span class="text-[10px] text-slate-500">Pronóstico local</span>
           </div>
         </a>
 
-        <!-- CARD 4: SERVICIOS Y PAGOS -->
-        <a href="/servicios/campos" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-purple-500 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -z-0 group-hover:bg-purple-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-purple-600 text-white text-3xl flex items-center justify-center shadow-md shadow-purple-600/30 group-hover:scale-110 transition-transform">
-                ⚡
-              </div>
-              {% if servicios_vencidos_count and servicios_vencidos_count > 0 %}
-              <span class="px-3 py-1 bg-red-100 text-red-800 text-xs font-extrabold rounded-full border border-red-200 animate-pulse">
-                ⚠️ {{ servicios_vencidos_count }} Vencido{% if servicios_vencidos_count > 1 %}s{% endif %}
-              </span>
-              {% else %}
-              <span class="px-3 py-1 bg-purple-100 text-purple-900 text-xs font-bold rounded-full border border-purple-200">
-                Administración
-              </span>
-              {% endif %}
-            </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-purple-700 transition-colors flex items-center justify-between">
-                <span>Servicios y Pagos</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Gestión de comprobantes, luz rural EPEC, proveedores, combustible, patentes e impuestos rurales de la estancia.
-              </p>
-            </div>
-          </div>
-
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">🏛️ Impuestos & Servicios</span>
-            <span class="text-purple-800 font-bold bg-purple-50 px-2.5 py-1 rounded-xl border border-purple-200">Ver Vencimientos →</span>
+        <a href="/insumos" class="p-3 bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-2xl transition flex items-center gap-2.5">
+          <span class="text-xl">📦</span>
+          <div>
+            <span class="block text-xs font-black text-slate-800">Insumos</span>
+            <span class="text-[10px] text-slate-500">Depósito y stock</span>
           </div>
         </a>
 
-        <!-- CARD 5: MODO CAMPO (1-CLICK) -->
-        <a href="/campo" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-emerald-700 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:bg-emerald-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-emerald-700 text-white text-3xl flex items-center justify-center shadow-md shadow-emerald-700/30 group-hover:scale-110 transition-transform">
-                📱
-              </div>
-              <span class="px-3 py-1 bg-emerald-100 text-emerald-900 text-xs font-bold rounded-full border border-emerald-200">
-                1-Click Camioneta
-              </span>
-            </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-emerald-800 transition-colors flex items-center justify-between">
-                <span>Modo Campo</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Registro rápido sobre el terreno para operarios sin conectividad: lluvias, observaciones y bitácora.
-              </p>
-            </div>
-          </div>
-
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">🌱 Campo: {{ campo_activo.nombre }}</span>
-            <span class="text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">● En Línea</span>
+        <a href="/servicios-prestados" class="p-3 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl transition flex items-center gap-2.5">
+          <span class="text-xl">🚜</span>
+          <div>
+            <span class="block text-xs font-black text-slate-800">Trabajos Terceros</span>
+            <span class="text-[10px] text-slate-500">Cosecha y siembra</span>
           </div>
         </a>
 
-        <!-- CARD 6: DASHBOARD GENERAL -->
-        <a href="/dashboard" class="group bg-white rounded-3xl p-6 border-2 border-slate-200 hover:border-indigo-600 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-0 group-hover:bg-indigo-100 transition-colors"></div>
-          <div class="relative z-10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="w-14 h-14 rounded-2xl bg-indigo-600 text-white text-3xl flex items-center justify-center shadow-md shadow-indigo-600/30 group-hover:scale-110 transition-transform">
-                📊
-              </div>
-              <span class="px-3 py-1 bg-indigo-100 text-indigo-900 text-xs font-bold rounded-full border border-indigo-200">
-                Vista Consolidada
-              </span>
-            </div>
-
-            <div>
-              <h4 class="text-xl font-black text-slate-900 group-hover:text-indigo-800 transition-colors flex items-center justify-between">
-                <span>Dashboard General</span>
-                <span class="text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
-              </h4>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Resumen ejecutivo global de superficie, gastos acumulados y control financiero de la estancia.
-              </p>
-            </div>
-          </div>
-
-          <div class="relative z-10 mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-600 font-semibold">🌾 {{ campo_activo.hectareas_totales|default(0) }} ha Totales</span>
-            <span class="text-indigo-800 font-bold bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-200">Ver Dashboard →</span>
+        <a href="/campo" class="p-3 bg-slate-50 hover:bg-green-50 border border-slate-200 hover:border-green-300 rounded-2xl transition flex items-center gap-2.5">
+          <span class="text-xl">📱</span>
+          <div>
+            <span class="block text-xs font-black text-slate-800">Modo Campo</span>
+            <span class="text-[10px] text-slate-500">Sin internet</span>
           </div>
         </a>
 
+        <a href="/dashboard" class="p-3 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-2xl transition flex items-center gap-2.5 col-span-2 sm:col-span-1">
+          <span class="text-xl">📊</span>
+          <div>
+            <span class="block text-xs font-black text-slate-800">Dashboard</span>
+            <span class="text-[10px] text-slate-500">Resumen global</span>
+          </div>
+        </a>
       </div>
     </section>
 
-    <!-- 3. FOOTER SIMPLE -->
-    <footer class="pt-6 border-t border-slate-200 text-center text-xs text-slate-500">
-      <p>
-        <strong>EduAgro ERP Agropecuario</strong> • Plataforma de Gestión Agropecuaria.
-      </p>
-    </footer>
-
   </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL / ASISTENTE RÁPIDO: CARGAR TAREA EN LOTE CON APRENDIZAJE INTELIGENTE -->
+  <!-- ========================================================================= -->
+  <div id="modal-cargar-tarea" class="fixed inset-0 z-50 hidden bg-slate-900/80 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-3 sm:p-4">
+    
+    <div class="bg-white border-2 border-agro-500 rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden animate-fadeIn my-6 max-h-[92vh] flex flex-col">
+      
+      <!-- HEADER DEL MODAL -->
+      <div class="bg-gradient-to-r from-slate-900 to-agro-950 text-white p-5 sm:p-6 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-agro-600 text-white text-2xl flex items-center justify-center font-black shadow-md shadow-agro-600/40">
+            📝
+          </div>
+          <div>
+            <h3 class="text-xl sm:text-2xl font-black text-white">Cargar Tarea o Labor</h3>
+            <p class="text-xs text-agro-200">Asistente táctil con catálogo dinámico y aprendizaje inteligente</p>
+          </div>
+        </div>
+        <button type="button" onclick="cerrarModalCargarTarea()" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition">
+          <span class="text-xl font-black">✕</span>
+        </button>
+      </div>
+
+      <!-- CUERPO CON SCROLL -->
+      <div id="modal-body-scroll" class="p-5 sm:p-6 space-y-6 overflow-y-auto">
+
+        <!-- BANNER DINÁMICO DE FEEDBACK MULTI-TAREA -->
+        <div id="contenedor-feedback-tarea" class="hidden"></div>
+
+        <!-- PASO 1: SELECCIONAR CAMPO Y LOTE -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-agro-600 text-white text-[11px] font-black flex items-center justify-center">1</span>
+              <span>¿En qué Campo y Lote trabajaste?</span>
+            </h4>
+            <span id="label-lote-seleccionado" class="text-xs font-black text-agro-700">Seleccioná un lote 👇</span>
+          </div>
+
+          <!-- BOTONES TÁCTILES AGRUPADOS POR CAMPO -->
+          <div class="space-y-3">
+            {% for campo in campos %}
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+              <div class="flex items-center justify-between text-xs font-black text-slate-700">
+                <span>📍 {{ campo.nombre }}</span>
+                <span class="text-3xs text-slate-500 font-bold uppercase">{{ campo.hectareas_totales }} ha</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {% for l in lotes %}
+                {% if l.campo_id == campo.id %}
+                <button type="button" 
+                        onclick="seleccionarLoteModal('{{ l.id }}', '{{ l.nombre }}', '{{ campo.nombre }}', {{ l.superficie_productiva_ha|default(0) }})" 
+                        id="btn-lote-{{ l.id }}" 
+                        class="btn-selector-lote text-left p-3 rounded-xl border-2 border-slate-200 bg-white hover:border-agro-500 hover:bg-agro-50/50 transition-all">
+                  <span class="block font-black text-slate-900 text-xs">{{ l.nombre }}</span>
+                  <span class="text-[10px] text-slate-500 font-bold block">{{ l.superficie_productiva_ha }} ha • {{ l.cultivo_actual }}</span>
+                </button>
+                {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- PASO 2: SELECCIONAR TIPO DE LABOR Y PLANTILLA INTELIGENTE -->
+        <form id="form-labor-rapida" method="POST" action="" onsubmit="enviarLaborRapidaAjax(event)" class="space-y-5 pt-4 border-t-2 border-slate-100">
+          
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full bg-agro-600 text-white text-[11px] font-black flex items-center justify-center">2</span>
+              <span>¿Qué tipo de trabajo realizaste?</span>
+            </h4>
+            <span class="text-3xs text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">Catálogo Completo</span>
+          </div>
+
+          <!-- BOTONES TÁCTILES DE CATEGORÍA DE LABOR -->
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <button type="button" onclick="cambiarCategoriaTrabajo('pulverizacion')" id="cat-btn-pulverizacion" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-agro-600 bg-agro-100/90 text-agro-950 font-black text-center text-xs transition shadow-xs">
+              <span class="block text-xl mb-0.5">🚜</span>
+              <span>Pulverización</span>
+            </button>
+            <button type="button" onclick="cambiarCategoriaTrabajo('siembra')" id="cat-btn-siembra" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-center text-xs transition">
+              <span class="block text-xl mb-0.5">🌱</span>
+              <span>Siembra</span>
+            </button>
+            <button type="button" onclick="cambiarCategoriaTrabajo('fertilizacion')" id="cat-btn-fertilizacion" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-center text-xs transition">
+              <span class="block text-xl mb-0.5">🌾</span>
+              <span>Fertilización</span>
+            </button>
+            <button type="button" onclick="cambiarCategoriaTrabajo('labranza')" id="cat-btn-labranza" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-center text-xs transition">
+              <span class="block text-xl mb-0.5">🛠️</span>
+              <span>Labranza</span>
+            </button>
+            <button type="button" onclick="cambiarCategoriaTrabajo('cosecha')" id="cat-btn-cosecha" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-center text-xs transition">
+              <span class="block text-xl mb-0.5">🌾</span>
+              <span>Cosecha</span>
+            </button>
+            <button type="button" onclick="cambiarCategoriaTrabajo('tratamiento_semilla')" id="cat-btn-tratamiento_semilla" class="btn-cat-labor p-2.5 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-center text-xs transition">
+              <span class="block text-xl mb-0.5">🧬</span>
+              <span>Curado</span>
+            </button>
+          </div>
+
+          <!-- CONTENEDOR DE PLANTILLAS DINÁMICAS (SE FILTRA POR CATEGORÍA) -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                <span>⚡ Tareas y Recetas Frecuentes</span>
+                <span id="label-categoria-activa" class="text-agro-700 font-black">(Pulverizaciones)</span>:
+              </label>
+              <button type="button" onclick="activarModoLaborPersonalizada()" class="text-xs font-black text-agro-700 hover:text-agro-800 underline">
+                ➕ Escribir Labor Nueva / Libre
+              </button>
+            </div>
+
+            <!-- Grilla dinámica de botones de plantillas -->
+            <div id="contenedor-plantillas-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-56 overflow-y-auto p-1">
+              <!-- Renderizado dinámico vía JavaScript -->
+            </div>
+          </div>
+
+          <!-- DETALLE Y AJUSTE DE LA LABOR -->
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tipo de Labor</label>
+                <select name="tipo_labor" id="modal-tipo-labor" onchange="sincronizarCategoriaDesdeSelect(this.value)" required class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-agro-500">
+                  <option value="pulverizacion">🚜 Pulverización / Fitosanitario</option>
+                  <option value="siembra">🌱 Siembra</option>
+                  <option value="cosecha">🌾 Cosecha</option>
+                  <option value="fertilizacion">🧪 Fertilización</option>
+                  <option value="labranza">🛠️ Labranza / Rotativa</option>
+                  <option value="tratamiento_semilla">🧬 Tratamiento Semilla</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Fecha de Ejecución</label>
+                <input type="date" name="fecha" id="modal-fecha-labor" required class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-agro-500">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Hectáreas Trabajadas</label>
+                <input type="number" step="0.1" min="0.1" name="superficie_afectada_ha" id="modal-ha-labor" placeholder="Ej: 45.0" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-agro-500">
+              </div>
+
+            </div>
+
+            <!-- DETALLE / PRODUCTOS APLICADOS -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">Detalle de Insumos / Receta del Trabajo</label>
+                <span class="text-[10px] text-slate-400 font-medium">Auto-aprende si es nueva</span>
+              </div>
+              <textarea name="insumo_nombre" id="modal-insumo-nombre" rows="2" placeholder="Ej: Tijereta Box 1.5kg + 2,4-D 1L + Dicamba 0.15L..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:ring-2 focus:ring-agro-500"></textarea>
+            </div>
+          </div>
+
+          <!-- BOTÓN DE ENVÍO -->
+          <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <a id="link-ficha-lote" href="/productivo/lotes" class="text-xs font-black text-slate-600 hover:text-agro-700 underline">
+              Ver Ficha Completa del Lote →
+            </a>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <button type="button" onclick="cerrarModalCargarTarea()" class="w-1/2 sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                Cerrar
+              </button>
+              <button type="submit" id="btn-submit-labor" disabled class="w-1/2 sm:w-auto px-6 py-2.5 bg-agro-600 hover:bg-agro-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 active:scale-95">
+                <span>💾</span> Guardar Labor Ahora
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // Catálogo dinámico de plantillas agrupadas por tipo de labor desde backend
+    const PLANTILLAS_POR_TIPO = {{ plantillas_labores|default({})|tojson }};
+
+    const ICONOS_POR_TIPO = {
+      "pulverizacion": "🚜",
+      "siembra": "🌱",
+      "fertilizacion": "🌾",
+      "labranza": "🛠️",
+      "cosecha": "🌾",
+      "tratamiento_semilla": "🧬"
+    };
+
+    const TITULOS_CATEGORIA = {
+      "pulverizacion": "Pulverizaciones y Barbechos",
+      "siembra": "Siembras de Cultivos",
+      "fertilizacion": "Fertilizaciones al Voleo / Línea",
+      "labranza": "Labranzas y Mecanizado",
+      "cosecha": "Cosechas y Trilla",
+      "tratamiento_semilla": "Curado y Tratamiento de Semilla"
+    };
+
+    let categoriaActual = 'pulverizacion';
+    let loteSeleccionadoId = null;
+    let ultimoCampoNombre = '';
+    let ultimoLoteNombre = '';
+    let ultimoHaProductivas = 0;
+
+    // Inicializar fecha de hoy
+    const inputFecha = document.getElementById('modal-fecha-labor');
+    if (inputFecha) {
+      inputFecha.value = new Date().toISOString().split('T')[0];
+    }
+
+    function abrirModalCargarTarea() {
+      const modal = document.getElementById('modal-cargar-tarea');
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      renderizarPlantillasCategoria(categoriaActual);
+    }
+
+    function cerrarModalCargarTarea() {
+      const modal = document.getElementById('modal-cargar-tarea');
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function seleccionarLoteModal(loteId, loteNombre, campoNombre, haProductivas) {
+      loteSeleccionadoId = loteId;
+      ultimoCampoNombre = campoNombre;
+      ultimoLoteNombre = loteNombre;
+      ultimoHaProductivas = haProductivas;
+
+      // Resaltar botón seleccionado
+      document.querySelectorAll('.btn-selector-lote').forEach(btn => {
+        btn.classList.remove('border-agro-600', 'bg-agro-100/80', 'ring-2', 'ring-agro-500');
+        btn.classList.add('border-slate-200', 'bg-white');
+      });
+
+      const btnSel = document.getElementById('btn-lote-' + loteId);
+      if (btnSel) {
+        btnSel.classList.remove('border-slate-200', 'bg-white');
+        btnSel.classList.add('border-agro-600', 'bg-agro-100/80', 'ring-2', 'ring-agro-500');
+      }
+
+      // Actualizar label y form action
+      const label = document.getElementById('label-lote-seleccionado');
+      if (label) {
+        label.innerHTML = `✅ <strong>${loteNombre}</strong> (${campoNombre})`;
+      }
+
+      const form = document.getElementById('form-labor-rapida');
+      if (form) {
+        form.action = `/productivo/lotes/${loteId}/labores/rapida`;
+      }
+
+      const linkFicha = document.getElementById('link-ficha-lote');
+      if (linkFicha) {
+        linkFicha.href = `/productivo/lotes/${loteId}`;
+        linkFicha.innerHTML = `Ver Ficha Completa de ${loteNombre} →`;
+      }
+
+      const inputHa = document.getElementById('modal-ha-labor');
+      if (inputHa && haProductivas > 0) {
+        inputHa.value = haProductivas;
+      }
+
+      // Habilitar botón de guardado
+      const btnSubmit = document.getElementById('btn-submit-labor');
+      if (btnSubmit) {
+        btnSubmit.removeAttribute('disabled');
+      }
+    }
+
+    function cambiarCategoriaTrabajo(tipoKey) {
+      categoriaActual = tipoKey;
+
+      // Actualizar estilo de botones de categoría
+      document.querySelectorAll('.btn-cat-labor').forEach(btn => {
+        btn.classList.remove('border-agro-600', 'bg-agro-100/90', 'text-agro-950', 'font-black', 'shadow-xs');
+        btn.classList.add('border-slate-200', 'bg-white', 'text-slate-700', 'font-bold');
+      });
+
+      const activeBtn = document.getElementById('cat-btn-' + tipoKey);
+      if (activeBtn) {
+        activeBtn.classList.remove('border-slate-200', 'bg-white', 'text-slate-700', 'font-bold');
+        activeBtn.classList.add('border-agro-600', 'bg-agro-100/90', 'text-agro-950', 'font-black', 'shadow-xs');
+      }
+
+      const selectTipo = document.getElementById('modal-tipo-labor');
+      if (selectTipo) {
+        selectTipo.value = tipoKey;
+      }
+
+      const labelCat = document.getElementById('label-categoria-activa');
+      if (labelCat) {
+        labelCat.innerText = `(${TITULOS_CATEGORIA[tipoKey] || tipoKey})`;
+      }
+
+      renderizarPlantillasCategoria(tipoKey);
+    }
+
+    function sincronizarCategoriaDesdeSelect(tipoKey) {
+      cambiarCategoriaTrabajo(tipoKey);
+    }
+
+    function renderizarPlantillasCategoria(tipoKey) {
+      const container = document.getElementById('contenedor-plantillas-grid');
+      if (!container) return;
+
+      const items = PLANTILLAS_POR_TIPO[tipoKey] || [];
+      const icono = ICONOS_POR_TIPO[tipoKey] || "🚜";
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-4 text-center bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+            No hay plantillas guardadas para esta categoría aún. Podés escribir una personalizada abajo y el sistema la aprenderá automáticamente.
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      items.forEach((p, idx) => {
+        const sub = p.categoria_subtipo ? `<span class="text-[9px] font-black uppercase text-agro-800 bg-agro-100 px-1.5 py-0.5 rounded mr-1">${p.categoria_subtipo}</span>` : '';
+        const usos = p.veces_utilizada > 1 ? `<span class="text-[9px] font-bold text-slate-400">• ${p.veces_utilizada} usos</span>` : '';
+        
+        // Escapar comillas para onclick seguro
+        const recetaEscapada = (p.descripcion_receta || '').replace(/'/g, "\\'");
+        const tituloEscapado = (p.titulo || '').replace(/'/g, "\\'");
+
+        html += `
+          <button type="button" onclick="aplicarPlantillaSeleccionada('${p.tipo_labor}', '${tituloEscapado}', '${recetaEscapada}', '${p.dosis_unidad_default || 'lt/ha'}', this)" class="btn-preset-card p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-agro-50 hover:border-agro-400 text-left transition flex items-start gap-2.5">
+            <span class="text-base shrink-0 mt-0.5">${icono}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-1">
+                <strong class="block font-black text-slate-800 text-xs truncate">${p.titulo}</strong>
+                ${usos}
+              </div>
+              <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-medium">${p.descripcion_receta}</p>
+            </div>
+          </button>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function aplicarPlantillaSeleccionada(tipo, titulo, receta, unidad, element) {
+      const selectTipo = document.getElementById('modal-tipo-labor');
+      if (selectTipo) {
+        selectTipo.value = tipo;
+      }
+
+      const textInsumos = document.getElementById('modal-insumo-nombre');
+      if (textInsumos) {
+        textInsumos.value = `${titulo}: ${receta}`;
+      }
+
+      // Resaltar preset activo
+      document.querySelectorAll('.btn-preset-card').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-agro-500', 'bg-agro-100/80', 'border-agro-500');
+      });
+      if (element) {
+        element.classList.add('ring-2', 'ring-agro-500', 'bg-agro-100/80', 'border-agro-500');
+      }
+    }
+
+    function activarModoLaborPersonalizada() {
+      const textInsumos = document.getElementById('modal-insumo-nombre');
+      if (textInsumos) {
+        textInsumos.value = '';
+        textInsumos.placeholder = 'Ingresá el título de la labor e insumos aplicados (Ej: Barbecho con Texaro 0.04kg + Glifosato 2.0L)...';
+        textInsumos.focus();
+      }
+      document.querySelectorAll('.btn-preset-card').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-agro-500', 'bg-agro-100/80', 'border-agro-500');
+      });
+    }
+
+    let tareasCargadasSesion = [];
+
+    async function enviarLaborRapidaAjax(e) {
+      e.preventDefault();
+      if (!loteSeleccionadoId) {
+        alert("Por favor seleccioná un lote primero.");
+        return;
+      }
+
+      const form = document.getElementById('form-labor-rapida');
+      const btnSubmit = document.getElementById('btn-submit-labor');
+      const textInsumos = document.getElementById('modal-insumo-nombre');
+      const detalleCargado = textInsumos ? textInsumos.value.trim() : '';
+
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = `<span>⏳</span> Guardando labor...`;
+
+      try {
+        const formData = new FormData(form);
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+
+        let data = {};
+        if (response.ok) {
+          try {
+            data = await response.json();
+          } catch(e) {}
+        }
+
+        const tipoLab = data.tipo_labor || form.querySelector('#modal-tipo-labor').value;
+        const campoNom = data.campo_nombre || ultimoCampoNombre;
+        const loteNom = data.lote_nombre || ultimoLoteNombre;
+
+        // Agregar tarea a la lista de la sesión
+        tareasCargadasSesion.unshift({
+          tipo: tipoLab,
+          icono: ICONOS_POR_TIPO[tipoLab] || "🚜",
+          campo: campoNom,
+          lote: loteNom,
+          detalle: detalleCargado,
+          hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+        });
+
+        mostrarListaTareasCargadas();
+
+        // Limpiar automáticamente los campos para que pueda seguir cargando la siguiente tarea de una
+        if (textInsumos) {
+          textInsumos.value = '';
+          textInsumos.placeholder = 'Escribí la receta/detalle de la próxima tarea o elegí una de las opciones arriba...';
+        }
+        document.querySelectorAll('.btn-preset-card').forEach(btn => {
+          btn.classList.remove('ring-2', 'ring-agro-500', 'bg-agro-100/80', 'border-agro-500');
+        });
+
+      } catch (err) {
+        console.error("Error guardando labor:", err);
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = `<span>💾</span> Guardar Labor Ahora`;
+      }
+    }
+
+    function mostrarListaTareasCargadas() {
+      const container = document.getElementById('contenedor-feedback-tarea');
+      if (!container) return;
+
+      const total = tareasCargadasSesion.length;
+      if (total === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 shadow-xs space-y-2.5 animate-fadeIn">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-black shrink-0">✓</span>
+              <span class="text-xs font-black text-emerald-950">
+                ${total === 1 ? '1 tarea registrada en esta sesión' : total + ' tareas registradas en esta sesión'}:
+              </span>
+            </div>
+            <button type="button" onclick="finalizarYCerrarModal()" class="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-xs rounded-xl shadow-2xs transition flex items-center gap-1.5 active:scale-95 shrink-0">
+              <span>🏁</span> Terminé por hoy
+            </button>
+          </div>
+
+          <!-- LISTA COMPACTA DE TAREAS CARGADAS -->
+          <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            ${tareasCargadasSesion.map((t, idx) => `
+              <div class="flex items-center justify-between text-xs bg-white border border-emerald-200 rounded-xl px-3 py-2 shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-sm shrink-0">${t.icono}</span>
+                  <div class="truncate">
+                    <span class="font-black text-slate-900">${t.campo}</span>
+                    <span class="text-slate-600 font-bold">• ${t.lote}</span>
+                    ${t.detalle ? `<span class="text-slate-500 font-medium ml-1.5 text-[11px]">(${t.detalle})</span>` : ''}
+                  </div>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 shrink-0 ml-2">⏰ ${t.hora}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      container.classList.remove('hidden');
+    }
+
+    function finalizarYCerrarModal() {
+      cerrarModalCargarTarea();
+      window.location.reload();
+    }
+
+    // Cerrar modal con ESC o click afuera
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        cerrarModalCargarTarea();
+      }
+    });
+
+    document.getElementById('modal-cargar-tarea')?.addEventListener('click', function(e) {
+      if (e.target === this) {
+        cerrarModalCargarTarea();
+      }
+    });
+
+    // Renderizar categoría inicial al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+      renderizarPlantillasCategoria('pulverizacion');
+    });
+  </script>
 
 </body>
 </html>

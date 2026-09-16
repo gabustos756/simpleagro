@@ -77,22 +77,28 @@ async def calcular_posicion_comercial(
 
     produccion_total_tn = Decimal("0.0")
 
-    # Filtrar lotes en memoria por normalización de acentos
-    lotes_filtrados = [
-        l for l in lotes_raw if cultivo_norm in normalizar_texto(l.cultivo_actual)
-    ]
+    # Filtrar lotes en memoria por normalización de acentos (cultivo actual o cultivo cosechado)
+    if cultivo_norm in ["todos", "all", ""]:
+        lotes_filtrados = lotes_raw
+    else:
+        lotes_filtrados = [
+            l for l in lotes_raw 
+            if cultivo_norm in normalizar_texto(l.cultivo_actual) or cultivo_norm in normalizar_texto(l.cultivo_anterior)
+        ]
 
     if lotes_filtrados:
         for lote in lotes_filtrados:
-            sup_ha = Decimal(str(lote.superficie_productiva_ha or 0.0))
-            if lote.qq_ha_real is not None and lote.qq_ha_real > 0:
-                rinde_qq = Decimal(str(lote.qq_ha_real))
-            elif lote.qq_ha_estimado is not None and lote.qq_ha_estimado > 0:
-                rinde_qq = Decimal(str(lote.qq_ha_estimado))
+            if lote.produccion_total_qq is not None and lote.produccion_total_qq > 0:
+                prod_lote_tn = Decimal(str(lote.produccion_total_qq)) / Decimal("10.0")
             else:
-                rinde_qq = Decimal("0.0")
-
-            prod_lote_tn = (sup_ha * rinde_qq) / Decimal("10.0")
+                sup_ha = Decimal(str(lote.superficie_productiva_ha or 0.0))
+                if lote.qq_ha_real is not None and lote.qq_ha_real > 0:
+                    rinde_qq = Decimal(str(lote.qq_ha_real))
+                elif lote.qq_ha_estimado is not None and lote.qq_ha_estimado > 0:
+                    rinde_qq = Decimal(str(lote.qq_ha_estimado))
+                else:
+                    rinde_qq = Decimal("0.0")
+                prod_lote_tn = (sup_ha * rinde_qq) / Decimal("10.0")
             produccion_total_tn += prod_lote_tn
 
     # 2. Obtener Contratos de Venta de Granos (Fijo vs A Fijar)
@@ -103,9 +109,12 @@ async def calcular_posicion_comercial(
     res_contratos = await db.execute(stmt_contratos)
     contratos_raw = res_contratos.scalars().all()
 
-    contratos = [
-        c for c in contratos_raw if normalizar_texto(c.cultivo) == cultivo_norm
-    ]
+    if cultivo_norm in ["todos", "all", ""]:
+        contratos = contratos_raw
+    else:
+        contratos = [
+            c for c in contratos_raw if normalizar_texto(c.cultivo) == cultivo_norm
+        ]
 
     tn_vendidas_precio_fijo = Decimal("0.0")
     tn_vendidas_a_fijar = Decimal("0.0")
@@ -125,7 +134,10 @@ async def calcular_posicion_comercial(
     res_stock = await db.execute(stmt_stock)
     stocks_raw = res_stock.scalars().all()
 
-    stocks = [s for s in stocks_raw if normalizar_texto(s.cultivo) == cultivo_norm]
+    if cultivo_norm in ["todos", "all", ""]:
+        stocks = stocks_raw
+    else:
+        stocks = [s for s in stocks_raw if normalizar_texto(s.cultivo) == cultivo_norm]
 
     tn_stock_silo_bolsa = Decimal("0.0")
     tn_stock_acopio = Decimal("0.0")
