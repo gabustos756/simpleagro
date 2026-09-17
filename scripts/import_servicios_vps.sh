@@ -25,13 +25,10 @@ else
     PYTHON="python3"
 fi
 
-# 2. Ejecutar migraciones primero por si hay columnas pendientes
-echo ">> Verificando migraciones de base de datos..."
-if [[ -f "${APP_DIR}/venv/bin/alembic" ]]; then
-    "${APP_DIR}/venv/bin/alembic" upgrade head
-else
-    alembic upgrade head || true
-fi
+# 2. Ejecutar migraciones primero
+echo ">> Ejecutando migraciones de base de datos..."
+"${PYTHON}" -m alembic upgrade head
+
 
 # 3. Ejecutar script de importación
 echo ">> Importando facturas y servicios desde docs/servicios/..."
