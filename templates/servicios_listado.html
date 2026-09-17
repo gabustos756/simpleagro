@@ -49,23 +49,23 @@
         </div>
       </div>
 
-      <!-- Subnavegación Local de Servicios -->
-      <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-        <a href="/servicios/campos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">⚡ Por Campo</a>
-        <a href="/servicios" class="px-3.5 py-2 bg-purple-600 text-white font-extrabold text-xs rounded-xl shadow-xs">📋 Listado</a>
-        <a href="/servicios/vencimientos" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">📅 Vencimientos</a>
-        <a href="/servicios-prestados" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">🚜 Trabajos a Terceros</a>
+      <!-- Subnavegación Local de Servicios (Scroll horizontal fluido en mobile) -->
+      <div class="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1.5 md:pb-0 whitespace-nowrap">
+        <a href="/servicios/campos" class="shrink-0 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">⚡ Por Campo</a>
+        <a href="/servicios" class="shrink-0 px-3.5 py-2 bg-purple-600 text-white font-extrabold text-xs rounded-xl shadow-xs">📋 Listado</a>
+        <a href="/servicios/vencimientos" class="shrink-0 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">📅 Vencimientos</a>
+        <a href="/servicios-prestados" class="shrink-0 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors">🚜 Trabajos a Terceros</a>
       </div>
     </div>
 
     <!-- BARRA DE FILTROS AVANZADOS -->
     <section class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
           <span>🔍</span> Filtros de Servicios
         </h2>
-        <a href="/servicios/nuevo" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5">
-          <span>⚡</span> Nuevo Servicio
+        <a href="/servicios/nuevo" class="w-full sm:w-auto justify-center px-4 py-2.5 sm:py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-2 transition-all">
+          <span class="text-sm">⚡</span> Nuevo Servicio
         </a>
       </div>
 
@@ -127,8 +127,94 @@
         </span>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs text-slate-700">
+      <!-- VISTA MÓVIL EN TARJETAS TÁCTILES (MOBILE-FIRST md:hidden) -->
+      <div class="block md:hidden space-y-3">
+        {% if not servicios %}
+        <div class="py-10 text-center text-slate-400 font-medium text-xs bg-slate-50 rounded-2xl border border-slate-200">
+          Todavía no hay servicios registrados
+        </div>
+        {% else %}
+        {% for s in servicios %}
+        <div class="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3 shadow-xs hover:border-purple-300 transition-all">
+          <!-- Header de la tarjeta: Concepto y Estado -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="space-y-0.5">
+              <span class="text-[11px] font-black uppercase text-purple-700 tracking-wide block">{{ s.proveedor }}</span>
+              <h3 class="font-black text-slate-900 text-sm leading-snug">{{ s.concepto }}</h3>
+            </div>
+            <div class="shrink-0">
+              {% if s.estado == 'al_dia' %}
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-agro-100 text-agro-700 border border-agro-200 whitespace-nowrap">✓ Al día</span>
+              {% elif s.estado == 'vencido' %}
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">⚠️ Vencido</span>
+              {% else %}
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">⌛ Pendiente</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Metadatos y Badges -->
+          <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+            {% if s.campo_id %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-slate-700 font-semibold border border-slate-200">
+                <span>🌾</span> {{ s.campo_nombre }}
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold border border-purple-200 whitespace-nowrap">
+                🌐 General (Todos)
+              </span>
+            {% endif %}
+
+            {% if s.instalacion_id %}
+              <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-slate-600 border border-slate-200">
+                📍 {{ s.instalacion_nombre }}
+              </span>
+            {% else %}
+              <span class="text-slate-400 italic text-[10px]">Sin inst. física</span>
+            {% endif %}
+
+            {% if s.es_debito_automatico %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
+                🔄 Débito Auto
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Montos y Vencimiento -->
+          <div class="flex items-end justify-between pt-2.5 border-t border-slate-200/80">
+            <div>
+              <span class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider">Vencimiento</span>
+              <span class="text-xs font-extrabold text-slate-700">{{ s.fecha_vencimiento }}</span>
+            </div>
+            <div class="text-right">
+              <span class="block text-base font-black text-slate-900">${{ "{:,.2f}".format(s.monto_real_ars) }} ARS</span>
+              {% if s.monto_usd and s.monto_usd > 0 %}
+                <span class="text-[11px] font-bold text-amber-700">${{ s.monto_usd }} USD</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Botones de Acción Mobile (Tap targets amplios >= 44px) -->
+          <div class="pt-1 flex items-center gap-2">
+            {% if s.estado != 'al_dia' %}
+            <form method="POST" action="/servicios/{{ s.id }}/pagar" class="flex-1">
+              <button type="submit" class="w-full py-2.5 px-3 min-h-[44px] rounded-xl bg-agro-600 hover:bg-agro-700 active:bg-agro-800 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1">
+                ✓ Pagar
+              </button>
+            </form>
+            {% endif %}
+            <a href="/servicios/{{ s.id }}" class="flex-1 py-2.5 px-3 min-h-[44px] bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 text-center shadow-xs">
+              Ver Ficha →
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+
+      <!-- VISTA DE ESCRITORIO EN TABLA (hidden md:block) -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full min-w-[720px] text-left text-xs text-slate-700">
           <thead class="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
             <tr>
               <th class="py-3.5 px-3">Servicio / Instalación</th>
@@ -161,7 +247,7 @@
                     {% endif %}
                   </span>
                   {% if s.es_debito_automatico %}
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
                       🔄 Débito Auto
                     </span>
                   {% endif %}
@@ -173,7 +259,7 @@
                     <span>🌾</span> {{ s.campo_nombre }}
                   </span>
                 {% else %}
-                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
                     🌐 General (Todos)
                   </span>
                 {% endif %}

@@ -156,21 +156,78 @@
 
       <!-- SECCIÓN DE HISTORIAL DE PERÍODOS PAGADOS Y COMPROBANTES -->
       <div class="space-y-4 border-t border-slate-100 pt-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
               <span>💳</span> Historial de Períodos Pagados y Comprobantes
             </h3>
             <p class="text-xs text-slate-500">Filas de meses o períodos abonados con sus facturas/comprobantes digitales adjuntos</p>
           </div>
-          <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.remove('hidden')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+          <button onclick="document.getElementById('modal-registrar-pago-periodo').classList.remove('hidden')" class="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5">
             <span>💳 Registrar Pago del Período</span>
           </button>
         </div>
 
         {% if servicio.vencimientos %}
-        <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
-          <table class="w-full text-left text-xs">
+        <!-- VISTA MÓVIL EN TARJETAS (md:hidden) -->
+        <div class="block md:hidden space-y-3">
+          {% for v in servicio.vencimientos %}
+          <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 shadow-xs">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="font-black text-slate-900 text-sm block">{{ v.concepto }}</span>
+                {% if v.periodo_referencia and v.periodo_referencia != v.concepto %}
+                  <span class="text-slate-500 text-xs font-medium">Período: {{ v.periodo_referencia }}</span>
+                {% endif %}
+              </div>
+              <div class="shrink-0">
+                {% if v.estado == 'pagado' %}
+                  <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px] inline-flex items-center gap-1">
+                    ✓ PAGADO
+                  </span>
+                {% elif v.estado == 'vencido' %}
+                  <span class="px-2.5 py-1 bg-red-100 text-red-800 rounded-full font-bold text-[10px]">⚠️ VENCIDO</span>
+                {% else %}
+                  <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-bold text-[10px]">⌛ PENDIENTE</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-200/80">
+              <span class="text-slate-500">
+                Fecha: <strong class="text-slate-800">{{ v.fecha_pago_fmt or v.fecha_vencimiento_fmt }}</strong>
+              </span>
+              <div class="text-right">
+                <span class="font-black text-slate-900 text-sm block">${{ "{:,.2f}".format(v.monto_ars) }} ARS</span>
+                {% if v.monto_usd and v.monto_usd > 0 %}
+                  <span class="text-amber-800 font-bold text-[11px]">${{ v.monto_usd }} USD</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Comprobante / Acción de Carga Mobile -->
+            <div class="pt-1">
+              {% if v.documentos %}
+                <div class="space-y-1.5">
+                  {% for doc in v.documentos %}
+                    <a href="{{ doc.download_url }}" class="w-full py-2.5 px-3 min-h-[44px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-indigo-200 transition-colors">
+                      <span>📥</span> <span class="truncate">Descargar: {{ doc.original_filename }}</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <button onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.remove('hidden')" class="w-full py-2.5 px-3 min-h-[44px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors">
+                  <span>📎</span> <span>+ Adjuntar Comprobante</span>
+                </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- VISTA DE ESCRITORIO EN TABLA (hidden md:block) -->
+        <div class="hidden md:block overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+          <table class="w-full min-w-[650px] text-left text-xs">
             <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th class="p-3">Período / Mes</th>
@@ -240,14 +297,14 @@
 
       <!-- SECCIÓN DE DOCUMENTOS ADJUNTOS DIGITALES PRIVADOS (VPS STORAGE) -->
       <div class="space-y-4 border-t border-slate-100 pt-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
               <span>🔒</span> Todos los Documentos Adjuntos Digitales
             </h3>
             <p class="text-xs text-slate-500">Facturas, recibos, contratos y comprobantes de pago almacenados de forma segura en VPS</p>
           </div>
-          <button onclick="document.getElementById('modal-subir-documento').classList.remove('hidden')" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all">
+          <button onclick="document.getElementById('modal-subir-documento').classList.remove('hidden')" class="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5">
             + Adjuntar Documento General
           </button>
         </div>
@@ -255,19 +312,19 @@
         {% if servicio.documentos %}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {% for doc in servicio.documentos %}
-          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
-            <div class="space-y-0.5 overflow-hidden">
+          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 shadow-xs">
+            <div class="space-y-0.5 overflow-hidden w-full">
               <span class="text-[10px] font-black uppercase text-indigo-600 tracking-wider block">{{ doc.document_type_label }}</span>
               <div class="font-bold text-slate-900 text-xs truncate" title="{{ doc.original_filename }}">{{ doc.original_filename }}</div>
               <div class="text-[11px] text-slate-500">{{ doc.size_formatted }} • {{ doc.uploaded_at }}</div>
               {% if doc.notes %}<div class="text-[11px] text-slate-600 italic">"{{ doc.notes }}"</div>{% endif %}
             </div>
-            <div class="flex items-center space-x-1 shrink-0">
-              <a href="{{ doc.download_url }}" class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-all">
+            <div class="flex items-center gap-1.5 shrink-0 w-full xs:w-auto justify-end pt-1 xs:pt-0 border-t xs:border-t-0 border-slate-200/60">
+              <a href="{{ doc.download_url }}" class="flex-1 xs:flex-initial text-center px-3 py-2 min-h-[38px] bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1">
                 📥 Descargar
               </a>
               <form method="POST" action="/servicios/documentos/{{ doc.id }}/eliminar" onsubmit="return confirm('¿Eliminar documento adjunto?');">
-                <button type="submit" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition-all">
+                <button type="submit" class="px-2.5 py-2 min-h-[38px] bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition-all flex items-center justify-center">
                   🗑️
                 </button>
               </form>
