@@ -96,6 +96,64 @@
         </a>
       </div>
 
+      {% set servicios_generales = servicios|rejectattr('campo_id')|list %}
+      <!-- Tarjeta Destacada de Servicios Generales -->
+      <div class="bg-white border-2 border-purple-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+        
+        <!-- Header de Servicios Generales -->
+        <div class="flex items-center justify-between border-b border-purple-100 pb-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full">
+              🌐 Ámbito Central y Transversal
+            </span>
+            <h3 class="text-xl font-black text-slate-900 mt-1">Servicios Generales de la Explotación</h3>
+            <p class="text-xs text-slate-500">Luz general de casco y bombas, gas a granel/GLP, internet central y tasas no ligadas a un campo particular</p>
+          </div>
+          <a href="/servicios?campo=general" class="px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs rounded-xl border border-purple-200 transition-colors">
+            Ver Servicios Generales ({{ servicios_generales|length }}) →
+          </a>
+        </div>
+
+        <!-- Tarjetas de Servicios Generales -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for s in servicios_generales %}
+          <div class="border border-purple-200/70 rounded-2xl p-4 bg-purple-50/20 hover:bg-white transition-all space-y-2">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="text-[10px] font-bold uppercase text-purple-700 tracking-wider block">
+                  🌐 {{ s.instalacion_nombre }}
+                </span>
+                <h4 class="font-bold text-sm text-slate-900 mt-0.5">{{ s.concepto }}</h4>
+              </div>
+              {% if s.estado == 'vencido' %}
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">⚠️ Vencido</span>
+              {% elif s.estado == 'al_dia' %}
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-agro-100 text-agro-700 border border-agro-200">✓ Al día</span>
+              {% else %}
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">⌛ Pendiente</span>
+              {% endif %}
+            </div>
+
+            <div class="text-xs text-slate-600 space-y-1">
+              <div>Proveedor: <strong class="text-slate-800 font-bold">{{ s.proveedor }}</strong></div>
+              <div>Vencimiento: <strong class="text-slate-800 font-bold">{{ s.fecha_vencimiento }}</strong></div>
+              <div>Monto: <strong class="text-slate-900 font-bold">${{ "{:,.2f}".format(s.monto_real_ars) }} ARS</strong> (${{ s.monto_usd }} USD)</div>
+            </div>
+
+            <div class="pt-2 border-t border-purple-100 flex justify-between items-center text-xs">
+              <span class="text-purple-700 font-semibold text-[11px]">{{ s.frecuencia_label }}</span>
+              <a href="/servicios/{{ s.id }}" class="text-purple-800 hover:underline font-bold">Detalles →</a>
+            </div>
+          </div>
+          {% else %}
+          <div class="col-span-full py-4 text-center text-xs text-slate-400">
+            No hay servicios generales registrados. Los servicios sin campo asociado aparecerán aquí.
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+
       {% for campo in campos %}
       <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
         

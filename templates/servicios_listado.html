@@ -76,8 +76,9 @@
           <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Establecimiento / Campo</label>
           <select name="campo" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
             <option value="" {% if not campo_filtro %}selected{% endif %}>🌾 Todos los Establecimientos</option>
+            <option value="general" {% if campo_filtro == 'general' %}selected{% endif %}>🌐 Solo Servicios Generales</option>
             {% for c in campos %}
-            <option value="{{ c.id }}" {% if campo_filtro|string == c.id|string %}selected{% endif %}>{{ c.nombre }}</option>
+            <option value="{{ c.id }}" {% if campo_filtro|string == c.id|string %}selected{% endif %}>🌾 {{ c.nombre }}</option>
             {% endfor %}
           </select>
         </div>
@@ -87,7 +88,9 @@
           <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tipo de Servicio</label>
           <select name="tipo" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800">
             <option value="">Todos los Tipos</option>
-            <option value="luz_rural" {% if tipo_filtro == 'luz_rural' %}selected{% endif %}>⚡ Luz Rural</option>
+            <option value="luz_rural" {% if tipo_filtro == 'luz_rural' %}selected{% endif %}>⚡ Luz Rural / General</option>
+            <option value="agua" {% if tipo_filtro == 'agua' %}selected{% endif %}>💧 Agua / Riego</option>
+            <option value="gas" {% if tipo_filtro == 'gas' %}selected{% endif %}>🔥 Gas / GLP</option>
             <option value="internet" {% if tipo_filtro == 'internet' %}selected{% endif %}>📡 Internet Satelital</option>
             <option value="combustible" {% if tipo_filtro == 'combustible' %}selected{% endif %}>🛢️ Combustible Diesel</option>
             <option value="mantenimiento" {% if tipo_filtro == 'mantenimiento' %}selected{% endif %}>🔧 Mantenimiento</option>
@@ -149,9 +152,32 @@
             <tr class="hover:bg-slate-50/80 transition-colors">
               <td class="py-3.5 px-3">
                 <span class="block font-bold text-slate-900 text-sm">{{ s.concepto }}</span>
-                <span class="text-[11px] text-slate-500">📍 {{ s.instalacion_nombre }}</span>
+                <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <span class="text-[11px] text-slate-500">
+                    {% if s.instalacion_id %}
+                      📍 {{ s.instalacion_nombre }}
+                    {% else %}
+                      <span class="text-slate-400 italic">Sin instalación física</span>
+                    {% endif %}
+                  </span>
+                  {% if s.es_debito_automatico %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
+                      🔄 Débito Auto
+                    </span>
+                  {% endif %}
+                </div>
               </td>
-              <td class="py-3.5 px-3 font-semibold text-slate-800">{{ s.campo_nombre }}</td>
+              <td class="py-3.5 px-3 font-semibold text-slate-800">
+                {% if s.campo_id %}
+                  <span class="inline-flex items-center gap-1 text-slate-800 font-medium">
+                    <span>🌾</span> {{ s.campo_nombre }}
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    🌐 General (Todos)
+                  </span>
+                {% endif %}
+              </td>
               <td class="py-3.5 px-3 font-bold text-slate-900">{{ s.proveedor }}</td>
               <td class="py-3.5 px-3 font-bold text-slate-800 whitespace-nowrap">{{ s.fecha_vencimiento }}</td>
               <td class="py-3.5 px-3 text-right whitespace-nowrap">

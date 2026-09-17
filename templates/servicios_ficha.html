@@ -62,7 +62,19 @@
       <!-- Titular del Servicio -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">{{ servicio.campo_nombre }} • {{ servicio.instalacion_nombre }}</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+            {% if servicio.campo_id %}
+              🌾 {{ servicio.campo_nombre }}
+            {% else %}
+              🌐 Ámbito General (Todos los campos)
+            {% endif %}
+            • 
+            {% if servicio.instalacion_id %}
+              🏢 {{ servicio.instalacion_nombre }}
+            {% else %}
+              Sin instalación física
+            {% endif %}
+          </span>
           <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{{ servicio.concepto }}</h1>
           <p class="text-xs text-slate-500 mt-0.5">
             Proveedor: <strong class="text-slate-800 font-bold">{{ servicio.proveedor }}</strong>
@@ -124,11 +136,23 @@
       <div class="space-y-3">
         <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Detalles de Instalación e Infraestructura</h3>
         <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs space-y-2">
-          <div>Establecimiento Campo: <strong class="text-slate-900 font-bold">{{ servicio.campo_nombre }}</strong></div>
-          <div>Instalación Física: <strong class="text-slate-900 font-bold">{{ servicio.instalacion_nombre }}</strong></div>
-          <div>Observaciones / Notas: {{ servicio.observaciones }}</div>
+          <div>Establecimiento Campo: <strong class="text-slate-900 font-bold">{% if servicio.campo_id %}🌾 {{ servicio.campo_nombre }}{% else %}🌐 General / Todos los campos (Central / Administración){% endif %}</strong></div>
+          <div>Instalación Física: <strong class="text-slate-900 font-bold">{% if servicio.instalacion_id %}🏢 {{ servicio.instalacion_nombre }}{% else %}Sin instalación física asociada (Servicio General){% endif %}</strong></div>
+          <div>Forma / Modalidad de Pago: <strong class="text-slate-900 font-bold">{{ servicio.forma_pago_label }}</strong></div>
+          <div>Observaciones / Notas: {{ servicio.observaciones or 'Sin observaciones registradas.' }}</div>
         </div>
       </div>
+
+      {% if servicio.es_debito_automatico %}
+      <!-- Banner Informativo de Débito Automático -->
+      <div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-center gap-3.5 text-xs text-sky-900">
+        <span class="text-2xl leading-none">🔄</span>
+        <div class="leading-relaxed">
+          <strong class="font-black text-sky-950 block mb-0.5">Suministro Adherido a Débito Automático</strong>
+          Este servicio se debitará directamente de la cuenta bancaria (CBU) o tarjeta corporativa configurada con el proveedor. La fecha límite de vencimiento actúa como control y conciliación del comprobante.
+        </div>
+      </div>
+      {% endif %}
 
       <!-- SECCIÓN DE HISTORIAL DE PERÍODOS PAGADOS Y COMPROBANTES -->
       <div class="space-y-4 border-t border-slate-100 pt-6">

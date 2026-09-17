@@ -26,6 +26,7 @@ class EstadoProductivoLoteEnum(str, enum.Enum):
 class TipoServicioEnum(str, enum.Enum):
     LUZ_RURAL = "luz_rural"
     AGUA = "agua"
+    GAS = "gas"
     INTERNET = "internet"
     COMBUSTIBLE = "combustible"
     MANTENIMIENTO = "mantenimiento"
@@ -37,6 +38,14 @@ class EstadoServicioInstaladoEnum(str, enum.Enum):
     PENDIENTE = "pendiente"
     VENCIDO = "vencido"
     EN_REVISION = "en_revision"
+
+
+class FormaPagoServicioEnum(str, enum.Enum):
+    DEBITO_AUTOMATICO = "debito_automatico"
+    TRANSFERENCIA = "transferencia"
+    PORTAL_WEB = "portal_web"
+    EFECTIVO = "efectivo"
+    CHEQUE = "cheque"
 
 
 class FrecuenciaPagoEnum(str, enum.Enum):

@@ -9,6 +9,7 @@ from app.enums import (
     EstadoCartaDePorte,
     EstadoServicio,
     EstadoServicioInstaladoEnum,
+    FormaPagoServicioEnum,
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
@@ -85,12 +86,13 @@ class InstalacionResponse(InstalacionBase):
 
 
 class ServicioInstaladoBase(BaseModel):
-    campo_id: uuid.UUID
+    campo_id: Optional[uuid.UUID] = None
     instalacion_id: Optional[uuid.UUID] = None
     tipo_servicio: TipoServicioEnum
     concepto: str = Field(..., min_length=2, max_length=200, example="Luz Rural - EPEC Bomba Lote 2")
     proveedor: str = Field(..., min_length=2, max_length=150, example="EPEC")
     frecuencia_pago: FrecuenciaPagoEnum = FrecuenciaPagoEnum.MENSUAL
+    forma_pago: FormaPagoServicioEnum = FormaPagoServicioEnum.TRANSFERENCIA
     monto_estimado_ars: Decimal = Field(..., ge=0)
     monto_real_ars: Decimal = Field(..., ge=0)
     monto_usd: Decimal = Field(..., ge=0)

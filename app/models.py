@@ -29,6 +29,7 @@ from app.enums import (
     EstadoCartaDePorte,
     EstadoServicio,
     EstadoServicioInstaladoEnum,
+    FormaPagoServicioEnum,
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
@@ -187,8 +188,8 @@ class ServicioInstalado(Base):
     cliente_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=True
     )
-    campo_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="CASCADE"), nullable=False
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="CASCADE"), nullable=True
     )
     instalacion_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("instalaciones.id", ondelete="SET NULL"), nullable=True
@@ -203,6 +204,11 @@ class ServicioInstalado(Base):
         SQLEnum(FrecuenciaPagoEnum, name="frecuencia_pago_enum", native_enum=True),
         default=FrecuenciaPagoEnum.MENSUAL,
         nullable=False,
+    )
+    forma_pago: Mapped[FormaPagoServicioEnum] = mapped_column(
+        SQLEnum(FormaPagoServicioEnum, name="forma_pago_servicio_enum", native_enum=True),
+        default=FormaPagoServicioEnum.TRANSFERENCIA,
+        nullable=True,
     )
     monto_estimado_ars: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0.0, nullable=False)
     monto_real_ars: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0.0, nullable=False)
@@ -219,7 +225,7 @@ class ServicioInstalado(Base):
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     cliente: Mapped[Optional["Cliente"]] = relationship("Cliente", back_populates="servicios_instalados")
-    campo: Mapped["Campo"] = relationship("Campo", back_populates="servicios_instalados")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo", back_populates="servicios_instalados")
     instalacion: Mapped[Optional["Instalacion"]] = relationship("Instalacion", back_populates="servicios")
     vencimientos: Mapped[List["ServicioVencimiento"]] = relationship(
         "ServicioVencimiento", back_populates="servicio_instalado", cascade="all, delete-orphan"

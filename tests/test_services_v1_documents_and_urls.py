@@ -658,3 +658,131 @@ async def test_25_prg_flash_messages_on_vencimiento_and_upload():
 @pytest.mark.asyncio
 async def test_26_full_repository_suite_regression():
     assert True
+
+
+@pytest.mark.asyncio
+async def test_27_create_general_service_without_campo_or_instalacion():
+    """
+    Verifica que se pueda registrar un servicio general (sin campo específico ni instalación física),
+    utilizando el tipo de servicio 'gas' (GLP / zeppelín), y que se almacene con campo_id=None e instalacion_id=None.
+    """
+    from app.main import app
+    env = await seed_servicios_test_env()
+    headers = {"x-user-id": str(env["user_a_id"])}
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as ac:
+        res = await ac.post(
+            "/servicios/nuevo",
+            data={
+                "campo_id": "",  # Sin campo específico -> General
+                "instalacion_id": "",  # Sin instalación física
+                "concepto": "Gas Zeppelín Administración y Casco",
+                "proveedor": "Ecogas / TotalGas",
+                "tipo_servicio": "gas",
+                "frecuencia_pago": "bimensual",
+                "monto_estimado_ars": "320000.00",
+                "monto_real_ars": "345000.00",
+                "fecha_vencimiento": "2026-10-15",
+                "payment_portal_url": "https://ecogas.com.ar/pagos",
+                "payment_reference": "NroCliente 98210-4",
+                "observaciones": "Carga de 2000 litros de gas envasado GLP para casco general.",
+            },
+            follow_redirects=False,
+        )
+        assert res.status_code == 303
+        assert "/servicios?mensaje=" in res.headers["location"]
+
+        # Verificar en base de datos
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        async with engine.connect() as conn:
+            stmt = select(ServicioInstalado).where(ServicioInstalado.concepto == "Gas Zeppelín Administración y Casco")
+            r = await conn.execute(stmt)
+            serv = r.fetchone()
+            assert serv is not None
+            assert serv.campo_id is None
+            assert serv.instalacion_id is None
+            assert serv.tipo_servicio in (TipoServicioEnum.GAS, "gas", "GAS")
+        await engine.dispose()
+
+        # Verificar renderizado en listado de servicios
+        res_list = await ac.get("/servicios")
+        assert res_list.status_code == 200
+        assert "Gas Zeppelín Administración y Casco" in res_list.text
+        assert "General (Todos)" in res_list.text
+
+
+@pytest.mark.asyncio
+async def test_28_servicios_form_ui_render_and_options():
+    """
+    Verifica que el formulario /servicios/nuevo cargue correctamente con el diseño renovado,
+    las opciones de 'General / Todos los campos' y los tipos 'gas' y 'agua'.
+    """
+    from app.main import app
+    env = await seed_servicios_test_env()
+    headers = {"x-user-id": str(env["user_a_id"])}
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as ac:
+        res = await ac.get("/servicios/nuevo")
+        assert res.status_code == 200
+        assert "Registro de Nuevo Servicio Operativo" in res.text
+        assert "General / Todos los campos" in res.text
+        assert "Sin instalación física (Servicio General)" in res.text
+        assert "Gas / GLP" in res.text
+        assert "Volver al Listado" in res.text
+        assert "Forma de Pago" in res.text
+        assert "Débito Automático" in res.text
+
+
+@pytest.mark.asyncio
+async def test_29_debito_automatico_payment_method():
+    """
+    Verifica que se pueda registrar y persistir un servicio con forma de pago 'debito_automatico',
+    comprobando su almacenamiento en PostgreSQL y la presencia del badge 'Débito Auto' en la interfaz.
+    """
+    from app.main import app
+    from app.enums import FormaPagoServicioEnum
+    env = await seed_servicios_test_env()
+    headers = {"x-user-id": str(env["user_a_id"])}
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as ac:
+        res = await ac.post(
+            "/servicios/nuevo",
+            data={
+                "campo_id": "",
+                "instalacion_id": "",
+                "concepto": "Luz General Casco EPEC Débito",
+                "proveedor": "EPEC",
+                "tipo_servicio": "luz_rural",
+                "frecuencia_pago": "mensual",
+                "forma_pago": "debito_automatico",
+                "monto_estimado_ars": "520000.00",
+                "monto_real_ars": "540000.00",
+                "fecha_vencimiento": "2026-10-10",
+                "payment_portal_url": "https://autogestion.epec.com.ar",
+                "payment_reference": "CBU 0200314101000012345678",
+                "observaciones": "Adherido a débito automático en cuenta corriente del Banco de Córdoba.",
+            },
+            follow_redirects=False,
+        )
+        assert res.status_code == 303
+
+        # Verificar en base de datos
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        async with engine.connect() as conn:
+            stmt = select(ServicioInstalado).where(ServicioInstalado.concepto == "Luz General Casco EPEC Débito")
+            r = await conn.execute(stmt)
+            serv = r.fetchone()
+            assert serv is not None
+            assert serv.forma_pago in (FormaPagoServicioEnum.DEBITO_AUTOMATICO, "debito_automatico", "DEBITO_AUTOMATICO")
+        await engine.dispose()
+
+        # Verificar renderizado en listado y ficha
+        res_list = await ac.get("/servicios")
+        assert res_list.status_code == 200
+        assert "Luz General Casco EPEC Débito" in res_list.text
+        assert "Débito Auto" in res_list.text
+
+        res_ficha = await ac.get(f"/servicios/{serv.id}")
+        assert res_ficha.status_code == 200
+        assert "Débito Automático" in res_ficha.text
+        assert "Suministro Adherido a Débito Automático" in res_ficha.text

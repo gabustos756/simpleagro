@@ -49,6 +49,7 @@ from app.enums import (
     EstadoProductivoLoteEnum,
     EstadoServicio,
     EstadoServicioInstaladoEnum,
+    FormaPagoServicioEnum,
     FrecuenciaPagoEnum,
     RolUsuario,
     TenenciaTipoEnum,
@@ -371,17 +372,20 @@ def advance_servicio_vencimiento_date(dt: date, frecuencia: Any) -> date:
     return add_months_to_date(dt, months)
 
 
-def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Campo General", inst_nombre: str = "Instalación General") -> dict:
+def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "General (Todos los campos)", inst_nombre: str = "Sin instalación física") -> dict:
     tipo_str = s.tipo_servicio.value if hasattr(s.tipo_servicio, "value") else str(s.tipo_servicio)
     frec_str = s.frecuencia_pago.value if hasattr(s.frecuencia_pago, "value") else str(s.frecuencia_pago)
+    forma_str = s.forma_pago.value if (hasattr(s, "forma_pago") and s.forma_pago and hasattr(s.forma_pago, "value")) else (str(s.forma_pago).lower() if (hasattr(s, "forma_pago") and s.forma_pago) else "transferencia")
     est_str = s.estado.value if hasattr(s.estado, "value") else str(s.estado)
 
     tipo_labels = {
-        "luz_rural": "⚡ Luz Rural",
+        "luz_rural": "⚡ Luz Rural / General",
+        "agua": "💧 Agua / Riego",
+        "gas": "🔥 Gas / GLP",
         "internet": "📡 Internet Satelital",
         "combustible": "🛢️ Combustible Diesel",
         "mantenimiento": "🔧 Mantenimiento",
-        "impuesto_tasa": "🏛️ Tasa Vial",
+        "impuesto_tasa": "🏛️ Tasa / Impuesto",
     }
 
     frec_labels = {
@@ -395,6 +399,14 @@ def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Campo General", 
         "eventual": "Eventual",
     }
 
+    forma_labels = {
+        "debito_automatico": "🔄 Débito Automático",
+        "transferencia": "🏦 Transferencia Bancaria",
+        "portal_web": "🌐 Pago Online / Tarjeta",
+        "efectivo": "💵 Efectivo / Caja",
+        "cheque": "📄 Cheque / Echeq",
+    }
+
     vencs = [vencimiento_to_dict(v) for v in (s.vencimientos or [])]
     docs = [document_to_dict(d) for d in (s.documentos or []) if d.estado == "activo"]
 
@@ -403,16 +415,19 @@ def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "Campo General", 
 
     return {
         "id": str(s.id),
-        "campo_id": str(s.campo_id),
-        "campo_nombre": campo_nombre,
+        "campo_id": str(s.campo_id) if s.campo_id else None,
+        "campo_nombre": campo_nombre or "General (Todos los campos)",
         "instalacion_id": str(s.instalacion_id) if s.instalacion_id else None,
-        "instalacion_nombre": inst_nombre,
+        "instalacion_nombre": inst_nombre or "Sin instalación física",
         "tipo_servicio": tipo_str,
         "tipo_servicio_label": tipo_labels.get(tipo_str, tipo_str.replace("_", " ").title()),
         "concepto": s.concepto,
         "proveedor": s.proveedor,
         "frecuencia_pago": frec_str,
         "frecuencia_label": frec_labels.get(frec_str, frec_str.replace("_", " ").title()),
+        "forma_pago": forma_str,
+        "forma_pago_label": forma_labels.get(forma_str, "🏦 Transferencia"),
+        "es_debito_automatico": forma_str == "debito_automatico",
         "periodo_sugerido": periodo_sugerido,
         "monto_estimado_ars": float(s.monto_estimado_ars),
         "monto_real_ars": float(s.monto_real_ars),
@@ -484,7 +499,14 @@ async def fetch_servicios_dicts(db: AsyncSession, cliente_id: Optional[uuid.UUID
     campos_map = {str(c.id): c.nombre for c in res_c.scalars().all()}
     res_i = await db.execute(select(Instalacion))
     inst_map = {str(i.id): i.nombre for i in res_i.scalars().all()}
-    return [servicio_to_dict(s, campos_map.get(str(s.campo_id), "Campo General"), inst_map.get(str(s.instalacion_id), "Instalación General")) for s in servicios]
+    return [
+        servicio_to_dict(
+            s,
+            campos_map.get(str(s.campo_id), "General (Todos los campos)") if s.campo_id else "General (Todos los campos)",
+            inst_map.get(str(s.instalacion_id), "Sin instalación física") if s.instalacion_id else "Sin instalación física",
+        )
+        for s in servicios
+    ]
 
 
 # ----------------------------------------------------------------------
@@ -3618,7 +3640,10 @@ async def list_servicios(
     servicios_filtrados = await fetch_servicios_dicts(db)
 
     if campo and campo.strip() and campo.strip().lower() not in ("todos", "all", ""):
-        servicios_filtrados = [s for s in servicios_filtrados if str(s["campo_id"]) == campo.strip()]
+        if campo.strip().lower() in ("general", "sin_campo", "none"):
+            servicios_filtrados = [s for s in servicios_filtrados if not s["campo_id"]]
+        else:
+            servicios_filtrados = [s for s in servicios_filtrados if str(s["campo_id"]) == campo.strip()]
         campo_filtro_val = campo.strip()
     else:
         campo_filtro_val = ""
@@ -3684,12 +3709,13 @@ async def form_nuevo_servicio(request: Request, db: AsyncSession = Depends(get_d
 @app.post("/servicios/nuevo")
 async def create_servicio(
     request: Request,
-    campo_id: str = Form(...),
-    instalacion_id: str = Form(...),
+    campo_id: Optional[str] = Form(None),
+    instalacion_id: Optional[str] = Form(None),
     concepto: str = Form(...),
     proveedor: str = Form(...),
     tipo_servicio: str = Form("luz_rural"),
     frecuencia_pago: str = Form("mensual"),
+    forma_pago: str = Form("transferencia"),
     monto_estimado_ars: float = Form(0.0),
     monto_real_ars: float = Form(0.0),
     fecha_vencimiento: str = Form(...),
@@ -3704,13 +3730,14 @@ async def create_servicio(
 
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
     s_uuid = uuid.uuid4()
-    c_uuid = get_uuid(campo_id)
-    i_uuid = get_uuid(instalacion_id) if (instalacion_id and instalacion_id.strip()) else None
+    c_uuid = get_uuid(campo_id) if (campo_id and campo_id.strip() and campo_id.strip().lower() not in ("none", "null", "")) else None
+    i_uuid = get_uuid(instalacion_id) if (instalacion_id and instalacion_id.strip() and instalacion_id.strip().lower() not in ("none", "null", "")) else None
     m_real = float(monto_real_ars)
     m_usd = Decimal(str(round(m_real / 1285.50, 2)))
 
     tipo_s_enum = TipoServicioEnum(tipo_servicio) if tipo_servicio in [e.value for e in TipoServicioEnum] else TipoServicioEnum.LUZ_RURAL
     frec_p_enum = FrecuenciaPagoEnum(frecuencia_pago) if frecuencia_pago in [e.value for e in FrecuenciaPagoEnum] else FrecuenciaPagoEnum.MENSUAL
+    forma_p_enum = FormaPagoServicioEnum(forma_pago) if forma_pago in [e.value for e in FormaPagoServicioEnum] else FormaPagoServicioEnum.TRANSFERENCIA
     fecha_venc = date.fromisoformat(fecha_vencimiento)
 
     valid_portal_url = None
@@ -3729,6 +3756,7 @@ async def create_servicio(
         concepto=concepto.strip(),
         proveedor=proveedor.strip(),
         frecuencia_pago=frec_p_enum,
+        forma_pago=forma_p_enum,
         monto_estimado_ars=Decimal(str(monto_estimado_ars)),
         monto_real_ars=Decimal(str(m_real)),
         monto_usd=m_usd,
@@ -3872,12 +3900,13 @@ async def form_editar_servicio(request: Request, servicio_id: str, db: AsyncSess
 async def update_servicio(
     request: Request,
     servicio_id: str,
-    campo_id: str = Form(...),
-    instalacion_id: str = Form(...),
+    campo_id: Optional[str] = Form(None),
+    instalacion_id: Optional[str] = Form(None),
     concepto: str = Form(...),
     proveedor: str = Form(...),
     tipo_servicio: str = Form("luz_rural"),
     frecuencia_pago: str = Form("mensual"),
+    forma_pago: str = Form("transferencia"),
     monto_estimado_ars: float = Form(0.0),
     monto_real_ars: float = Form(0.0),
     fecha_vencimiento: str = Form(...),
@@ -3906,14 +3935,16 @@ async def update_servicio(
         m_usd = Decimal(str(round(m_real / 1285.50, 2)))
         tipo_s_enum = TipoServicioEnum(tipo_servicio) if tipo_servicio in [e.value for e in TipoServicioEnum] else TipoServicioEnum.LUZ_RURAL
         frec_p_enum = FrecuenciaPagoEnum(frecuencia_pago) if frecuencia_pago in [e.value for e in FrecuenciaPagoEnum] else FrecuenciaPagoEnum.MENSUAL
+        forma_p_enum = FormaPagoServicioEnum(forma_pago) if forma_pago in [e.value for e in FormaPagoServicioEnum] else FormaPagoServicioEnum.TRANSFERENCIA
         fecha_venc = date.fromisoformat(fecha_vencimiento)
 
-        servicio_obj.campo_id = get_uuid(campo_id)
-        servicio_obj.instalacion_id = get_uuid(instalacion_id) if (instalacion_id and instalacion_id.strip()) else None
+        servicio_obj.campo_id = get_uuid(campo_id) if (campo_id and campo_id.strip() and campo_id.strip().lower() not in ("none", "null", "")) else None
+        servicio_obj.instalacion_id = get_uuid(instalacion_id) if (instalacion_id and instalacion_id.strip() and instalacion_id.strip().lower() not in ("none", "null", "")) else None
         servicio_obj.concepto = concepto.strip()
         servicio_obj.proveedor = proveedor.strip()
         servicio_obj.tipo_servicio = tipo_s_enum
         servicio_obj.frecuencia_pago = frec_p_enum
+        servicio_obj.forma_pago = forma_p_enum
         servicio_obj.monto_estimado_ars = Decimal(str(monto_estimado_ars))
         servicio_obj.monto_real_ars = Decimal(str(m_real))
         servicio_obj.monto_usd = m_usd
