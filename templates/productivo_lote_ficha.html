@@ -34,22 +34,22 @@
 
     <!-- 1. BOTÓN VOLVER, POSICIÓN COMERCIAL & ACCIONES -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+      <a href="/productivo/lotes" class="w-full sm:w-auto justify-center px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 active:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all min-h-[42px]">
         ← Volver al Listado de Lotes
       </a>
 
-      <div class="flex items-center space-x-2 w-full sm:w-auto flex-wrap gap-y-2">
-        <button type="button" onclick="abrirModalLabor()" class="px-4 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black text-xs rounded-xl shadow-md inline-flex items-center gap-1.5 transition-all ring-2 ring-agro-400">
+      <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+        <button type="button" onclick="abrirModalLabor()" class="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-agro-600 hover:bg-agro-500 active:bg-agro-700 text-white font-black text-xs rounded-xl shadow-md inline-flex items-center gap-1.5 transition-all ring-2 ring-agro-400 min-h-[42px]">
           <span>🚜</span> <span>+ Registrar Labor</span>
         </button>
 
         {% if lote.campo_id %}
-        <a href="/campos/{{ lote.campo_id }}/mapa?lote={{ lote.id }}" class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all" title="Ver campo en mapa satelital">
+        <a href="/campos/{{ lote.campo_id }}/mapa?lote={{ lote.id }}" class="px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all min-h-[42px]" title="Ver campo en mapa satelital">
           <span>🛰️</span> Mapa GIS
         </a>
         {% endif %}
 
-        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all">
+        <a href="/productivo/lotes/{{ lote.id }}/editar" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5 transition-all min-h-[42px]">
           <span>✏️</span> Editar
         </a>
       </div>
@@ -355,7 +355,7 @@
           
           <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
             <span class="text-3xs uppercase font-extrabold text-slate-400 block">Temperatura / ST</span>
-            <strong class="text-base font-black text-slate-900">{{ weather.temperatura_c }} °C <span class="text-2xs text-slate-500 font-semibold">(ST {{ weather.sensacion_termica_c }}°)</span></strong>
+            <strong class="text-base font-black text-slate-900">{{ weather.temperatura_c }} °C {% if weather.sensacion_termica_c is not none %}<span class="text-2xs text-slate-500 font-semibold">(ST {{ weather.sensacion_termica_c }}°)</span>{% endif %}</strong>
           </div>
 
           <div class="bg-white p-3 rounded-xl border border-sky-100 text-center space-y-0.5">
@@ -499,7 +499,7 @@
             <div class="grid grid-cols-3 gap-2 pt-1 border-t border-amber-100 text-center">
               <div class="bg-white/90 p-1.5 rounded-xl border border-amber-100">
                 <span class="text-3xs font-bold text-slate-400 block uppercase">Almacenado</span>
-                <strong class="text-xs font-black text-slate-900">{{ "%.2f"|format(part.cantidad_inicial_kg / 1000.0) }} Tn</strong>
+                <strong class="text-xs font-black text-slate-900">{{ "%.2f"|format((part.cantidad_inicial_kg|float) / 1000.0) }} Tn</strong>
               </div>
               <div class="bg-white/90 p-1.5 rounded-xl border border-amber-100">
                 <span class="text-3xs font-bold text-slate-400 block uppercase">Cosecha</span>
@@ -684,8 +684,8 @@
   </main>
 
   <!-- MODAL CARGA RÁPIDA DE LABOR AGRONÓMICA -->
-  <div id="modal-nueva-labor" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-    <div class="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 my-8 relative">
+  <div id="modal-nueva-labor" class="fixed inset-0 z-50 hidden items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+    <div class="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 my-auto relative max-h-[90vh] overflow-y-auto">
       
       <button type="button" onclick="cerrarModalLabor()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-xl font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors">
         ✕
@@ -915,11 +915,11 @@
         </div>
 
         <!-- ACCIONES -->
-        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-          <button type="button" onclick="cerrarModalLabor()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all cursor-pointer">
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalLabor()" class="flex-1 sm:flex-initial py-2.5 px-4 min-h-[44px] bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center">
             Cancelar
           </button>
-          <button type="submit" class="px-5 py-2 bg-agro-600 hover:bg-agro-500 text-white font-black rounded-xl shadow-md transition-all cursor-pointer">
+          <button type="submit" class="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] bg-agro-600 hover:bg-agro-500 active:bg-agro-700 text-white font-black rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center">
             Guardar Labor 👍
           </button>
         </div>

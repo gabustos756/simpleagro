@@ -30,7 +30,7 @@
   <div class="max-w-3xl mx-auto space-y-6">
 
     <!-- BOTÓN VOLVER -->
-    <a href="/productivo/lotes" class="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-sm inline-block">
+    <a href="/productivo/lotes" class="px-4 py-2.5 min-h-[42px] bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all">
       ← Volver al Listado de Lotes
     </a>
 
@@ -99,11 +99,11 @@
         <div class="space-y-3 pt-2 border-t border-slate-100">
           <label class="block text-xs font-bold uppercase text-slate-600">Régimen de Tenencia</label>
           <div class="grid grid-cols-2 gap-3">
-            <label class="flex items-center space-x-2 p-3 bg-slate-50 border border-slate-300 rounded-xl cursor-pointer">
+            <label class="flex items-center space-x-2 p-3 min-h-[44px] bg-slate-50 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-100/80 transition-colors">
               <input type="radio" name="tenencia_tipo" value="propio" {% if not lote or lote.tenencia_tipo == 'propio' %}checked{% endif %} />
               <span class="text-xs font-bold text-slate-800">🌱 Propio</span>
             </label>
-            <label class="flex items-center space-x-2 p-3 bg-slate-50 border border-slate-300 rounded-xl cursor-pointer">
+            <label class="flex items-center space-x-2 p-3 min-h-[44px] bg-slate-50 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-100/80 transition-colors">
               <input type="radio" name="tenencia_tipo" value="alquilado" {% if lote and lote.tenencia_tipo == 'alquilado' %}checked{% endif %} />
               <span class="text-xs font-bold text-amber-800">📜 Alquilado</span>
             </label>
@@ -152,7 +152,7 @@
           </div>
         </div>
 
-        <button type="submit" class="w-full py-3.5 bg-agro-600 hover:bg-agro-700 text-white font-black text-sm rounded-xl shadow-md transition-all">
+        <button type="submit" class="w-full py-3.5 min-h-[48px] bg-agro-600 hover:bg-agro-700 text-white font-black text-sm rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center justify-center">
           {% if lote %}Guardar Cambios del Lote{% else %}Crear Lote Productivo{% endif %}
         </button>
 
