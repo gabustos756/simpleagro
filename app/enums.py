@@ -2,6 +2,7 @@ import enum
 
 
 class RolUsuario(str, enum.Enum):
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
     PRODUCTOR = "productor"
     OPERARIO_CAMPO = "operario_campo"

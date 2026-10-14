@@ -1,5 +1,18 @@
 <!-- HEADER GLOBAL UNIFICADO EDUAGRO (NATIVO RESPONSIVO CON MENÚ HAMBURGUESA) -->
 <header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800/80 shadow-md mb-6">
+  {% if user and user.impersonated_cliente_id %}
+  <!-- BANNER MODO SOPORTE ACTIVO -->
+  <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shadow-inner">
+    <div class="flex items-center gap-2">
+      <span class="animate-pulse">🛠️</span>
+      <span><strong>Modo Soporte Técnico</strong> — Navegando vista del cliente</span>
+    </div>
+    <a href="/superadmin/salir-impersonacion" class="inline-flex items-center gap-1.5 px-3 py-1 bg-black/40 hover:bg-black/60 text-white rounded-lg text-xs font-black transition-all">
+      <span>↩ Volver a SuperAdmin</span>
+    </a>
+  </div>
+  {% endif %}
+
   <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
     
     <!-- BARRA PRINCIPAL HEADER -->
@@ -7,7 +20,8 @@
       
       <!-- LOGO & TITULO -->
       <div class="flex items-center space-x-2 shrink-0">
-        <a href="{% if user %}/portal{% else %}/{% endif %}" class="group flex items-center gap-1.5" title="EduAgro">
+        <a href="{% if user %}/portal{% else %}/{% endif %}" class="group flex items-center gap-2" title="EduAgro - ERP Agropecuario">
+          <img src="/static/img/isotipo_eduagro.svg" alt="EduAgro Logo" class="w-8 h-8 rounded-xl shadow-xs group-hover:scale-105 transition-transform shrink-0" />
           <span class="text-xl font-black tracking-tight text-white group-hover:text-agro-300 transition-colors">
             Edu<span class="text-agro-500">Agro</span>
           </span>
@@ -25,6 +39,14 @@
           <strong class="text-[11px] sm:text-xs font-extrabold">${{ dolar_val | formato_ar }}</strong>
           <span class="hidden sm:inline text-[10px] text-amber-400/80 uppercase tracking-tight">CAC</span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" title="Cotización CAC Rosario en Vivo"></span>
+        </a>
+        {% endif %}
+
+        <!-- ACCESO SUPERADMIN (DESKTOP) -->
+        {% if user and user.is_superadmin %}
+        <a href="/superadmin" title="Consola SuperAdmin (Métricas & Marketing)" class="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-black transition-all shadow-xs shrink-0 {% if active_page == 'superadmin' %}ring-2 ring-amber-400 font-extrabold bg-amber-500/30{% endif %}">
+          <span>🛡️</span>
+          <span>SuperAdmin</span>
         </a>
         {% endif %}
 
@@ -89,6 +111,15 @@
 
       <!-- LISTADO DE MÓDULOS EN MÓVIL -->
       <nav class="flex flex-col space-y-1.5">
+        {% if user and user.is_superadmin %}
+        <a href="/superadmin" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-600/30 to-orange-600/30 text-amber-200 border border-amber-500/40 shadow-xs mb-1">
+          <div class="flex items-center gap-2.5">
+            <span>🛡️</span>
+            <span>Consola SuperAdmin</span>
+          </div>
+          <span class="text-xs">➔</span>
+        </a>
+        {% endif %}
         <a href="/productivo/lotes" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl font-extrabold text-sm transition-all {% if active_page == 'productivo' or ('/productivo' in request.url.path and active_page != 'portal') %}bg-agro-600 text-white shadow-sm{% else %}bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white{% endif %}">
           <div class="flex items-center gap-2.5">
             <span class="text-base">🌾</span>

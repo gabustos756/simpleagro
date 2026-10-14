@@ -148,6 +148,9 @@ class Campo(Base):
     lotes: Mapped[List["Lote"]] = relationship(
         "Lote", back_populates="campo", cascade="all, delete-orphan"
     )
+    registros_lluvia: Mapped[List["RegistroLluvia"]] = relationship(
+        "RegistroLluvia", back_populates="campo", cascade="all, delete-orphan"
+    )
     stocks_grano: Mapped[List["StockGrano"]] = relationship(
         "StockGrano", back_populates="campo", cascade="all, delete-orphan"
     )
@@ -411,20 +414,28 @@ class PlantillaLaborCampo(Base):
 
 class RegistroLluvia(Base):
     __tablename__ = "registros_lluvia"
+    __table_args__ = (
+        Index("ix_registros_lluvia_campo_fecha", "campo_id", "fecha"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    lote_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="CASCADE"), nullable=False
+    campo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campos.id", ondelete="CASCADE"), nullable=True
+    )
+    lote_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lotes.id", ondelete="CASCADE"), nullable=True
     )
     milimetros: Mapped[float] = mapped_column(Float, nullable=False)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     registrado_por_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
     )
 
-    lote: Mapped["Lote"] = relationship("Lote", back_populates="registros_lluvia")
+    campo: Mapped[Optional["Campo"]] = relationship("Campo", back_populates="registros_lluvia")
+    lote: Mapped[Optional["Lote"]] = relationship("Lote", back_populates="registros_lluvia")
     registrado_por: Mapped[Optional["Usuario"]] = relationship("Usuario", back_populates="registros_lluvia")
 
 

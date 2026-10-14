@@ -40,6 +40,9 @@ from app.models import (
     CompromisoGrano,
     ArrendamientoTerms,
     PrecioMercadoCache,
+    RegistroLluvia,
+    LaborCampo,
+    Insumo,
 )
 from app.services.comercial import calcular_posicion_comercial, obtener_campania_activa_para_cliente
 from app.services.gis_service import procesar_geometria_lote, validar_poligono_geojson
@@ -536,14 +539,20 @@ async def get_current_user_from_session(request: Request, db: AsyncSession) -> O
         request.state.user = None
         return None
 
+    is_sa = (user_obj.rol == RolUsuario.SUPERADMIN)
+    impersonated_id = request.session.get("impersonated_cliente_id")
+    effective_cliente_id = impersonated_id if (is_sa and impersonated_id) else (str(user_obj.cliente_id) if user_obj.cliente_id else DEMO_CLIENTE["id"])
+
     user_dict = {
         "id": str(user_obj.id),
         "nombre": user_obj.nombre,
         "email": user_obj.email,
         "password_hash": user_obj.password_hash,
         "rol": user_obj.rol,
-        "rol_label": user_obj.rol.value if hasattr(user_obj.rol, "value") else str(user_obj.rol),
-        "cliente_id": str(user_obj.cliente_id) if user_obj.cliente_id else DEMO_CLIENTE["id"],
+        "rol_label": "SuperAdmin" if is_sa else (user_obj.rol.value if hasattr(user_obj.rol, "value") else str(user_obj.rol)),
+        "is_superadmin": is_sa,
+        "impersonated_cliente_id": impersonated_id if is_sa else None,
+        "cliente_id": effective_cliente_id,
         "cliente_nombre": DEMO_CLIENTE["nombre"],
     }
     request.state.user = user_dict
@@ -631,7 +640,9 @@ async def login_page(
 ):
     user = await get_current_user_from_session(request, db)
     if user:
-        if user["rol"] == RolUsuario.OPERARIO_CAMPO:
+        if user["rol"] == RolUsuario.SUPERADMIN:
+            return RedirectResponse("/superadmin", status_code=status.HTTP_303_SEE_OTHER)
+        elif user["rol"] == RolUsuario.OPERARIO_CAMPO:
             return RedirectResponse("/campo", status_code=status.HTTP_303_SEE_OTHER)
         elif user["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
             return RedirectResponse("/servicios/vencimientos", status_code=status.HTTP_303_SEE_OTHER)
@@ -689,7 +700,9 @@ async def login_submit(
 
     target_url = next if next and next not in ("/", "/portal") else None
     if not target_url:
-        if user_dict["rol"] == RolUsuario.OPERARIO_CAMPO:
+        if user_dict["rol"] == RolUsuario.SUPERADMIN:
+            target_url = "/superadmin"
+        elif user_dict["rol"] == RolUsuario.OPERARIO_CAMPO:
             target_url = "/campo"
         elif user_dict["rol"] == RolUsuario.ADMINISTRADOR_FINANZAS:
             target_url = "/servicios/vencimientos"
@@ -717,6 +730,169 @@ def descargar_guia_pdf():
             content_disposition_type="inline"
         )
     return HTMLResponse("<h1>Manual PDF no encontrado</h1>", status_code=404)
+
+
+# ----------------------------------------------------------------------
+# Rutas de Consola SuperAdmin: Métricas de Clientes & Marketing Rural
+# ----------------------------------------------------------------------
+
+@app.get("/superadmin", response_class=HTMLResponse)
+@app.get("/superadmin/marketing", response_class=HTMLResponse)
+async def superadmin_dashboard(
+    request: Request,
+    tab: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user or not user.get("is_superadmin"):
+        return RedirectResponse("/login?next=/superadmin", status_code=status.HTTP_303_SEE_OTHER)
+
+    current_tab = "marketing" if "/marketing" in request.url.path else (tab or "estadisticas")
+
+    # 1. Obtener todos los clientes
+    res_clientes = await db.execute(select(Cliente).order_by(Cliente.nombre))
+    clientes = res_clientes.scalars().all()
+
+    # 2. Métricas globales de la base de datos
+    res_campos = await db.execute(select(Campo))
+    campos = res_campos.scalars().all()
+
+    res_lotes = await db.execute(select(Lote))
+    lotes = res_lotes.scalars().all()
+
+    res_lluvias = await db.execute(select(RegistroLluvia))
+    lluvias = res_lluvias.scalars().all()
+
+    res_labores = await db.execute(select(LaborCampo))
+    labores = res_labores.scalars().all()
+
+    res_contratos = await db.execute(select(ContratoVentaGrano))
+    contratos = res_contratos.scalars().all()
+
+    res_insumos = await db.execute(select(Insumo))
+    insumos = res_insumos.scalars().all()
+
+    res_servicios = await db.execute(select(ServicioInstalado))
+    servicios = res_servicios.scalars().all()
+
+    res_usuarios = await db.execute(select(Usuario))
+    usuarios = res_usuarios.scalars().all()
+
+    total_ha = sum(float(l.superficie_total_ha or 0) for l in lotes)
+    total_tn = sum(float(c.toneladas or 0) for c in contratos)
+
+    # Identificar cliente Familia Matteuda
+    cliente_matteuda = next((c for c in clientes if "Matteuda" in c.nombre), clientes[0] if clientes else None)
+    m_id = cliente_matteuda.id if cliente_matteuda else None
+
+    m_campos = [c for c in campos if c.cliente_id == m_id]
+    m_campo_ids = {c.id for c in m_campos}
+    m_lotes = [l for l in lotes if l.cliente_id == m_id or l.campo_id in m_campo_ids]
+    m_lote_ids = {l.id for l in m_lotes}
+    m_lluvias = [ll for ll in lluvias if ll.lote_id in m_lote_ids]
+    m_labores = [lab for lab in labores if lab.lote_id in m_lote_ids]
+    m_usuarios = [u for u in usuarios if u.cliente_id == m_id]
+    m_contratos = [c for c in contratos if c.cliente_id == m_id]
+    m_insumos = [i for i in insumos if i.cliente_id == m_id]
+    m_servicios = [s for s in servicios if s.cliente_id == m_id]
+
+    actividad = []
+    for ll in sorted(m_lluvias, key=lambda x: x.fecha, reverse=True)[:4]:
+        actividad.append({
+            "tipo": "lluvia",
+            "icono": "🌧️",
+            "color": "sky",
+            "titulo": f"Lluvia de {ll.milimetros} mm registrada",
+            "detalle": f"Lote ID {str(ll.lote_id)[:8]}",
+            "fecha": ll.fecha.strftime("%d/%m/%Y") if hasattr(ll.fecha, "strftime") else str(ll.fecha),
+        })
+    for lab in sorted(m_labores, key=lambda x: x.fecha, reverse=True)[:4]:
+        actividad.append({
+            "tipo": "labor",
+            "icono": "🚜",
+            "color": "emerald",
+            "titulo": f"Labor: {lab.tipo_labor.value if hasattr(lab.tipo_labor, 'value') else lab.tipo_labor}",
+            "detalle": f"{lab.superficie_afectada_ha or ''} ha - {lab.sector_zona or 'Lote'}",
+            "fecha": lab.fecha.strftime("%d/%m/%Y") if hasattr(lab.fecha, "strftime") else str(lab.fecha),
+        })
+    for ct in sorted(m_contratos, key=lambda x: x.fecha_contrato, reverse=True)[:3]:
+        actividad.append({
+            "tipo": "contrato",
+            "icono": "🏢",
+            "color": "amber",
+            "titulo": f"Contrato {ct.cultivo.title()} ({ct.toneladas} Tn)",
+            "detalle": f"Acopio: {ct.comprador_acopio}",
+            "fecha": ct.fecha_contrato.strftime("%d/%m/%Y") if hasattr(ct.fecha_contrato, "strftime") else str(ct.fecha_contrato),
+        })
+
+    actividad.sort(key=lambda x: x["fecha"], reverse=True)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="superadmin.html",
+        context={
+            "user": user,
+            "active_page": "superadmin",
+            "current_tab": current_tab,
+            "clientes": clientes,
+            "cliente_matteuda": cliente_matteuda,
+            "total_clientes": len(clientes),
+            "total_campos": len(campos),
+            "total_lotes": len(lotes),
+            "total_hectareas": round(total_ha, 1),
+            "total_lluvias": len(lluvias),
+            "total_labores": len(labores),
+            "total_contratos": len(contratos),
+            "total_toneladas_grano": round(total_tn, 1),
+            "total_insumos": len(insumos),
+            "total_servicios": len(servicios),
+            "total_usuarios": len(usuarios),
+            "matteuda_stats": {
+                "campos_count": len(m_campos),
+                "lotes_count": len(m_lotes),
+                "hectareas": round(sum(float(l.superficie_total_ha or 0) for l in m_lotes), 1),
+                "lluvias_count": len(m_lluvias),
+                "labores_count": len(m_labores),
+                "usuarios_count": len(m_usuarios),
+                "contratos_count": len(m_contratos),
+                "insumos_count": len(m_insumos),
+                "servicios_count": len(m_servicios),
+            },
+            "matteuda_usuarios": m_usuarios,
+            "actividad_reciente": actividad[:8],
+        },
+    )
+
+
+@app.post("/superadmin/impersonar/{cliente_id}")
+async def superadmin_impersonar_cliente(
+    cliente_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user or not user.get("is_superadmin"):
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    c_uuid = get_uuid(cliente_id)
+    res = await db.execute(select(Cliente).where(Cliente.id == c_uuid))
+    cliente = res.scalars().first()
+    if cliente:
+        request.session["impersonated_cliente_id"] = str(cliente.id)
+        res_campos = await db.execute(select(Campo).where(Campo.cliente_id == cliente.id))
+        c_first = res_campos.scalars().first()
+        if c_first:
+            request.session["campo_activo_id"] = str(c_first.id)
+
+    return RedirectResponse("/portal", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/superadmin/salir-impersonacion")
+@app.post("/superadmin/salir-impersonacion")
+async def superadmin_salir_impersonacion(request: Request):
+    if "impersonated_cliente_id" in request.session:
+        del request.session["impersonated_cliente_id"]
+    return RedirectResponse("/superadmin", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ----------------------------------------------------------------------
@@ -966,6 +1142,32 @@ async def read_modo_campo(
     else:
         tareas_filtradas = tareas_campo
 
+    c_uuid = get_uuid(campo_activo["id"]) if campo_activo.get("id") else None
+    lote_uuids = [get_uuid(l["id"]) for l in lotes_campo_activo if get_uuid(l["id"])]
+    conds = []
+    if c_uuid:
+        conds.append(RegistroLluvia.campo_id == c_uuid)
+    if lote_uuids:
+        conds.append(RegistroLluvia.lote_id.in_(lote_uuids))
+
+    lluvias_historial = []
+    lluvia_acumulada_mes = 0.0
+    if conds:
+        res_ll = await db.execute(
+            select(RegistroLluvia)
+            .options(selectinload(RegistroLluvia.lote))
+            .where(or_(*conds))
+            .order_by(RegistroLluvia.fecha.desc())
+            .limit(25)
+        )
+        lluvias_historial = res_ll.scalars().all()
+        now = datetime.now(timezone.utc)
+        for r_ll in lluvias_historial:
+            if r_ll.fecha and r_ll.fecha.year == now.year and r_ll.fecha.month == now.month:
+                lluvia_acumulada_mes += float(r_ll.milimetros)
+
+    current_date_str = date.today().isoformat()
+
     return templates.TemplateResponse(
         request=request,
         name="modo_campo.html",
@@ -980,6 +1182,9 @@ async def read_modo_campo(
             "pendientes_count": pendientes_count,
             "en_curso_count": en_curso_count,
             "hechas_count": hechas_count,
+            "lluvias_historial": lluvias_historial,
+            "lluvia_acumulada_mes": round(lluvia_acumulada_mes, 1),
+            "current_date_str": current_date_str,
         },
     )
 
@@ -1020,6 +1225,7 @@ async def registrar_lluvia_rapida(
     campo_id: str = Form(...),
     lote_id: Optional[str] = Form(None),
     milimetros: float = Form(...),
+    fecha: Optional[str] = Form(None),
     observaciones: Optional[str] = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1031,6 +1237,34 @@ async def registrar_lluvia_rapida(
     lotes = await fetch_lotes_dicts(db)
     campo_sel = next((c for c in campos if c["id"] == campo_id), None)
     lote_sel = next((l for l in lotes if l["id"] == lote_id), None) if lote_id else None
+
+    # Parse fecha con fallback
+    fecha_dt = datetime.now(timezone.utc)
+    fecha_str = date.today().isoformat()
+    if fecha and fecha.strip():
+        try:
+            d_parsed = date.fromisoformat(fecha.strip())
+            fecha_dt = datetime.combine(d_parsed, datetime.min.time()).replace(tzinfo=timezone.utc)
+            fecha_str = d_parsed.isoformat()
+        except Exception:
+            pass
+
+    # Persistir en base de datos real (RegistroLluvia)
+    c_uuid = get_uuid(campo_id)
+    l_uuid = get_uuid(lote_id) if lote_id else None
+    u_uuid = get_uuid(user.get("id")) if user.get("id") else None
+
+    nuevo_reg = RegistroLluvia(
+        id=uuid.uuid4(),
+        campo_id=c_uuid,
+        lote_id=l_uuid,
+        milimetros=float(milimetros),
+        fecha=fecha_dt,
+        observaciones=observaciones.strip() if observaciones else None,
+        registrado_por_id=u_uuid,
+    )
+    db.add(nuevo_reg)
+    await db.commit()
 
     nueva_tarea = {
         "id": f"tarea-00{len(TAREAS_STORE) + 1}",
@@ -1046,7 +1280,7 @@ async def registrar_lluvia_rapida(
         "prioridad_label": "Media",
         "estado": "hecha",
         "estado_label": "Hecha",
-        "fecha": "2026-07-28",
+        "fecha": fecha_str,
         "observaciones": observaciones or f"Lluvia de {milimetros} mm registrada desde Modo Campo.",
         "valor_registrado": f"{milimetros} mm",
     }
@@ -4263,6 +4497,93 @@ async def delete_service_document(
         f"{target_redir}?mensaje={msg}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+@app.post("/servicios/vencimientos/{vencimiento_id}/eliminar")
+async def delete_servicio_vencimiento(
+    request: Request,
+    vencimiento_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    v_uuid = get_uuid(vencimiento_id)
+
+    res_v = await db.execute(
+        select(ServicioVencimiento).where(
+            ServicioVencimiento.id == v_uuid,
+            or_(ServicioVencimiento.cliente_id == cliente_id, ServicioVencimiento.cliente_id.is_(None))
+        )
+    )
+    venc_obj = res_v.scalars().first()
+    if not venc_obj:
+        return RedirectResponse("/servicios?error=Vencimiento+no+encontrado", status_code=status.HTTP_303_SEE_OTHER)
+
+    servicio_id = venc_obj.servicio_instalado_id
+    redirect_url = f"/servicios/{servicio_id}" if servicio_id else "/servicios/vencimientos"
+    concepto = venc_obj.concepto
+
+    # Eliminar archivos físicos de documentos asociados
+    res_docs = await db.execute(
+        select(ServiceDocument).where(ServiceDocument.servicio_vencimiento_id == v_uuid)
+    )
+    for doc in res_docs.scalars().all():
+        try:
+            delete_document_file(doc.storage_key)
+        except Exception:
+            pass
+
+    await db.delete(venc_obj)
+    await db.commit()
+
+    msg = f"Registro de vencimiento/pago '{concepto}' eliminado correctamente."
+    return RedirectResponse(f"{redirect_url}?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/servicios/{servicio_id}/eliminar")
+async def delete_servicio_instalado(
+    request: Request,
+    servicio_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    s_uuid = get_uuid(servicio_id)
+
+    res_s = await db.execute(
+        select(ServicioInstalado).where(
+            ServicioInstalado.id == s_uuid,
+            or_(ServicioInstalado.cliente_id == cliente_id, ServicioInstalado.cliente_id.is_(None))
+        )
+    )
+    serv_obj = res_s.scalars().first()
+    if not serv_obj:
+        return RedirectResponse("/servicios?error=Servicio+no+encontrado", status_code=status.HTTP_303_SEE_OTHER)
+
+    concepto = serv_obj.concepto
+
+    # Eliminar archivos físicos de documentos asociados
+    res_docs = await db.execute(
+        select(ServiceDocument).where(ServiceDocument.servicio_id == s_uuid)
+    )
+    for doc in res_docs.scalars().all():
+        try:
+            delete_document_file(doc.storage_key)
+        except Exception:
+            pass
+
+    await db.delete(serv_obj)
+    await db.commit()
+
+    msg = f"Servicio '{concepto}' y su historial fueron eliminados correctamente."
+    return RedirectResponse(f"/servicios?mensaje={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 
 @app.post("/servicios/{servicio_id}/pagar")

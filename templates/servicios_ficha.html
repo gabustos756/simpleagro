@@ -53,6 +53,11 @@
         <a href="/servicios/{{ servicio.id }}/editar" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all">
           ✏️ Editar Servicio
         </a>
+        <form method="POST" action="/servicios/{{ servicio.id }}/eliminar" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar el servicio completo \'{{ servicio.concepto }}\'? Se eliminarán también sus comprobantes y vencimientos asociados.');">
+          <button type="submit" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer">
+            🗑️ Eliminar
+          </button>
+        </form>
       </div>
     </div>
 
@@ -205,21 +210,28 @@
               </div>
             </div>
 
-            <!-- Comprobante / Acción de Carga Mobile -->
-            <div class="pt-1">
-              {% if v.documentos %}
-                <div class="space-y-1.5">
-                  {% for doc in v.documentos %}
-                    <a href="{{ doc.download_url }}" class="w-full py-2.5 px-3 min-h-[44px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-indigo-200 transition-colors">
-                      <span>📥</span> <span class="truncate">Descargar: {{ doc.original_filename }}</span>
-                    </a>
-                  {% endfor %}
-                </div>
-              {% else %}
-                <button onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.remove('hidden')" class="w-full py-2.5 px-3 min-h-[44px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors">
-                  <span>📎</span> <span>+ Adjuntar Comprobante</span>
+            <!-- Comprobante / Acción de Carga Mobile + Botón Eliminar -->
+            <div class="pt-1 flex items-center gap-2">
+              <div class="flex-1">
+                {% if v.documentos %}
+                  <div class="space-y-1.5">
+                    {% for doc in v.documentos %}
+                      <a href="{{ doc.download_url }}" class="w-full py-2.5 px-3 min-h-[44px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-indigo-200 transition-colors">
+                        <span>📥</span> <span class="truncate">Descargar: {{ doc.original_filename }}</span>
+                      </a>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <button onclick="document.getElementById('modal-subir-doc-venc-{{ v.id }}').classList.remove('hidden')" class="w-full py-2.5 px-3 min-h-[44px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors">
+                    <span>📎</span> <span>+ Adjuntar Comprobante</span>
+                  </button>
+                {% endif %}
+              </div>
+              <form method="POST" action="/servicios/vencimientos/{{ v.id }}/eliminar" onsubmit="return confirm('¿Eliminar este registro de período/pago: {{ v.concepto }}?');" class="shrink-0">
+                <button type="submit" class="p-2.5 min-h-[44px] min-w-[44px] text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center transition-colors cursor-pointer" title="Eliminar este registro">
+                  🗑️
                 </button>
-              {% endif %}
+              </form>
             </div>
           </div>
           {% endfor %}
@@ -236,6 +248,7 @@
                 <th class="p-3">Monto ($USD)</th>
                 <th class="p-3">Factura / Comprobante</th>
                 <th class="p-3">Estado</th>
+                <th class="p-3 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -279,6 +292,13 @@
                   {% else %}
                     <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-bold text-[10px]">⌛ PENDIENTE</span>
                   {% endif %}
+                </td>
+                <td class="p-3 text-center">
+                  <form method="POST" action="/servicios/vencimientos/{{ v.id }}/eliminar" onsubmit="return confirm('¿Eliminar este registro de período/pago: {{ v.concepto }}?');" class="inline">
+                    <button type="submit" class="p-1.5 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-colors cursor-pointer" title="Eliminar registro">
+                      🗑️
+                    </button>
+                  </form>
                 </td>
               </tr>
               {% endfor %}

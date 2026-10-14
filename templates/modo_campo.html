@@ -116,6 +116,11 @@
           </div>
 
           <div class="form-group">
+            <label>Fecha de la Lluvia / Subida:</label>
+            <input type="date" name="fecha" required value="{{ current_date_str or '2026-10-14' }}" class="form-input" style="font-weight: bold; color: #0891b2;">
+          </div>
+
+          <div class="form-group">
             <label>Milímetros Llovidos (mm):</label>
             <input type="number" step="0.5" min="0" name="milimetros" required placeholder="Ej: 35.5" class="form-input" style="font-size: 1.2rem; color: #0891b2;">
           </div>
@@ -129,6 +134,49 @@
             🌧️ Guardar Registro de Lluvia
           </button>
         </form>
+      </details>
+
+      <!-- SECCIÓN: HISTORIAL DE LLUVIAS DEL CAMPO -->
+      <details class="action-accordion">
+        <summary style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 1rem; cursor: pointer; user-select: none;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="acc-icon" style="background: #ccfbf1; color: #0f766e;">📊</div>
+            <div>
+              <span class="acc-title" style="color: #0f766e;">Historial de Precipitaciones</span>
+              <span class="acc-subtitle">Mes actual: <strong>{{ lluvia_acumulada_mes|default(0.0) }} mm</strong></span>
+            </div>
+          </div>
+          <span class="acc-badge" style="background: #0f766e; color: #fff;">{{ lluvias_historial|length }} reg.</span>
+        </summary>
+
+        <div style="padding: 0.75rem; background: #fff; border-radius: 0.75rem; margin-top: 0.5rem; border: 1px solid #e2e8f0;">
+          {% if not lluvias_historial %}
+          <div style="text-align: center; padding: 1.5rem 0.5rem; color: #94a3b8; font-size: 0.8rem; font-weight: 500;">
+            Todavía no hay registros de lluvia para este campo.<br>Usá el botón de arriba para registrar la primera.
+          </div>
+          {% else %}
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            {% for ll in lluvias_historial %}
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  <span style="font-weight: 900; color: #0891b2; font-size: 1rem;">🌧️ {{ ll.milimetros }} mm</span>
+                  <span style="font-size: 0.7rem; font-weight: 700; color: #64748b; background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 0.4rem;">
+                    {{ ll.fecha.strftime('%d/%m/%Y') if ll.fecha else 'Hoy' }}
+                  </span>
+                </div>
+                <div style="font-size: 0.75rem; color: #475569; margin-top: 0.2rem;">
+                  📍 {% if ll.lote %}{{ ll.lote.nombre }}{% else %}Pluviómetro Casco (General){% endif %}
+                  {% if ll.observaciones %}
+                    • <span style="color: #64748b; font-style: italic;">{{ ll.observaciones }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
       </details>
 
       <!-- BOTÓN 2: REPORTAR INCIDENCIA -->

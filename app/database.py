@@ -56,5 +56,10 @@ async def init_db():
     async with engine.begin() as conn:
         result = await conn.execute(text("SELECT 1"))
         _ = result.scalar()
+        try:
+            await conn.execute(text("ALTER TYPE rol_usuario_enum ADD VALUE IF NOT EXISTS 'superadmin';"))
+            await conn.execute(text("ALTER TYPE rol_usuario_enum ADD VALUE IF NOT EXISTS 'SUPERADMIN';"))
+        except Exception:
+            pass
 
 

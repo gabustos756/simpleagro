@@ -90,12 +90,12 @@ DEMO_STOCKS_GRANO = [
         "id": "stock-001",
         "campo_id": "campo-001",
         "campania_id": "campania-2025-2026",
-        "cultivo": "soja",
+        "cultivo": "maiz",
         "ubicacion_tipo": UbicacionStockEnum.SILO_BOLSA,
         "identificador": "SiloBolsa N° 2 - Lote 1 El Silo",
         "toneladas_almacenadas": Decimal("180.50"),
         "fecha_ingreso": date(2026, 5, 20),
-        "observaciones": "Bolsa Ipacal 9 pies. Humedad 13.2%.",
+        "observaciones": "Bolsa Ipacal 9 pies. Humedad 13.2%. Cosecha Maíz 2025/2026 corregida.",
     },
     {
         "id": "stock-002",
@@ -408,6 +408,15 @@ DEMO_SERVICIOS_INSTALADOS = [
 # Usuarios Demo de Validación (6 Superadmins)
 DEMO_USUARIOS = [
     {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "nombre": "SuperAdmin EduAgro",
+        "email": "superadmin@eduagro.com.ar",
+        "password_hash": hash_password("admin123"),
+        "rol": RolUsuario.SUPERADMIN,
+        "rol_label": "Super Admin",
+        "cliente_nombre": "EduAgro Plataforma",
+    },
+    {
         "id": "11111111-1111-1111-1111-111111111111",
         "nombre": "Andrés",
         "email": "andres@eduagro.com.ar",
@@ -655,7 +664,7 @@ async def seed_initial_data(session):
                 rol_val = RolUsuario(rol_val)
             user_obj = Usuario(
                 id=get_uuid(u_dict["id"]),
-                cliente_id=cliente_id,
+                cliente_id=None if rol_val == RolUsuario.SUPERADMIN else cliente_id,
                 nombre=u_dict["nombre"],
                 email=u_dict["email"],
                 password_hash=u_dict["password_hash"],
@@ -663,6 +672,19 @@ async def seed_initial_data(session):
             )
             session.add(user_obj)
         await session.flush()
+    else:
+        res_sa = await session.execute(select(Usuario).where(Usuario.email == "superadmin@eduagro.com.ar"))
+        if not res_sa.scalars().first():
+            sa_user = Usuario(
+                id=get_uuid("00000000-0000-0000-0000-000000000001"),
+                cliente_id=None,
+                nombre="SuperAdmin EduAgro",
+                email="superadmin@eduagro.com.ar",
+                password_hash=hash_password("admin123"),
+                rol=RolUsuario.SUPERADMIN,
+            )
+            session.add(sa_user)
+            await session.flush()
 
     # 3. Crear Campaña inicial si no existe ninguna
     res_camp = await session.execute(select(Campania).limit(1))
