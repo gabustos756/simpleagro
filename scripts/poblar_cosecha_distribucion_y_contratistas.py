@@ -180,7 +180,7 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
                 "capacidad_nominal_tn": Decimal("200.00"),
                 "ubicacion_referencia": "Planta de Silos Central - Grasso",
                 "campo_id": campo_grasso.id if campo_grasso else None,
-                "observaciones": "Silo aéreo de chapa galvanizada N° 3 (200 Tn). Destinado a Soja nueva."
+                "observaciones": "Silo aéreo de chapa galvanizada N° 3 (200 Tn). Destinado a Maíz cosecha 25/26."
             },
             {
                 "nombre": "Silo Chapa N° 4 - Planta Principal",
@@ -188,15 +188,15 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
                 "capacidad_nominal_tn": Decimal("200.00"),
                 "ubicacion_referencia": "Planta de Silos Central - Grasso",
                 "campo_id": campo_grasso.id if campo_grasso else None,
-                "observaciones": "Silo aéreo de chapa galvanizada N° 4 (200 Tn). Destinado a Soja nueva."
+                "observaciones": "Silo aéreo de chapa galvanizada N° 4 (200 Tn). Destinado a Maíz cosecha 25/26."
             },
             {
-                "nombre": "Silobolsa Soja 25/26 - Grasso",
+                "nombre": "Silobolsa Maíz 25/26 - Grasso Remanente",
                 "tipo": "silobolsa",
                 "capacidad_nominal_tn": Decimal("250.00"),
                 "ubicacion_referencia": "Cabecera Lote Grasso 2",
                 "campo_id": campo_grasso.id if campo_grasso else None,
-                "observaciones": "Silobolsa 9 pies para remanente de Soja 25/26."
+                "observaciones": "Silobolsa 9 pies para remanente de Maíz 25/26."
             },
             {
                 "nombre": "Silobolsa Maíz 25/26 - Gontero",
@@ -258,7 +258,7 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
 
         # 7. Crear Partidas de Stock Físico y Trazable (StockPartida)
         partidas_defs = [
-            # SOJA
+            # SOJA (Solo Acopio AFA)
             {
                 "tracking_number": "STK-SOJA-2526-AFA",
                 "cultivo": "soja",
@@ -269,35 +269,36 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
                 "fecha_cosecha": date(2026, 5, 20),
                 "observaciones": "Entrega de Soja 25/26 a Acopio AFA (2,700.0 qq / 270 Tn). Pendiente liquidación final Andrés."
             },
+            # MAÍZ (Silos Chapa y Silobolsas de campo)
             {
-                "tracking_number": "STK-SOJA-2526-SILO3",
-                "cultivo": "soja",
+                "tracking_number": "STK-MAIZ-2526-SILO3",
+                "cultivo": "maiz",
                 "cantidad_kg": Decimal("172000.00"),
                 "storage_location": loc_objs["Silo Chapa N° 3 - Planta Principal"],
                 "campo": campo_grasso,
                 "lote": lotes.get("grasso 2"),
-                "fecha_cosecha": date(2026, 5, 20),
-                "observaciones": "Soja 25/26 almacenada en Silo de Chapa 3 (1,720.0 qq / 172 Tn)."
+                "fecha_cosecha": date(2026, 8, 20),
+                "observaciones": "Maíz 25/26 almacenado en Silo de Chapa 3 (1,720.0 qq / 172 Tn)."
             },
             {
-                "tracking_number": "STK-SOJA-2526-SILO4",
-                "cultivo": "soja",
+                "tracking_number": "STK-MAIZ-2526-SILO4",
+                "cultivo": "maiz",
                 "cantidad_kg": Decimal("38000.00"),
                 "storage_location": loc_objs["Silo Chapa N° 4 - Planta Principal"],
                 "campo": campo_grasso,
                 "lote": lotes.get("grasso 3"),
-                "fecha_cosecha": date(2026, 5, 20),
-                "observaciones": "Soja 25/26 almacenada en Silo de Chapa 4 (380.0 qq / 38 Tn)."
+                "fecha_cosecha": date(2026, 8, 20),
+                "observaciones": "Maíz 25/26 almacenado en Silo de Chapa 4 (380.0 qq / 38 Tn)."
             },
             {
-                "tracking_number": "STK-SOJA-2526-BOLSA",
-                "cultivo": "soja",
+                "tracking_number": "STK-MAIZ-2526-BOLSA",
+                "cultivo": "maiz",
                 "cantidad_kg": Decimal("92540.00"),
-                "storage_location": loc_objs["Silobolsa Soja 25/26 - Grasso"],
+                "storage_location": loc_objs["Silobolsa Maíz 25/26 - Grasso Remanente"],
                 "campo": campo_grasso,
                 "lote": lotes.get("grasso 3"),
-                "fecha_cosecha": date(2026, 5, 20),
-                "observaciones": "Remanente de Soja 25/26 embolsada en campo (925.4 qq / 92.54 Tn)."
+                "fecha_cosecha": date(2026, 8, 21),
+                "observaciones": "Remanente de Maíz 25/26 embolsado en campo (925.4 qq / 92.54 Tn)."
             },
             # MAÍZ
             {
