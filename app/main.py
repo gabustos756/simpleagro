@@ -5148,7 +5148,7 @@ async def comercial_decision_evaluar_api(
 async def read_comercial_resumen(
     request: Request,
     campania_id: Optional[str] = None,
-    cultivo: Optional[str] = "soja",
+    cultivo: Optional[str] = "todos",
     mensaje: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -5173,7 +5173,7 @@ async def read_comercial_resumen(
         camp_uuid = camp_obj.id if camp_obj else None
         camp_nombre = camp_obj.nombre if camp_obj else "Campaña 2025/2026"
 
-    cultivo_sel = (cultivo or "soja").strip().lower()
+    cultivo_sel = (cultivo or "todos").strip().lower()
     from app.services.commercial_dashboard_service import get_commercial_dashboard_summary
     dashboard_summary = await get_commercial_dashboard_summary(
         db=db,

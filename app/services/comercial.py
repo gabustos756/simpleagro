@@ -3,10 +3,11 @@ from typing import Dict, Any, Optional
 import uuid
 
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import TipoPrecioEnum, UbicacionStockEnum
-from app.models import Campania, CompromisoGrano, ContratoVentaGrano, Lote, StockGrano
+from app.models import Campania, CompromisoGrano, ContratoVentaGrano, Lote, StockGrano, StockPartida, StorageLocation
 
 
 def normalizar_texto(texto: Optional[str]) -> str:
@@ -127,27 +128,54 @@ async def calcular_posicion_comercial(
             tn_vendidas_a_fijar += tn
 
     # 3. Obtener Stock Físico (Silo Bolsa vs Acopio)
-    stmt_stock = select(StockGrano).where(
-        StockGrano.cliente_id == cliente_id,
-        StockGrano.campania_id == campania_id,
+    # Preferir StockPartida (modelo V1 trazable) si existen partidas; caso contrario fallback a StockGrano legacy
+    stmt_partidas = (
+        select(StockPartida)
+        .options(selectinload(StockPartida.storage_location))
+        .where(
+            StockPartida.cliente_id == cliente_id,
+            StockPartida.campania_id == campania_id,
+            StockPartida.estado == "activa",
+        )
     )
-    res_stock = await db.execute(stmt_stock)
-    stocks_raw = res_stock.scalars().all()
-
-    if cultivo_norm in ["todos", "all", ""]:
-        stocks = stocks_raw
-    else:
-        stocks = [s for s in stocks_raw if normalizar_texto(s.cultivo) == cultivo_norm]
+    res_partidas = await db.execute(stmt_partidas)
+    partidas_db = res_partidas.scalars().all()
 
     tn_stock_silo_bolsa = Decimal("0.0")
     tn_stock_acopio = Decimal("0.0")
 
-    for st in stocks:
-        tn = Decimal(str(st.toneladas_almacenadas or 0.0))
-        if st.ubicacion_tipo == UbicacionStockEnum.SILO_BOLSA:
-            tn_stock_silo_bolsa += tn
+    if partidas_db:
+        if cultivo_norm in ["todos", "all", ""]:
+            partidas_sel = partidas_db
         else:
-            tn_stock_acopio += tn
+            partidas_sel = [p for p in partidas_db if normalizar_texto(p.cultivo) == cultivo_norm]
+
+        for p in partidas_sel:
+            tn = (Decimal(str(p.cantidad_inicial_kg or 0.0)) / Decimal("1000.0")).quantize(Decimal("0.01"))
+            tipo_loc = p.storage_location.tipo.lower() if p.storage_location else "silobolsa"
+            if "acopio" in tipo_loc:
+                tn_stock_acopio += tn
+            else:
+                tn_stock_silo_bolsa += tn
+    else:
+        stmt_stock = select(StockGrano).where(
+            StockGrano.cliente_id == cliente_id,
+            StockGrano.campania_id == campania_id,
+        )
+        res_stock = await db.execute(stmt_stock)
+        stocks_raw = res_stock.scalars().all()
+
+        if cultivo_norm in ["todos", "all", ""]:
+            stocks = stocks_raw
+        else:
+            stocks = [s for s in stocks_raw if normalizar_texto(s.cultivo) == cultivo_norm]
+
+        for st in stocks:
+            tn = Decimal(str(st.toneladas_almacenadas or 0.0))
+            if st.ubicacion_tipo == UbicacionStockEnum.SILO_BOLSA:
+                tn_stock_silo_bolsa += tn
+            else:
+                tn_stock_acopio += tn
 
     tn_stock_total = tn_stock_silo_bolsa + tn_stock_acopio
 

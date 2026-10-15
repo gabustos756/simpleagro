@@ -100,7 +100,7 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
                 "campo": campo_grasso,
                 "nombre": "Planta de Silos Central (Silos 1 a 4)",
                 "tipo": "silo",
-                "ubicacion_notas": "Batería de 4 silos aéreos de chapa galvanizada. Silos 3 y 4 con 210 Tn de Soja 25/26."
+                "ubicacion_notas": "Batería de 4 silos aéreos de chapa galvanizada. Silos 3 y 4 con 210 Tn de Maíz 25/26."
             },
             {
                 "campo": campo_grasso,
@@ -392,21 +392,21 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
             },
             {
                 "campo": campo_grasso,
-                "cultivo": "soja",
+                "cultivo": "maiz",
                 "ubicacion_tipo": UbicacionStockEnum.SILO_BOLSA,
                 "identificador": "Silos Chapa N° 3 y 4 - Grasso",
                 "toneladas": Decimal("210.00"),
-                "fecha_ingreso": date(2026, 5, 20),
-                "obs": "Silo 3 (172 Tn) + Silo 4 (38 Tn) en planta propia."
+                "fecha_ingreso": date(2026, 8, 20),
+                "obs": "Silo 3 (172 Tn) + Silo 4 (38 Tn) de Maíz en planta propia."
             },
             {
                 "campo": campo_grasso,
-                "cultivo": "soja",
+                "cultivo": "maiz",
                 "ubicacion_tipo": UbicacionStockEnum.SILO_BOLSA,
-                "identificador": "Silobolsa Soja Grasso",
+                "identificador": "Silobolsa Maíz 25/26 - Grasso Remanente",
                 "toneladas": Decimal("92.54"),
-                "fecha_ingreso": date(2026, 5, 20),
-                "obs": "Silobolsa en campo Grasso (925.4 qq)."
+                "fecha_ingreso": date(2026, 8, 21),
+                "obs": "Silobolsa remanente de Maíz en campo Grasso (92.54 Tn / 925.4 qq)."
             },
             {
                 "campo": campo_gontero,
@@ -436,6 +436,15 @@ async def poblar_datos_cosecha_y_contratistas(dry_run: bool = False):
                 "obs": "Silobolsa Maíz 25/26 Venier (3.778,4 qq)."
             },
         ]
+
+        # Eliminar registros legacy desactualizados de soja en silos/bolsa propios
+        await db.execute(
+            delete(StockGrano).where(
+                StockGrano.cliente_id == cliente_id,
+                StockGrano.identificador.in_(["Silos Chapa N° 3 y 4 - Grasso", "Silobolsa Soja Grasso"]),
+                StockGrano.cultivo == "soja"
+            )
+        )
 
         for sg_def in stock_grano_defs:
             if not sg_def["campo"] or not campania_id:
