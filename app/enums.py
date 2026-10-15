@@ -32,6 +32,8 @@ class TipoServicioEnum(str, enum.Enum):
     COMBUSTIBLE = "combustible"
     MANTENIMIENTO = "mantenimiento"
     IMPUESTO_TASA = "impuesto_tasa"
+    TRILLA_COSECHA = "trilla_cosecha"
+    GASTOS_GENERALES = "gastos_generales"
 
 
 class EstadoServicioInstaladoEnum(str, enum.Enum):

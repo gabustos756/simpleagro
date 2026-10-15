@@ -638,17 +638,41 @@
             {% endif %}
 
             {% if labor.detalles_cosecha %}
-            <div class="bg-amber-50/60 border border-amber-100 rounded-xl p-2.5 text-2xs flex flex-wrap items-center gap-3 text-amber-950">
-              <span class="font-black text-amber-900 uppercase">🌾 Métricas Cosecha:</span>
-              {% if labor.detalles_cosecha.humedad_porcentaje %}
-              <span>Humedad: <strong>{{ labor.detalles_cosecha.humedad_porcentaje }}%</strong></span>
-              {% endif %}
-              {% if labor.detalles_cosecha.rendimiento_qq_ha %}
-              <span>Rendimiento: <strong>{{ labor.detalles_cosecha.rendimiento_qq_ha }} qq/ha</strong></span>
-              {% endif %}
-              {% if labor.detalles_cosecha.total_cosechado_qq %}
-              <span>Total: <strong>{{ labor.detalles_cosecha.total_cosechado_qq }} qq</strong></span>
-              {% endif %}
+            <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 text-2xs space-y-1.5 text-amber-950">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-black text-amber-900 uppercase">🌾 Métricas de Cosecha:</span>
+                {% if labor.detalles_cosecha.humedad_porcentaje %}
+                <span class="bg-amber-100/80 px-2 py-0.5 rounded-md font-bold text-amber-900">💧 Humedad: {{ labor.detalles_cosecha.humedad_porcentaje }}%</span>
+                {% endif %}
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/60 text-xs">
+                <div class="bg-white/80 p-2 rounded-lg border border-amber-200/50">
+                  <span class="text-3xs font-extrabold uppercase text-slate-500 block">🚜 Cosecha Real</span>
+                  <div class="flex items-baseline gap-1.5 mt-0.5">
+                    <span class="text-sm font-black text-slate-900">{{ labor.detalles_cosecha.rendimiento_real_qq_ha or labor.detalles_cosecha.rendimiento_qq_ha or '-' }}</span>
+                    <span class="text-3xs font-bold text-slate-600">qq/ha</span>
+                    {% if labor.detalles_cosecha.total_real_qq or labor.detalles_cosecha.total_cosechado_qq %}
+                    <span class="text-3xs text-slate-400 font-medium">({{ labor.detalles_cosecha.total_real_qq or labor.detalles_cosecha.total_cosechado_qq }} qq tot.)</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="bg-white/80 p-2 rounded-lg border border-amber-200/50">
+                  <span class="text-3xs font-extrabold uppercase text-slate-500 block">🏛️ Declarado / Fiscal</span>
+                  <div class="flex items-baseline gap-1.5 mt-0.5">
+                    <span class="text-sm font-black {% if labor.detalles_cosecha.rendimiento_declarado_qq_ha %}text-amber-800{% else %}text-slate-400{% endif %}">
+                      {{ labor.detalles_cosecha.rendimiento_declarado_qq_ha or 'Sin declarar' }}
+                    </span>
+                    {% if labor.detalles_cosecha.rendimiento_declarado_qq_ha %}
+                    <span class="text-3xs font-bold text-amber-800">qq/ha</span>
+                    {% if labor.detalles_cosecha.diferencia_qq_ha %}
+                    <span class="text-3xs font-black text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
+                      Dif: +{{ labor.detalles_cosecha.diferencia_qq_ha }} qq/ha
+                    </span>
+                    {% endif %}
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
             </div>
             {% endif %}
 
@@ -795,20 +819,36 @@
           </div>
           {% endif %}
 
-          <div id="contenedor-insumo-libre" class="grid grid-cols-3 gap-2">
-            <div class="col-span-2">
-              <input type="text" name="insumo_nombre" id="input-insumo-nombre" placeholder="Nombre (Ej: LT Box, Glifo Top, Urea, Stine 9720)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
-            </div>
-            <div>
-              <div class="flex items-center gap-1">
-                <input type="number" step="0.001" name="insumo_dosis" id="input-insumo-dosis" placeholder="Dosis" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
-                <select name="insumo_unidad" id="select-insumo-unidad" class="px-1.5 py-2 bg-white border border-slate-300 rounded-xl font-extrabold text-2xs">
-                  <option value="lt/ha">L/ha</option>
-                  <option value="kg/ha">kg/ha</option>
-                  <option value="sem/m">sem/m</option>
-                  <option value="bolsas">bolsas</option>
-                </select>
+          <div id="contenedor-insumo-libre" class="space-y-1.5">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="col-span-2">
+                <input type="text" name="insumo_nombre" id="input-insumo-nombre" list="datalist-insumos-catalogo" placeholder="Nombre (Ej: LT Box, Terbutilacina, Ligate, Glifo, Urea)" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+                <datalist id="datalist-insumos-catalogo">
+                  {% if catalogo_insumos_nombres %}
+                    {% for ins_nom in catalogo_insumos_nombres %}
+                    <option value="{{ ins_nom }}"></option>
+                    {% endfor %}
+                  {% endif %}
+                </datalist>
               </div>
+              <div>
+                <div class="flex items-center gap-1">
+                  <input type="number" step="0.001" name="insumo_dosis" id="input-insumo-dosis" placeholder="Dosis" class="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800">
+                  <select name="insumo_unidad" id="select-insumo-unidad" class="px-1.5 py-2 bg-white border border-slate-300 rounded-xl font-extrabold text-2xs">
+                    <option value="lt/ha">L/ha</option>
+                    <option value="kg/ha">kg/ha</option>
+                    <option value="sem/m">sem/m</option>
+                    <option value="bolsas">bolsas</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-3xs text-slate-500 font-semibold px-1">
+              <span>💡 <em>Escribí nuevos químicos o elegilos del catálogo inteligente.</em></span>
+              <label class="flex items-center gap-1 text-agro-700 font-bold cursor-pointer">
+                <input type="checkbox" name="guardar_en_catalogo" checked class="rounded text-agro-600 focus:ring-0">
+                Guardar en catálogo
+              </label>
             </div>
           </div>
         </div>
@@ -857,20 +897,46 @@
 
         <!-- CAMPOS DINÁMICOS: COSECHA -->
         <div id="campo-dinamico-cosecha" class="hidden bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-3">
-          <span class="font-black text-amber-900 uppercase tracking-wider text-2xs block">🌾 Métricas de Cosecha</span>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="text-2xs font-bold text-amber-900 block">Humedad %</label>
-              <input type="number" step="0.1" name="humedad_porcentaje" id="cosecha-humedad" placeholder="Ej: 12.5" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+          <span class="font-black text-amber-900 uppercase tracking-wider text-2xs block">🌾 Métricas de Cosecha (Real vs Declarada)</span>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- COSECHA REAL -->
+            <div class="bg-white/80 p-2.5 rounded-xl border border-amber-200 space-y-1.5">
+              <span class="text-3xs font-extrabold text-slate-600 uppercase block">🚜 Cosecha Real (Balanza / Tolva)</span>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-3xs font-bold text-amber-900 block">Rinde Real (qq/ha)</label>
+                  <input type="number" step="0.01" name="rendimiento_qq_ha" id="cosecha-rinde-qq" oninput="calcularTotalCosecha()" placeholder="Ej: 38.50" class="w-full px-2 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                </div>
+                <div>
+                  <label class="text-3xs font-bold text-amber-900 block">Total Real (qq)</label>
+                  <input type="number" step="0.1" name="total_cosechado_qq" id="cosecha-total-qq" placeholder="Ej: 1925.0" class="w-full px-2 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                </div>
+              </div>
             </div>
-            <div>
-              <label class="text-2xs font-bold text-amber-900 block">Rendimiento (qq/ha)</label>
-              <input type="number" step="0.1" name="rendimiento_qq_ha" id="cosecha-rinde-qq" oninput="calcularTotalCosecha()" placeholder="Ej: 96.07" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+
+            <!-- COSECHA DECLARADA FISCAL -->
+            <div class="bg-white/80 p-2.5 rounded-xl border border-amber-200 space-y-1.5">
+              <span class="text-3xs font-extrabold text-amber-800 uppercase block">🏛️ Cosecha Declarada (AFIP / Fiscal)</span>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-3xs font-bold text-amber-900 block">Rinde Declarado (qq/ha)</label>
+                  <input type="number" step="0.01" name="rendimiento_declarado_qq_ha" id="cosecha-rinde-decl-qq" oninput="calcularTotalCosecha()" placeholder="Ej: 29.39" class="w-full px-2 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                </div>
+                <div>
+                  <label class="text-3xs font-bold text-amber-900 block">Total Declarado (qq)</label>
+                  <input type="number" step="0.1" name="total_declarado_qq" id="cosecha-total-decl-qq" placeholder="Ej: 1469.5" class="w-full px-2 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-xs text-slate-800">
+                </div>
+              </div>
             </div>
-            <div>
-              <label class="text-2xs font-bold text-amber-900 block">Total Cosechado (qq)</label>
-              <input type="number" step="0.1" name="total_cosechado_qq" id="cosecha-total-qq" placeholder="Ej: 5480.4" class="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg font-bold">
+          </div>
+
+          <div class="flex items-center justify-between text-3xs font-bold px-1">
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-600">💧 Humedad Grano (%):</span>
+              <input type="number" step="0.1" name="humedad_porcentaje" id="cosecha-humedad" placeholder="Ej: 12.5" class="w-20 px-2 py-1 bg-white border border-amber-200 rounded-lg font-bold text-center">
             </div>
+            <span id="label-dif-rinde" class="text-emerald-700 font-extrabold bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 hidden"></span>
           </div>
 
           <!-- ASIGNACIÓN DIRECTA A SILO / STOCK COMERCIAL -->
@@ -962,10 +1028,29 @@
     function calcularTotalCosecha() {
       const rindeInput = document.getElementById('cosecha-rinde-qq');
       const totalInput = document.getElementById('cosecha-total-qq');
+      const rindeDeclInput = document.getElementById('cosecha-rinde-decl-qq');
+      const totalDeclInput = document.getElementById('cosecha-total-decl-qq');
+      const labelDif = document.getElementById('label-dif-rinde');
       const supHa = parseFloat("{{ lote.superficie_productiva_ha or 0 }}");
-      if (rindeInput && totalInput && rindeInput.value && supHa > 0) {
-        const total = parseFloat(rindeInput.value) * supHa;
-        totalInput.value = total.toFixed(1);
+
+      let rReal = 0;
+      let rDecl = 0;
+
+      if (rindeInput && rindeInput.value && supHa > 0) {
+        rReal = parseFloat(rindeInput.value);
+        if (totalInput) totalInput.value = (rReal * supHa).toFixed(1);
+      }
+      if (rindeDeclInput && rindeDeclInput.value && supHa > 0) {
+        rDecl = parseFloat(rindeDeclInput.value);
+        if (totalDeclInput) totalDeclInput.value = (rDecl * supHa).toFixed(1);
+      }
+
+      if (labelDif && rReal > 0 && rDecl > 0) {
+        const dif = (rReal - rDecl).toFixed(2);
+        labelDif.textContent = `⚡ Brecha Real vs Fiscal: +${dif} qq/ha (${((rReal - rDecl) * supHa).toFixed(1)} qq remanente)`;
+        labelDif.classList.remove('hidden');
+      } else if (labelDif) {
+        labelDif.classList.add('hidden');
       }
     }
 
@@ -1019,21 +1104,21 @@
     }
 
     const PLANTILLAS_LABOR = {
-      barbecho_largo_invierno: {
+      barbecho_largo_presoja: {
         tipo_labor: "pulverizacion",
-        insumo_nombre: "LT Box + 2,4-D + Picloram + Atrazina + Coadyuvante",
+        insumo_nombre: "LT Box + 2,4-D Avstok + Picloram + Spider + Altiva Pro",
         insumo_dosis: 1.5,
         insumo_unidad: "kg/ha",
         volumen_agua: 52,
         presion: 2.0,
         velocidad: 18,
         pastilla: "Cono hueco 0.20",
-        blanco: "Barbecho largo de invierno (Rama Negra, Parietaria)",
-        evaluacion: "Barbecho largo invernal para control residual de malezas."
+        blanco: "Barbecho largo invierno previo a Soja",
+        evaluacion: "Control residual invernal para siembra de soja."
       },
-      barbecho_con_dicamba: {
+      barbecho_largo_premaiz: {
         tipo_labor: "pulverizacion",
-        insumo_nombre: "Tijereta Box + 2,4-D + Dicamba + Atrazina + Altiva Pro",
+        insumo_nombre: "Tijereta Box + 2,4-D + Dicamba + Atrazina + Mictec",
         insumo_dosis: 1.5,
         insumo_unidad: "kg/ha",
         volumen_agua: 65,
@@ -1041,17 +1126,27 @@
         velocidad: 17,
         pastilla: "Cono hueco 0.20",
         blanco: "Barbecho lote hacia maíz",
-        evaluacion: "Aplicación de barbecho con Dicamba y Atrazina."
+        evaluacion: "Aplicación de barbecho con Dicamba y Atrazina con suficiente ventana de degradación."
       },
-      barbecho_corto_ligate: {
+      barbecho_corto_presoja: {
         tipo_labor: "pulverizacion",
-        insumo_nombre: "LT Box + 2,4-D Avstok + Atrazina Gesaprim + Ligate",
+        insumo_nombre: "LT Box + 2,4-D Avstok + Atrazina Gesaprim + Ligate + Altiva Pro",
         insumo_dosis: 1.5,
         insumo_unidad: "kg/ha",
         volumen_agua: 40,
         pastilla: "Abanico plano 0.15",
-        blanco: "Barbecho primaveral previo a siembra",
-        evaluacion: "Control de malezas nacidas en primavera."
+        blanco: "Barbecho primaveral previo a Soja (con Ligate)",
+        evaluacion: "Control de malezas nacidas en primavera para lote que va a soja."
+      },
+      barbecho_corto_premaiz: {
+        tipo_labor: "pulverizacion",
+        insumo_nombre: "LT Box + 2,4-D Avstok + Terbutilacina + Atrazina + Altiva Pro",
+        insumo_dosis: 1.5,
+        insumo_unidad: "kg/ha",
+        volumen_agua: 45,
+        pastilla: "Abanico plano 0.15",
+        blanco: "Barbecho corto previo a Maíz (Terbutilacina - sin Ligate)",
+        evaluacion: "Barbecho selectivo hacia maíz con Terbutilacina para evitar fitotoxicidad de Ligate."
       },
       barbecho_post_cosecha: {
         tipo_labor: "pulverizacion",

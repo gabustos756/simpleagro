@@ -8,7 +8,7 @@ preservación del UUID en el value de los option.
 """
 
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from uuid import uuid4
 from contextlib import asynccontextmanager
 import pytest
@@ -48,6 +48,8 @@ def test_1_build_commitment_display_label_full_data():
     Test 1: Construcción completa de label con tipo, contraparte, referencia, saldo y vencimiento.
     """
     c_id = uuid4()
+    vence_futuro = date.today() + timedelta(days=60)
+    vence_str = vence_futuro.strftime("%d/%m/%Y")
     comp = CompromisoGrano(
         id=c_id,
         cliente_id=uuid4(),
@@ -57,11 +59,11 @@ def test_1_build_commitment_display_label_full_data():
         concepto="Semilla maíz 2026/27",
         beneficiario="Murature",
         toneladas_comprometidas=Decimal("18.00"),
-        fecha_vencimiento=date(2026, 9, 30),
+        fecha_vencimiento=vence_futuro,
     )
 
     label = build_commitment_display_label(comp, saldo_tn=Decimal("18.00"))
-    assert label == "Canje · Murature · Semilla maíz 2026/27 · Saldo: 18,00 Tn · Vence: 30/09/2026"
+    assert label == f"Canje · Murature · Semilla maíz 2026/27 · Saldo: 18,00 Tn · Vence: {vence_str}"
 
 
 def test_2_build_commitment_display_label_fallback_missing_fields():

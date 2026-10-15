@@ -1789,3 +1789,35 @@ class InsumoReserva(Base):
         CheckConstraint("cantidad_reservada > 0", name="chk_insumo_reserva_cantidad_positiva"),
         Index("idx_insumo_reserva_tenant_insumo", "cliente_id", "insumo_id", "estado_reserva"),
     )
+
+
+# ======================================================================
+# CONTROL DE RETIROS DE CAPITAL POR SOCIO (EduAgro Comercial)
+# ======================================================================
+
+class RetiroCapitalSocio(Base):
+    """Control de retiros personales de capital por socio en quintales (cuota 200 qq/socio/año)."""
+    __tablename__ = "retiros_capital_socios"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cliente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    socio_nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    campania_nombre: Mapped[str] = mapped_column(String(50), nullable=False, default="2025/2026")
+    cultivo: Mapped[str] = mapped_column(String(50), nullable=False, default="soja")
+
+    tipo_movimiento: Mapped[str] = mapped_column(String(50), nullable=False, default="retiro")  # asignacion, retiro, venta
+    quintales: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+
+    precio_usd_qq: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    monto_total_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+
+    concepto: Mapped[str] = mapped_column(String(200), nullable=False)
+    comprobante_o_referencia: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_retiros_socio_cliente_campania", "cliente_id", "campania_nombre", "socio_nombre"),
+    )

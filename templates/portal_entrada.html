@@ -408,9 +408,16 @@
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-[11px] font-bold text-slate-600 uppercase">Detalle de Insumos / Receta del Trabajo</label>
-                <span class="text-[10px] text-slate-400 font-medium">Auto-aprende si es nueva</span>
+                <span class="text-[10px] text-slate-400 font-medium">Guarda automáticamente en catálogo si es nuevo</span>
               </div>
-              <textarea name="insumo_nombre" id="modal-insumo-nombre" rows="2" placeholder="Ej: Tijereta Box 1.5kg + 2,4-D 1L + Dicamba 0.15L..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:ring-2 focus:ring-agro-500"></textarea>
+              <textarea name="insumo_nombre" id="modal-insumo-nombre" rows="2" placeholder="Ej: Tijereta Box 1.5kg + 2,4-D 1L + Terbutilacina 1L..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:ring-2 focus:ring-agro-500"></textarea>
+              <datalist id="datalist-insumos-catalogo">
+                {% if catalogo_insumos_nombres %}
+                  {% for ins_nom in catalogo_insumos_nombres %}
+                  <option value="{{ ins_nom }}"></option>
+                  {% endfor %}
+                {% endif %}
+              </datalist>
             </div>
           </div>
 

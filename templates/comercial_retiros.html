@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduAgro - Control de Retiros de Capital por Socio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full bg-slate-100 text-slate-900 font-sans antialiased">
+
+  {% set active_page = 'comercial' %}
+  {% include 'components/header.html' %}
+
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- CABECERA DE SECCIÓN Y PESTAÑAS COMERCIALES -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl font-black shadow-md shadow-amber-600/20">
+          💰
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <span>Retiros de Capital de Socios</span>
+            <span class="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full uppercase">200 qq / Socio / Año</span>
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Cliente: <strong class="text-slate-800 font-bold">{{ user.cliente_nombre }}</strong> • Control de cuotas de granos y retiros personales
+          </p>
+        </div>
+      </div>
+
+      <!-- Selector de Cultivo -->
+      <div class="flex items-center gap-2">
+        <a href="/comercial/retiros?cultivo=soja" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'soja' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌱 Soja
+        </a>
+        <a href="/comercial/retiros?cultivo=maiz" class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if cultivo_seleccionado == 'maiz' %} bg-amber-600 text-white border-amber-600 shadow-xs {% else %} bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 {% endif %}">
+          🌽 Maíz
+        </a>
+      </div>
+    </div>
+
+    <!-- PESTAÑAS DE NAVEGACIÓN COMERCIAL -->
+    {% set active_tab = 'retiros' %}
+    {% include 'components/comercial_tabs.html' %}
+
+    <!-- MENSAJES DE ESTADO / ALERTAS -->
+    {% if mensaje_exito %}
+    <div class="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+      <div class="flex items-center gap-2">
+        <span>✅</span>
+        <span>{{ mensaje_exito }}</span>
+      </div>
+      <a href="/comercial/retiros?cultivo={{ cultivo_seleccionado }}" class="text-emerald-700 hover:underline">✕</a>
+    </div>
+    {% endif %}
+
+    {% if error_msg %}
+    <div class="bg-rose-50 border border-rose-300 text-rose-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+      <div class="flex items-center gap-2">
+        <span>⚠️</span>
+        <span>{{ error_msg }}</span>
+      </div>
+      <a href="/comercial/retiros?cultivo={{ cultivo_seleccionado }}" class="text-rose-700 hover:underline">✕</a>
+    </div>
+    {% endif %}
+
+    <!-- MÉTRICAS CONSOLIDADAS DE CUOTAS Y RETIROS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- CARD 1: CUOTA ASIGNADA TOTAL -->
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xl shrink-0">
+          🌾
+        </div>
+        <div>
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-slate-400 block">Cuota Total Asignada</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="text-2xl font-black text-slate-900">{{ "%.2f"|format(total_cuota_qq) }}</span>
+            <span class="text-xs font-bold text-slate-500">qq</span>
+          </div>
+          <span class="text-[11px] text-slate-500 font-medium">Campañas 24/25 y 25/26</span>
+        </div>
+      </div>
+
+      <!-- CARD 2: TOTAL RETIRADO / VENDIDO -->
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-xl shrink-0">
+          📤
+        </div>
+        <div>
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-amber-700 block">Retirado / Vendido</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="text-2xl font-black text-amber-900">{{ "%.2f"|format(total_retirado_qq) }}</span>
+            <span class="text-xs font-bold text-amber-700">qq</span>
+          </div>
+          <span class="text-[11px] text-amber-700 font-medium">Cobrado por los socios</span>
+        </div>
+      </div>
+
+      <!-- CARD 3: SALDO REMANENTE DISPONIBLE -->
+      <div class="bg-white border border-emerald-200 bg-emerald-50/20 rounded-3xl p-5 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-xl shrink-0 text-emerald-800">
+          🟢
+        </div>
+        <div>
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-emerald-800 block">Saldo Disponible</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="text-2xl font-black text-emerald-950">{{ "%.2f"|format(saldo_disponible_qq) }}</span>
+            <span class="text-xs font-bold text-emerald-800">qq</span>
+          </div>
+          <span class="text-[11px] text-emerald-700 font-semibold">Listo para retirar / vender</span>
+        </div>
+      </div>
+
+      <!-- CARD 4: VALORIZACIÓN ESTIMADA USD -->
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-xl shrink-0">
+          💵
+        </div>
+        <div>
+          <span class="text-3xs font-extrabold uppercase tracking-wider text-sky-800 block">Valuación Disponible</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="text-2xl font-black text-sky-950">US$ {{ "{:,.0f}".format(valor_disponible_usd) }}</span>
+          </div>
+          <span class="text-[11px] text-sky-700 font-medium">Cotiz: US$ {{ "%.2f"|format(precio_pizarra_qq) }}/qq</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TARJETAS DE SALDO POR SOCIO -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for s_item in saldos_por_socio %}
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-700 text-sm">
+              👤
+            </div>
+            <div>
+              <h3 class="font-black text-slate-900 text-base">{{ s_item.nombre }}</h3>
+              <p class="text-2xs text-slate-500 font-medium">Socio Titular • Cuota 200 qq/año</p>
+            </div>
+          </div>
+          <span class="text-xs font-black px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {{ "%.2f"|format(s_item.saldo_qq) }} qq disponibles
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-3xs font-bold text-slate-400 uppercase block">Asignados</span>
+            <span class="font-extrabold text-slate-800">{{ "%.2f"|format(s_item.total_asignado_qq) }} qq</span>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-3xs font-bold text-slate-400 uppercase block">Retirados</span>
+            <span class="font-extrabold text-amber-700">{{ "%.2f"|format(s_item.total_retirado_qq) }} qq</span>
+          </div>
+          <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+            <span class="text-3xs font-bold text-emerald-700 uppercase block">Remanente</span>
+            <span class="font-black text-emerald-900">{{ "%.2f"|format(s_item.saldo_qq) }} qq</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- SECCIÓN TABLA DE MOVIMIENTOS Y ACCIÓN RÁPIDA -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>Historial de Asignaciones y Retiros</span>
+            <span class="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{{ retiros|length }} registros</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Registro cronológico de retiros de capital en quintales y liquidaciones personales.
+          </p>
+        </div>
+
+        <button type="button" onclick="abrirModalNuevoRetiro()" class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 active:scale-95">
+          <span>➕</span> Registrar Retiro / Venta de Socio
+        </button>
+      </div>
+
+      <!-- TABLA DE MOVIMIENTOS -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-slate-200 text-3xs font-extrabold uppercase text-slate-400 tracking-wider">
+              <th class="py-3 px-3">Fecha</th>
+              <th class="py-3 px-3">Socio</th>
+              <th class="py-3 px-3">Campaña</th>
+              <th class="py-3 px-3">Tipo Movimiento</th>
+              <th class="py-3 px-3 text-right">Quintales</th>
+              <th class="py-3 px-3 text-right">Precio USD / Tot.</th>
+              <th class="py-3 px-3">Concepto & Detalle</th>
+              <th class="py-3 px-3 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium">
+            {% if not retiros %}
+            <tr>
+              <td colspan="8" class="py-8 text-center text-slate-400 font-medium text-xs">
+                No hay movimientos registrados de retiros de capital para este cultivo.
+              </td>
+            </tr>
+            {% else %}
+            {% for r in retiros %}
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="py-3 px-3 font-mono text-slate-600">
+                {{ r.fecha.strftime('%d/%m/%Y') if r.fecha else '-' }}
+              </td>
+              <td class="py-3 px-3 font-bold text-slate-900">
+                👤 {{ r.socio_nombre }}
+              </td>
+              <td class="py-3 px-3">
+                <span class="bg-slate-100 text-slate-700 text-3xs font-bold px-2 py-0.5 rounded border border-slate-200">
+                  {{ r.campania_nombre }}
+                </span>
+              </td>
+              <td class="py-3 px-3">
+                {% if r.tipo_movimiento == 'asignacion_cuota' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-3xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  📥 Asignación Cuota
+                </span>
+                {% elif r.tipo_movimiento == 'venta_liquidacion' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-3xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  📤 Venta / Liquidación
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-3xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  💵 Retiro Físico
+                </span>
+                {% endif %}
+              </td>
+              <td class="py-3 px-3 text-right font-black {% if r.tipo_movimiento == 'asignacion_cuota' %}text-blue-900{% else %}text-amber-800{% endif %}">
+                {% if r.tipo_movimiento != 'asignacion_cuota' %}-{% endif %}{{ "%.2f"|format(r.quintales) }} qq
+              </td>
+              <td class="py-3 px-3 text-right">
+                {% if r.monto_total_usd %}
+                <span class="font-bold text-slate-900">US$ {{ "{:,.2f}".format(r.monto_total_usd) }}</span>
+                {% if r.precio_usd_qq %}
+                <span class="block text-3xs text-slate-400">@ US$ {{ "%.2f"|format(r.precio_usd_qq) }}/qq</span>
+                {% endif %}
+                {% else %}
+                <span class="text-slate-400">-</span>
+                {% endif %}
+              </td>
+              <td class="py-3 px-3">
+                <div class="font-bold text-slate-800">{{ r.concepto }}</div>
+                {% if r.observaciones %}
+                <div class="text-3xs text-slate-500 italic mt-0.5">{{ r.observaciones }}</div>
+                {% endif %}
+              </td>
+              <td class="py-3 px-3 text-center">
+                <form method="POST" action="/comercial/retiros/{{ r.id }}/eliminar" class="inline" onsubmit="return confirm('¿Seguro que deseas eliminar este movimiento de retiro?');">
+                  <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+                  <button type="submit" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Eliminar movimiento">
+                    🗑️
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: REGISTRAR NUEVO RETIRO / ASIGNACIÓN -->
+  <div id="modal-nuevo-retiro" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-xl border border-slate-200 animate-fadeIn">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-black text-slate-900 text-lg flex items-center gap-2">
+          <span>💰</span> Registrar Movimiento de Capital
+        </h3>
+        <button type="button" onclick="cerrarModalNuevoRetiro()" class="text-slate-400 hover:text-slate-700 text-lg font-bold">
+          ✕
+        </button>
+      </div>
+
+      <form method="POST" action="/comercial/retiros/crear" class="space-y-3.5 text-xs font-bold text-slate-700">
+        <input type="hidden" name="cultivo" value="{{ cultivo_seleccionado }}">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Socio Titular</label>
+            <select name="socio_nombre" required class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+              <option value="Andrés Matteuda">Andrés Matteuda</option>
+              <option value="Florencia Matteuda">Florencia Matteuda</option>
+              <option value="Familia Matteuda">Familia Matteuda (Mancomunado)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Campaña</label>
+            <select name="campania_nombre" required class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+              <option value="2025/2026" selected>2025/2026</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2026/2027">2026/2027</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Tipo de Operación</label>
+            <select name="tipo_movimiento" required class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+              <option value="venta_liquidacion">📤 Venta / Liquidación de Grano</option>
+              <option value="retiro">💵 Retiro Físico de Grano</option>
+              <option value="asignacion_cuota">📥 Asignación de Cuota Anual</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Fecha</label>
+            <input type="date" name="fecha" required value="{{ current_date_str or '2026-10-14' }}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Quintales (qq)</label>
+            <input type="number" step="0.01" min="0.01" name="quintales" required placeholder="Ej: 50.00" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+          </div>
+
+          <div>
+            <label class="block text-3xs uppercase text-slate-500 mb-1">Precio US$ / qq (Opcional)</label>
+            <input type="number" step="0.01" min="0" name="precio_usd_qq" placeholder="Ej: 28.50" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-3xs uppercase text-slate-500 mb-1">Concepto / Motivo</label>
+          <input type="text" name="concepto" required placeholder="Ej: Venta parcial cuota 25/26 para gastos personales" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div>
+          <label class="block text-3xs uppercase text-slate-500 mb-1">Observaciones / Nro Comprobante</label>
+          <textarea name="observaciones" rows="2" placeholder="Detalle bancario, liquidación, o nota de acuerdo entre socios..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-amber-500"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button type="button" onclick="cerrarModalNuevoRetiro()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs transition">
+            Guardar Registro
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function abrirModalNuevoRetiro() {
+      document.getElementById('modal-nuevo-retiro').classList.remove('hidden');
+    }
+    function cerrarModalNuevoRetiro() {
+      document.getElementById('modal-nuevo-retiro').classList.add('hidden');
+    }
+  </script>
+
+</body>
+</html>

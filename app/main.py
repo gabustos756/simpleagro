@@ -389,6 +389,8 @@ def servicio_to_dict(s: ServicioInstalado, campo_nombre: str = "General (Todos l
         "combustible": "🛢️ Combustible Diesel",
         "mantenimiento": "🔧 Mantenimiento",
         "impuesto_tasa": "🏛️ Tasa / Impuesto",
+        "trilla_cosecha": "🌾 Trilla / Cosecha",
+        "gastos_generales": "📋 Gastos Generales",
     }
 
     frec_labels = {
@@ -1014,8 +1016,16 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
         "es_fallback": snapshot[0].get("es_fallback", False) if snapshot else False,
     }
 
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
     from app.services.labores_plantillas import obtener_plantillas_agrupadas
-    plantillas_labores = await obtener_plantillas_agrupadas(db, get_uuid(user.get("cliente_id")))
+    plantillas_labores = await obtener_plantillas_agrupadas(db, cliente_id)
+
+    # Lista completa de insumos catalogados para datalist
+    res_todos_ins = await db.execute(
+        select(Insumo.nombre).where(Insumo.cliente_id == cliente_id, Insumo.activo == True).order_by(Insumo.nombre)
+    )
+    catalogo_insumos_nombres = [r[0] for r in res_todos_ins.all()]
 
     return templates.TemplateResponse(
         request=request,
@@ -1031,6 +1041,7 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
             "cotizacion_dolar": dolar_ref,
             "cotizacion_dolar_info": dolar_info,
             "plantillas_labores": plantillas_labores,
+            "catalogo_insumos_nombres": catalogo_insumos_nombres,
             "campania_activa": "2025-2026",
         },
     )
@@ -3207,6 +3218,7 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
     if not user:
         return RedirectResponse(f"/login?next=/productivo/lotes/{lote_id}", status_code=status.HTTP_303_SEE_OTHER)
 
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
     campo_activo = await get_campo_activo_db(request, db)
     campos = await fetch_campos_dicts(db)
     lotes = await fetch_lotes_dicts(db)
@@ -3407,8 +3419,16 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
                     except Exception:
                         pass
 
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
     from app.services.labores_plantillas import obtener_plantillas_agrupadas
-    plantillas_labores = await obtener_plantillas_agrupadas(db, get_uuid(user.get("cliente_id")))
+    plantillas_labores = await obtener_plantillas_agrupadas(db, cliente_id)
+
+    # Lista completa de insumos activos catalogados para autocompletado y datalist
+    res_todos_insumos = await db.execute(
+        select(Insumo.nombre).where(Insumo.cliente_id == cliente_id, Insumo.activo == True).order_by(Insumo.nombre)
+    )
+    catalogo_insumos_nombres = [r[0] for r in res_todos_insumos.all()]
 
     return templates.TemplateResponse(
         request=request,
@@ -3424,6 +3444,7 @@ async def ficha_lote(request: Request, lote_id: str, db: AsyncSession = Depends(
             "partidas_lote": partidas_lote,
             "storage_locations_grano": storage_locations_grano,
             "insumos_disponibles": insumos_disponibles,
+            "catalogo_insumos_nombres": catalogo_insumos_nombres,
             "total_costo_insumos_usd": float(total_costo_insumos_usd),
             "plantillas_labores": plantillas_labores,
         },
@@ -3452,7 +3473,9 @@ async def crear_labor_rapida_lote(
     variedad_hibrido: Optional[str] = Form(None),
     humedad_porcentaje: Optional[float] = Form(None),
     rendimiento_qq_ha: Optional[float] = Form(None),
+    rendimiento_declarado_qq_ha: Optional[float] = Form(None),
     total_cosechado_qq: Optional[float] = Form(None),
+    total_declarado_qq: Optional[float] = Form(None),
     destino_grano_tipo: Optional[str] = Form(None),
     storage_location_id: Optional[str] = Form(None),
     nuevo_silobolsa_nombre: Optional[str] = Form(None),
@@ -3464,8 +3487,8 @@ async def crear_labor_rapida_lote(
     if not user:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    from app.models import Campania, Lote, LaborCampo, StorageLocation
-    from app.enums import EstadoProductivoLoteEnum, TipoLabor, UbicacionStockEnum
+    from app.models import Campania, Lote, LaborCampo, StorageLocation, Insumo
+    from app.enums import EstadoProductivoLoteEnum, TipoLabor, UbicacionStockEnum, CategoriaInsumoEnum, UnidadMedidaInsumoEnum
 
     l_uuid = uuid.UUID(lote_id)
     cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
@@ -3502,6 +3525,35 @@ async def crear_labor_rapida_lote(
             "insumo_storage_location_id": insumo_storage_location_id,
         })
 
+        # Auto-catalogación de agroquímicos / insumos nuevos ingresados manualmente
+        try:
+            raw_parts = [p.strip() for p in re.split(r'[,+]', insumo_nombre) if p.strip()]
+            for raw_p in raw_parts:
+                clean_name = re.sub(r'\s*\d+([.,]\d+)?\s*(kg|lt|l|g|cc|ml|tn|qq)?(/ha)?\b', '', raw_p, flags=re.IGNORECASE).strip()
+                if not clean_name or len(clean_name) < 2:
+                    clean_name = raw_p.strip()
+                res_exist = await db.execute(
+                    select(Insumo).where(Insumo.cliente_id == cliente_id, func.lower(Insumo.nombre) == clean_name.lower())
+                )
+                if not res_exist.scalars().first():
+                    unidad_insumo = UnidadMedidaInsumoEnum.KG if ("kg" in (insumo_unidad or "").lower()) else UnidadMedidaInsumoEnum.LITRO
+                    cat_insumo = CategoriaInsumoEnum.SEMILLA if tipo_labor_enum == TipoLabor.SIEMBRA else (
+                        CategoriaInsumoEnum.FERTILIZANTE if tipo_labor_enum == TipoLabor.FERTILIZACION else CategoriaInsumoEnum.FITOSANITARIO
+                    )
+                    nuevo_ins = Insumo(
+                        id=uuid.uuid4(),
+                        cliente_id=cliente_id,
+                        nombre=clean_name,
+                        categoria=cat_insumo,
+                        unidad_medida=unidad_insumo,
+                        activo=True,
+                    )
+                    db.add(nuevo_ins)
+                    await db.flush()
+                    logger.info(f"✔ Nuevo insumo auto-catalogado: {clean_name} ({cat_insumo.value})")
+        except Exception as e:
+            logger.warning(f"[AUTO-CATALOGO INSUMOS] Error auto-catalogando insumo: {e}")
+
     # Parámetros agronómicos específicos
     parametros_app = None
     if volumen_agua_lts_ha or presion_bar or velocidad_kmh or pastilla_boquilla:
@@ -3520,11 +3572,27 @@ async def crear_labor_rapida_lote(
         }
 
     detalles_cosecha = None
-    if rendimiento_qq_ha or total_cosechado_qq or humedad_porcentaje:
+    if rendimiento_qq_ha or total_cosechado_qq or humedad_porcentaje or rendimiento_declarado_qq_ha:
+        rinde_real_val = float(rendimiento_qq_ha) if rendimiento_qq_ha else None
+        rinde_decl_val = float(rendimiento_declarado_qq_ha) if rendimiento_declarado_qq_ha else None
+        sup_afectada = float(superficie_afectada_ha or (lote_obj.superficie_productiva_ha if lote_obj else 0.0))
+        tot_real_val = float(total_cosechado_qq) if total_cosechado_qq else (
+            (round(rinde_real_val * sup_afectada, 2)) if rinde_real_val else None
+        )
+        tot_decl_val = float(total_declarado_qq) if total_declarado_qq else (
+            (round(rinde_decl_val * sup_afectada, 2)) if rinde_decl_val else None
+        )
+        dif_val = (round(rinde_real_val - rinde_decl_val, 2)) if (rinde_real_val is not None and rinde_decl_val is not None) else None
+
         detalles_cosecha = {
-            "rendimiento_qq_ha": rendimiento_qq_ha,
-            "total_cosechado_qq": total_cosechado_qq,
-            "humedad_porcentaje": humedad_porcentaje,
+            "rendimiento_qq_ha": rinde_real_val,
+            "rendimiento_real_qq_ha": rinde_real_val,
+            "rendimiento_declarado_qq_ha": rinde_decl_val,
+            "total_cosechado_qq": tot_real_val,
+            "total_real_qq": tot_real_val,
+            "total_declarado_qq": tot_decl_val,
+            "diferencia_qq_ha": dif_val,
+            "humedad_porcentaje": float(humedad_porcentaje) if humedad_porcentaje else None,
             "destino_grano_tipo": destino_grano_tipo,
             "storage_location_id": storage_location_id,
         }
@@ -6862,6 +6930,156 @@ async def marcar_compromiso_cumplido(
 
     return RedirectResponse(
         f"/comercial/contratos?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.get("/comercial/retiros", response_class=HTMLResponse)
+async def view_comercial_retiros(
+    request: Request,
+    cultivo: Optional[str] = "soja",
+    mensaje: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse(f"/login?next=/comercial/retiros?cultivo={cultivo}", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.models import RetiroCapitalSocio
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+    cultivo_sel = cultivo.strip().lower() if cultivo else "soja"
+
+    res_retiros = await db.execute(
+        select(RetiroCapitalSocio)
+        .where(RetiroCapitalSocio.cliente_id == cliente_id, RetiroCapitalSocio.cultivo == cultivo_sel)
+        .order_by(RetiroCapitalSocio.fecha.desc(), RetiroCapitalSocio.fecha_creacion.desc())
+    )
+    retiros_list = res_retiros.scalars().all()
+
+    total_cuota_qq = Decimal("0.00")
+    total_retirado_qq = Decimal("0.00")
+    saldos_dict = {}
+
+    for r in retiros_list:
+        socio = r.socio_nombre.strip()
+        if socio not in saldos_dict:
+            saldos_dict[socio] = {"nombre": socio, "total_asignado_qq": Decimal("0.00"), "total_retirado_qq": Decimal("0.00"), "saldo_qq": Decimal("0.00")}
+
+        if r.tipo_movimiento == "asignacion_cuota":
+            total_cuota_qq += r.quintales
+            saldos_dict[socio]["total_asignado_qq"] += r.quintales
+            saldos_dict[socio]["saldo_qq"] += r.quintales
+        else:
+            total_retirado_qq += r.quintales
+            saldos_dict[socio]["total_retirado_qq"] += r.quintales
+            saldos_dict[socio]["saldo_qq"] -= r.quintales
+
+    saldo_disponible_qq = max(Decimal("0.00"), total_cuota_qq - total_retirado_qq)
+    precio_pizarra_qq = Decimal("28.50") if cultivo_sel == "soja" else Decimal("18.00")
+    valor_disponible_usd = saldo_disponible_qq * precio_pizarra_qq
+
+    return templates.TemplateResponse(
+        request=request,
+        name="comercial_retiros.html",
+        context={
+            "user": user,
+            "cultivo_seleccionado": cultivo_sel,
+            "retiros": retiros_list,
+            "total_cuota_qq": float(total_cuota_qq),
+            "total_retirado_qq": float(total_retirado_qq),
+            "saldo_disponible_qq": float(saldo_disponible_qq),
+            "valor_disponible_usd": float(valor_disponible_usd),
+            "precio_pizarra_qq": float(precio_pizarra_qq),
+            "saldos_por_socio": list(saldos_dict.values()),
+            "mensaje_exito": mensaje,
+            "error_msg": error,
+            "current_date_str": date.today().strftime("%Y-%m-%d"),
+        },
+    )
+
+
+@app.post("/comercial/retiros/crear")
+async def crear_retiro_capital_socio(
+    request: Request,
+    socio_nombre: str = Form(...),
+    campania_nombre: str = Form("2025/2026"),
+    cultivo: str = Form("soja"),
+    tipo_movimiento: str = Form("venta_liquidacion"),
+    quintales: float = Form(...),
+    fecha: str = Form(...),
+    precio_usd_qq: Optional[float] = Form(None),
+    concepto: str = Form(...),
+    observaciones: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/retiros", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.models import RetiroCapitalSocio
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except Exception:
+        fecha_dt = date.today()
+
+    qq_dec = Decimal(str(quintales))
+    p_dec = Decimal(str(precio_usd_qq)) if precio_usd_qq else None
+    tot_usd = (qq_dec * p_dec) if (qq_dec and p_dec) else None
+
+    nuevo = RetiroCapitalSocio(
+        id=uuid.uuid4(),
+        cliente_id=cliente_id,
+        socio_nombre=socio_nombre.strip(),
+        campania_nombre=campania_nombre.strip(),
+        cultivo=cultivo.strip().lower(),
+        tipo_movimiento=tipo_movimiento.strip(),
+        quintales=qq_dec,
+        fecha=fecha_dt,
+        precio_usd_qq=p_dec,
+        monto_total_usd=tot_usd,
+        concepto=concepto.strip(),
+        observaciones=observaciones.strip() if observaciones else None,
+    )
+    db.add(nuevo)
+    await db.commit()
+
+    msg = f"Movimiento de {quintales} qq registrado correctamente para {socio_nombre}."
+    return RedirectResponse(
+        f"/comercial/retiros?cultivo={cultivo.strip().lower()}&mensaje={msg}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/comercial/retiros/{retiro_id}/eliminar")
+async def eliminar_retiro_capital_socio(
+    request: Request,
+    retiro_id: str,
+    cultivo: str = Form("soja"),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login?next=/comercial/retiros", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.models import RetiroCapitalSocio
+    cliente_id = get_uuid(user.get("cliente_id", DEMO_CLIENTE["id"]))
+
+    res = await db.execute(
+        select(RetiroCapitalSocio).where(RetiroCapitalSocio.id == get_uuid(retiro_id), RetiroCapitalSocio.cliente_id == cliente_id)
+    )
+    obj = res.scalars().first()
+    if obj:
+        await db.delete(obj)
+        await db.commit()
+        msg = "Movimiento de retiro eliminado correctamente."
+    else:
+        msg = "No se encontró el registro seleccionado."
+
+    return RedirectResponse(
+        f"/comercial/retiros?cultivo={cultivo.strip().lower()}&mensaje={msg}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

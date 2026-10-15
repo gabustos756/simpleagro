@@ -37,36 +37,36 @@ PLANTILLAS_CANONICAS = [
     # --------------------------------------------------------------------------
     {
         "tipo_labor": TipoLabor.PULVERIZACION,
-        "categoria_subtipo": "Barbecho Largo",
-        "titulo": "Barbecho Largo Invierno",
-        "descripcion_receta": "LT Box 1.5kg + 2,4-D Avstok 1.0L + Picloram 0.3L + Atrazina 0.6kg + Mictec 0.07L",
+        "categoria_subtipo": "Barbecho Largo - Pre Soja",
+        "titulo": "Barbecho Largo Invierno (Destino Soja)",
+        "descripcion_receta": "LT Box 1.5kg + 2,4-D Avstok 1.0L + Picloram 0.3L + Spider 0.03kg + Altiva Pro 0.08L",
         "dosis_unidad_default": "lt/ha",
         "insumos_default": [
             {"nombre": "LT Box", "dosis": 1.5, "unidad": "kg/ha"},
             {"nombre": "2,4-D Avstok", "dosis": 1.0, "unidad": "lt/ha"},
             {"nombre": "Picloram", "dosis": 0.3, "unidad": "lt/ha"},
-            {"nombre": "Atrazina", "dosis": 0.6, "unidad": "kg/ha"},
-            {"nombre": "Mictec", "dosis": 0.07, "unidad": "lt/ha"},
+            {"nombre": "Spider (Diclosulam)", "dosis": 0.03, "unidad": "kg/ha"},
+            {"nombre": "Altiva Pro", "dosis": 0.08, "unidad": "lt/ha"},
         ],
     },
     {
         "tipo_labor": TipoLabor.PULVERIZACION,
-        "categoria_subtipo": "Barbecho con Dicamba",
-        "titulo": "Barbecho con Dicamba",
-        "descripcion_receta": "Tijereta Box 1.5kg + 2,4-D 1.0L + Dicamba 0.15L + Atrazina 0.6kg + Altiva Pro 0.05L",
+        "categoria_subtipo": "Barbecho Largo - Pre Maíz",
+        "titulo": "Barbecho Largo Invierno (Destino Maíz)",
+        "descripcion_receta": "Tijereta Box 1.5kg + 2,4-D 1.0L + Dicamba 0.15L + Atrazina 0.6kg + Mictec 0.07L",
         "dosis_unidad_default": "lt/ha",
         "insumos_default": [
             {"nombre": "Tijereta Box", "dosis": 1.5, "unidad": "kg/ha"},
             {"nombre": "2,4-D", "dosis": 1.0, "unidad": "lt/ha"},
             {"nombre": "Dicamba", "dosis": 0.15, "unidad": "lt/ha"},
             {"nombre": "Atrazina", "dosis": 0.6, "unidad": "kg/ha"},
-            {"nombre": "Altiva Pro", "dosis": 0.05, "unidad": "lt/ha"},
+            {"nombre": "Mictec", "dosis": 0.07, "unidad": "lt/ha"},
         ],
     },
     {
         "tipo_labor": TipoLabor.PULVERIZACION,
-        "categoria_subtipo": "Barbecho Corto",
-        "titulo": "Barbecho Corto con Ligate",
+        "categoria_subtipo": "Barbecho Corto - Pre Soja",
+        "titulo": "Barbecho Corto con Ligate (Destino Soja)",
         "descripcion_receta": "LT Box 1.5kg + 2,4-D Avstok 1.0L + Ligate 0.12kg + Atrazina 0.5kg + Altiva Pro 0.08L",
         "dosis_unidad_default": "lt/ha",
         "insumos_default": [
@@ -74,6 +74,21 @@ PLANTILLAS_CANONICAS = [
             {"nombre": "2,4-D Avstok", "dosis": 1.0, "unidad": "lt/ha"},
             {"nombre": "Ligate", "dosis": 0.12, "unidad": "kg/ha"},
             {"nombre": "Atrazina", "dosis": 0.5, "unidad": "kg/ha"},
+            {"nombre": "Altiva Pro", "dosis": 0.08, "unidad": "lt/ha"},
+        ],
+    },
+    {
+        "tipo_labor": TipoLabor.PULVERIZACION,
+        "categoria_subtipo": "Barbecho Corto - Pre Maíz",
+        "titulo": "Barbecho Corto con Terbutilacina (Destino Maíz - Sin Ligate)",
+        "descripcion_receta": "LT Box 1.5kg + 2,4-D Avstok 1.0L + Terbutilacina 1.0L + Atrazina 0.5kg + Altiva Pro 0.08L",
+        "dosis_unidad_default": "lt/ha",
+        "insumos_default": [
+            {"nombre": "LT Box", "dosis": 1.5, "unidad": "kg/ha"},
+            {"nombre": "2,4-D Avstok", "dosis": 1.0, "unidad": "lt/ha"},
+            {"nombre": "Terbutilacina", "dosis": 1.0, "unidad": "lt/ha"},
+            {"nombre": "Atrazina", "dosis": 0.5, "unidad": "kg/ha"},
+            {"nombre": "Altiva Pro", "dosis": 0.08, "unidad": "lt/ha"},
         ],
     },
     {
@@ -449,33 +464,56 @@ def calcular_similitud_tokens(texto1: str, texto2: str) -> float:
 
 
 async def inicializar_plantillas_base(db: AsyncSession, cliente_id: Optional[uuid.UUID] = None) -> int:
-    """Verifica si existen plantillas base; si no, inserta el catálogo canónico."""
+    """Verifica si existen plantillas base; inserta o actualiza el catálogo canónico."""
     stmt = select(PlantillaLaborCampo)
     existentes = (await db.execute(stmt)).scalars().all()
-    if existentes:
-        return len(existentes)
+    existentes_por_titulo = {p.titulo.lower().strip(): p for p in existentes}
 
-    logger.info("Inicializando catálogo canónico de plantillas de labores...")
     count = 0
     for item in PLANTILLAS_CANONICAS:
-        plantilla = PlantillaLaborCampo(
-            id=uuid.uuid4(),
-            cliente_id=cliente_id,
-            tipo_labor=item["tipo_labor"],
-            titulo=item["titulo"],
-            categoria_subtipo=item.get("categoria_subtipo"),
-            descripcion_receta=item["descripcion_receta"],
-            insumos_default=item.get("insumos_default", []),
-            dosis_unidad_default=item.get("dosis_unidad_default", "lt/ha"),
-            es_sistema=True,
-            veces_utilizada=1,
-            creado_en=datetime.now(timezone.utc),
-        )
-        db.add(plantilla)
-        count += 1
+        tit_key = item["titulo"].lower().strip()
+        existing = existentes_por_titulo.get(tit_key)
+        if not existing:
+            # Si existía una versión anterior no diferenciada por cultivo destino, actualizarla
+            if "destino soja" in tit_key and "barbecho corto" in tit_key:
+                old = existentes_por_titulo.get("barbecho corto con ligate")
+                if old:
+                    old.titulo = item["titulo"]
+                    old.categoria_subtipo = item.get("categoria_subtipo")
+                    old.descripcion_receta = item["descripcion_receta"]
+                    old.insumos_default = item.get("insumos_default", [])
+                    continue
+            if "destino soja" in tit_key and "barbecho largo" in tit_key:
+                old = existentes_por_titulo.get("barbecho largo invierno")
+                if old:
+                    old.titulo = item["titulo"]
+                    old.categoria_subtipo = item.get("categoria_subtipo")
+                    old.descripcion_receta = item["descripcion_receta"]
+                    old.insumos_default = item.get("insumos_default", [])
+                    continue
+
+            plantilla = PlantillaLaborCampo(
+                id=uuid.uuid4(),
+                cliente_id=cliente_id,
+                tipo_labor=item["tipo_labor"],
+                titulo=item["titulo"],
+                categoria_subtipo=item.get("categoria_subtipo"),
+                descripcion_receta=item["descripcion_receta"],
+                insumos_default=item.get("insumos_default", []),
+                dosis_unidad_default=item.get("dosis_unidad_default", "lt/ha"),
+                es_sistema=True,
+                veces_utilizada=1,
+                creado_en=datetime.now(timezone.utc),
+            )
+            db.add(plantilla)
+            count += 1
+        else:
+            existing.categoria_subtipo = item.get("categoria_subtipo")
+            existing.descripcion_receta = item["descripcion_receta"]
+            existing.insumos_default = item.get("insumos_default", [])
 
     await db.commit()
-    logger.info(f"Se crearon {count} plantillas de labores canónicas exitosamente.")
+    logger.info(f"Plantillas de labores sincronizadas (nuevas añadidas: {count}).")
     return count
 
 
