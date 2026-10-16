@@ -200,6 +200,95 @@
 
     </section>
 
+    <!-- 5. ÚLTIMAS TAREAS Y LABORES REGISTRADAS (CON EDICIÓN RÁPIDA DE FECHA) -->
+    {% if ultimas_labores %}
+    <section class="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-agro-100 text-agro-800 flex items-center justify-center text-lg font-bold shadow-2xs">
+            🚜
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+              <span>Últimas Labores de Campo Registradas</span>
+              <span class="text-3xs font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">En vivo</span>
+            </h3>
+            <p class="text-2xs text-slate-500">¿Cargaste una fecha mal? Hacé clic en <strong>✏️ Fecha</strong> para corregirla al instante.</p>
+          </div>
+        </div>
+        <span class="text-xs font-bold text-slate-400">Mostrando las últimas {{ ultimas_labores|length }}</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for lab in ultimas_labores %}
+        <div class="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 transition">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="block text-2xs font-extrabold text-slate-500 uppercase tracking-wider">
+                📍 {{ lab.campo_nombre }} &bull; <strong class="text-slate-900">{{ lab.lote_nombre }}</strong>
+              </span>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="px-2 py-0.5 rounded-lg text-2xs font-black uppercase
+                  {% if lab.tipo_labor == 'pulverizacion' %}bg-sky-100 text-sky-900 border border-sky-300
+                  {% elif lab.tipo_labor == 'siembra' %}bg-emerald-100 text-emerald-900 border border-emerald-300
+                  {% elif lab.tipo_labor == 'cosecha' %}bg-amber-100 text-amber-900 border border-amber-300
+                  {% elif lab.tipo_labor == 'fertilizacion' %}bg-purple-100 text-purple-900 border border-purple-300
+                  {% elif lab.tipo_labor == 'labranza' %}bg-orange-100 text-orange-900 border border-orange-300
+                  {% else %}bg-slate-200 text-slate-800 border border-slate-300{% endif %}">
+                  {{ lab.tipo_labor }}
+                </span>
+                <span class="text-xs font-black text-slate-800">
+                  📅 {{ lab.fecha_str }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Botones acción -->
+            <div class="flex items-center gap-1">
+              <button type="button"
+                      onclick="abrirModalEditarLaborPortal('{{ lab.id }}', '{{ lab.fecha_iso }}', '{{ lab.lote_nombre }}', '{{ lab.tipo_labor }}', '{{ lab.notas or '' }}', '{{ lab.sector_zona or '' }}', '{{ lab.superficie_afectada_ha or '' }}')"
+                      class="px-2.5 py-1 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-extrabold text-xs rounded-xl border border-slate-300 hover:border-amber-300 shadow-2xs transition active:scale-95 flex items-center gap-1"
+                      title="Modificar fecha de esta tarea">
+                <span>✏️</span> <span>Fecha</span>
+              </button>
+              <form method="POST" action="/productivo/labores/{{ lab.id }}/eliminar" onsubmit="return confirm('¿Seguro que deseás eliminar esta labor?');" class="inline">
+                <button type="submit" 
+                        class="p-1 bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl border border-slate-300 hover:border-red-300 shadow-2xs transition active:scale-95"
+                        title="Eliminar tarea">
+                  <span>🗑️</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {% if lab.insumos %}
+          <div class="text-2xs text-slate-600 flex flex-wrap gap-1">
+            {% for ins in lab.insumos %}
+            <span class="bg-white px-2 py-0.5 rounded-lg border border-slate-200 font-semibold shadow-3xs">
+              💊 {{ ins.nombre }}: {{ ins.dosis or ins.cantidad }} {{ ins.unidad }}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if lab.notas %}
+          <p class="text-2xs text-slate-500 italic truncate">
+            💬 {{ lab.notas }}
+          </p>
+          {% endif %}
+          
+          <div class="pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-2xs text-slate-500">
+            <span>{{ lab.sector_zona or 'Lote Completo' }}</span>
+            <a href="/productivo/lotes/{{ lab.lote_id }}" class="text-agro-700 hover:text-agro-900 font-bold hover:underline flex items-center gap-0.5">
+              <span>Ir a la ficha</span> <span>➔</span>
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <!-- BARRA SECUNDARIA DE HERRAMIENTAS ADICIONALES -->
     <section class="bg-white border border-slate-200 rounded-3xl p-5 shadow-2xs space-y-3">
       <div class="flex items-center justify-between">
@@ -780,7 +869,114 @@
     document.addEventListener('DOMContentLoaded', function() {
       renderizarPlantillasCategoria('pulverizacion');
     });
+
+    function abrirModalEditarLaborPortal(id, fechaIso, loteNombre, tipoLabor, notas, sector, supHa) {
+      const modal = document.getElementById('modal-editar-labor-portal');
+      const form = document.getElementById('portal-form-editar-labor');
+      if (!modal || !form) return;
+      
+      form.action = `/productivo/labores/${id}/editar`;
+      const inpFecha = document.getElementById('portal-edit-fecha');
+      if (inpFecha) inpFecha.value = fechaIso || '';
+
+      const spanLote = document.getElementById('portal-edit-lote-nombre');
+      if (spanLote) spanLote.innerText = loteNombre || '';
+
+      const badgeTipo = document.getElementById('portal-edit-tipo-badge');
+      if (badgeTipo) badgeTipo.innerText = tipoLabor ? tipoLabor.toUpperCase() : 'LABOR';
+
+      const txtNotas = document.getElementById('portal-edit-notas');
+      if (txtNotas) txtNotas.value = notas || '';
+
+      const inpSec = document.getElementById('portal-edit-sector');
+      if (inpSec) inpSec.value = sector || '';
+
+      const inpSup = document.getElementById('portal-edit-sup');
+      if (inpSup) inpSup.value = supHa || '';
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function cerrarModalEditarLaborPortal() {
+      const modal = document.getElementById('modal-editar-labor-portal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
   </script>
+
+  <!-- MODAL EDITAR FECHA DE LABOR DESDE EL PORTAL -->
+  <div id="modal-editar-labor-portal" class="fixed inset-0 z-50 hidden items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+    <div class="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 my-auto relative">
+      
+      <button type="button" onclick="cerrarModalEditarLaborPortal()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-xl font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors">
+        ✕
+      </button>
+
+      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+        <div class="w-10 h-10 rounded-2xl bg-amber-500 flex items-center justify-center text-xl text-white shadow-md">
+          📅
+        </div>
+        <div>
+          <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>Modificar Fecha de Labor</span>
+            <span id="portal-edit-tipo-badge" class="text-2xs font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200"></span>
+          </h3>
+          <p class="text-xs text-slate-500">Lote: <strong id="portal-edit-lote-nombre" class="text-slate-800"></strong></p>
+        </div>
+      </div>
+
+      <form id="portal-form-editar-labor" method="POST" action="" class="space-y-4 text-xs">
+        
+        <div>
+          <label class="block font-bold text-slate-700 mb-1 text-xs">
+            📅 Fecha Real de la Labor *
+          </label>
+          <input type="date" id="portal-edit-fecha" name="fecha" required
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500 shadow-xs">
+          <p class="text-2xs text-slate-400 mt-1">Elegí el día en que efectivamente se hizo el trabajo en el lote.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1 text-xs">
+              📍 Sector / Zona (Opcional)
+            </label>
+            <input type="text" id="portal-edit-sector" name="sector_zona" placeholder="Ej: Lote Completo, Loma..."
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1 text-xs">
+              📐 Superficie Afectada (ha)
+            </label>
+            <input type="number" step="0.1" id="portal-edit-sup" name="superficie_afectada_ha" placeholder="Ej: 50"
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1 text-xs">
+            💬 Observaciones o Aclaraciones
+          </label>
+          <textarea id="portal-edit-notas" name="notas" rows="2" placeholder="Motivo de la corrección o notas..."
+                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalEditarLaborPortal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-black rounded-xl shadow-md transition flex items-center gap-1.5">
+            <span>💾</span> <span>Guardar Nueva Fecha</span>
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
 
 </body>
 </html>

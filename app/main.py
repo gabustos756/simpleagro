@@ -1027,6 +1027,35 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
     )
     catalogo_insumos_nombres = [r[0] for r in res_todos_ins.all()]
 
+    # Últimas labores registradas para vista rápida y corrección de fechas
+    from app.models import LaborCampo, Lote, Campo
+    stmt_ultimas = (
+        select(LaborCampo, Lote.nombre.label("lote_nombre"), Campo.nombre.label("campo_nombre"))
+        .join(Lote, LaborCampo.lote_id == Lote.id)
+        .join(Campo, Lote.campo_id == Campo.id)
+        .where(Lote.cliente_id == cliente_id)
+        .order_by(LaborCampo.fecha.desc())
+        .limit(6)
+    )
+    res_ultimas = await db.execute(stmt_ultimas)
+    ultimas_labores = []
+    for lab, l_nom, c_nom in res_ultimas.all():
+        tipo_str = lab.tipo_labor.value if hasattr(lab.tipo_labor, "value") else str(lab.tipo_labor)
+        ultimas_labores.append({
+            "id": str(lab.id),
+            "lote_id": str(lab.lote_id),
+            "lote_nombre": l_nom,
+            "campo_nombre": c_nom,
+            "tipo_labor": tipo_str,
+            "fecha": lab.fecha,
+            "fecha_str": lab.fecha.strftime("%d/%m/%Y") if lab.fecha else "Sin fecha",
+            "fecha_iso": lab.fecha.strftime("%Y-%m-%d") if lab.fecha else "",
+            "sector_zona": lab.sector_zona or "",
+            "superficie_afectada_ha": lab.superficie_afectada_ha,
+            "notas": lab.notas or "",
+            "insumos": lab.insumos_utilizados or [],
+        })
+
     return templates.TemplateResponse(
         request=request,
         name="portal_entrada.html",
@@ -1043,6 +1072,7 @@ async def read_portal_entrada(request: Request, db: AsyncSession = Depends(get_d
             "plantillas_labores": plantillas_labores,
             "catalogo_insumos_nombres": catalogo_insumos_nombres,
             "campania_activa": "2025-2026",
+            "ultimas_labores": ultimas_labores,
         },
     )
 
@@ -3771,6 +3801,116 @@ async def crear_labor_rapida_lote(
         )
 
     return RedirectResponse(f"/productivo/lotes/{lote_id}?tab=historial&msg={msg}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/productivo/labores/{labor_id}/editar")
+async def editar_labor_campo(
+    request: Request,
+    labor_id: str,
+    fecha: str = Form(...),
+    notas: Optional[str] = Form(None),
+    sector_zona: Optional[str] = Form(None),
+    superficie_afectada_ha: Optional[float] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permite corregir la fecha y detalles de una labor de campo cargada."""
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        lab_uuid = uuid.UUID(labor_id)
+    except Exception:
+        return RedirectResponse("/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.models import LaborCampo, InsumoMovimiento
+    res_lab = await db.execute(select(LaborCampo).where(LaborCampo.id == lab_uuid))
+    labor = res_lab.scalars().first()
+    if not labor:
+        return RedirectResponse("/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Actualizar fecha
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        labor.fecha = fecha_dt
+    except Exception as e:
+        logger.warning(f"[EDITAR LABOR] Fecha inválida {fecha}: {e}")
+
+    if notas is not None:
+        labor.notas = notas.strip() if notas.strip() else None
+    if sector_zona is not None and sector_zona.strip():
+        labor.sector_zona = sector_zona.strip()
+    if superficie_afectada_ha is not None and superficie_afectada_ha > 0:
+        labor.superficie_afectada_ha = superficie_afectada_ha
+
+    # Sincronizar fecha en consumos de insumos asociados
+    try:
+        res_movs = await db.execute(select(InsumoMovimiento).where(InsumoMovimiento.labor_campo_id == lab_uuid))
+        for mov in res_movs.scalars().all():
+            mov.fecha_movimiento = fecha_dt
+    except Exception as e:
+        logger.warning(f"[EDITAR LABOR] No se pudo sincronizar fecha en insumos: {e}")
+
+    await db.commit()
+
+    referer = request.headers.get("referer")
+    if referer and ("/productivo/lotes/" in referer or "/portal" in referer):
+        sep = "&" if "?" in referer else "?"
+        clean_ref = referer.split("msg=")[0].rstrip("&?")
+        sep = "&" if "?" in clean_ref else "?"
+        return RedirectResponse(f"{clean_ref}{sep}msg=Fecha+actualizada+correctamente", status_code=status.HTTP_303_SEE_OTHER)
+
+    return RedirectResponse(
+        f"/productivo/lotes/{labor.lote_id}?tab=historial&msg=Fecha+actualizada+correctamente",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/productivo/labores/{labor_id}/eliminar")
+async def eliminar_labor_campo(
+    request: Request,
+    labor_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Permite eliminar una labor cargada erróneamente."""
+    user = await get_current_user_from_session(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        lab_uuid = uuid.UUID(labor_id)
+    except Exception:
+        return RedirectResponse("/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+    from app.models import LaborCampo, InsumoMovimiento
+    res_lab = await db.execute(select(LaborCampo).where(LaborCampo.id == lab_uuid))
+    labor = res_lab.scalars().first()
+    if not labor:
+        return RedirectResponse("/campos", status_code=status.HTTP_303_SEE_OTHER)
+
+    lote_id = labor.lote_id
+
+    # Desvincular consumos de insumos
+    try:
+        res_movs = await db.execute(select(InsumoMovimiento).where(InsumoMovimiento.labor_campo_id == lab_uuid))
+        for mov in res_movs.scalars().all():
+            mov.labor_campo_id = None
+    except Exception as e:
+        logger.warning(f"[ELIMINAR LABOR] Error desvinculando insumos: {e}")
+
+    await db.delete(labor)
+    await db.commit()
+
+    referer = request.headers.get("referer")
+    if referer and ("/productivo/lotes/" in referer or "/portal" in referer):
+        clean_ref = referer.split("msg=")[0].rstrip("&?")
+        sep = "&" if "?" in clean_ref else "?"
+        return RedirectResponse(f"{clean_ref}{sep}msg=Tarea+eliminada+correctamente", status_code=status.HTTP_303_SEE_OTHER)
+
+    return RedirectResponse(
+        f"/productivo/lotes/{lote_id}?tab=historial&msg=Tarea+eliminada+correctamente",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @app.get("/productivo/lotes/{lote_id}/editar", response_class=HTMLResponse)

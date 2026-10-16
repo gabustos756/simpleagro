@@ -69,3 +69,80 @@ async def test_migracion_cuaderno_dry_run():
     assert len(LOTE_DATA_MAP["grasso_1"]["labores"]) == 10
     assert len(LOTE_DATA_MAP["grasso_2_3"]["labores"]) == 10
 
+
+@pytest.mark.asyncio
+async def test_editar_fecha_y_eliminar_labor():
+    """Verifica que un usuario pueda actualizar la fecha de una labor y posteriormente eliminarla."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.database import AsyncSessionLocal
+    from app.models import LaborCampo, Lote, Campania, Usuario
+
+    transport = ASGITransport(app=app)
+
+    async with AsyncSessionLocal() as db:
+        res_u = await db.execute(select(Usuario).limit(1))
+        user = res_u.scalars().first()
+        assert user is not None
+
+        # Buscar o crear un lote de prueba
+        res_l = await db.execute(select(Lote).limit(1))
+        lote = res_l.scalars().first()
+        assert lote is not None
+
+        res_camp = await db.execute(select(Campania).limit(1))
+        campania = res_camp.scalars().first()
+
+        # Crear una labor para editar
+        labor = LaborCampo(
+            id=uuid.uuid4(),
+            lote_id=lote.id,
+            campania_id=campania.id if campania else uuid.uuid4(),
+            tipo_labor=TipoLabor.PULVERIZACION,
+            fecha=datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc),
+            sector_zona="Loma",
+            notas="Aplicación preliminar con fecha equivocada",
+        )
+        db.add(labor)
+        await db.commit()
+        labor_id = labor.id
+
+    cookies = {"session_user_id": str(user.id)}
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Editar fecha por POST
+        nueva_fecha = "2026-10-14"
+        resp_edit = await client.post(
+            f"/productivo/labores/{labor_id}/editar",
+            data={
+                "fecha": nueva_fecha,
+                "notas": "Fecha corregida por el productor",
+                "sector_zona": "Lote Completo",
+            },
+            cookies=cookies,
+            follow_redirects=False,
+        )
+        assert resp_edit.status_code in [302, 303]
+
+        # Verificar actualización en DB
+        async with AsyncSessionLocal() as db:
+            res_check = await db.execute(select(LaborCampo).where(LaborCampo.id == labor_id))
+            lab_actualizada = res_check.scalars().first()
+            assert lab_actualizada is not None
+            assert lab_actualizada.fecha.strftime("%Y-%m-%d") == "2026-10-14"
+            assert lab_actualizada.notas == "Fecha corregida por el productor"
+            assert lab_actualizada.sector_zona == "Lote Completo"
+
+        # 2. Eliminar labor por POST
+        resp_del = await client.post(
+            f"/productivo/labores/{labor_id}/eliminar",
+            cookies=cookies,
+            follow_redirects=False,
+        )
+        assert resp_del.status_code in [302, 303]
+
+        # Verificar borrado en DB
+        async with AsyncSessionLocal() as db:
+            res_del = await db.execute(select(LaborCampo).where(LaborCampo.id == labor_id))
+            assert res_del.scalars().first() is None
+
